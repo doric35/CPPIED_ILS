@@ -1,0 +1,4 @@
+PROBLEM_FILE = /Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch/test_configuration_123.tsp
+OUTPUT_TOUR_FILE = /Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch/test_configuration_123.sol
+TIME_LIMIT = 600
+INITIAL_TOUR_FILE = /Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch/test_configuration_123.tour

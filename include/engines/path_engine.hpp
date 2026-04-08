@@ -1,0 +1,82 @@
+#pragma once
+
+#include "../structures.hpp"
+#include "../segment_utils.hpp"
+#include "../cppied_instance.hpp"
+
+class path_engine {
+public:
+    path_engine(const cppied_instance& instance) : problem(instance){
+        n_rows = problem.seabed.rows();
+        n_cols = problem.seabed.cols();
+        horizontal_bound = (n_rows + 1) * n_cols;
+    }
+
+    void complete(cppied_solution& pSol) const;
+    void complete(std::vector<segment>& path) const;
+    [[nodiscard]] cost_t dist(const segment& a,
+                const segment& b) const;
+    [[nodiscard]] cost_t cost(const segment& a) const;
+    [[nodiscard]] cost_t cost(const cppied_solution&) const;
+    void extend(segment& source,
+                     const segment& target) const;
+    [[nodiscard]] segment turn(const segment& source,
+                 const segment& target) const;
+    void link(std::vector<segment>& path, segment& target) const;
+    [[nodiscard]] direction get_direction(const segment&) const;
+    bool is_in_rectangle(const segment& s, iRectangle& box) const;
+    [[nodiscard]] int get_row(const segment&) const;
+    [[nodiscard]] int get_column(const segment&) const;
+    [[nodiscard]] std::vector<std::pair<int,cost_t>> get_top_k_insertion(const cppied_solution& pSol,
+                                             const segment& pSeg,
+                                             int k) const;
+    [[nodiscard]] bool satisfy(const segment& a, const segment& b) const;
+    [[nodiscard]] bool is_horizontal(const segment& a) const;
+    void correct_segment_direction(segment& a, direction d);
+    segment flip_segment(const segment& s);
+
+    using sVecIt = std::vector<segment>::const_iterator;
+    [[nodiscard]] cost_t removal_gain(const cppied_solution& pSol, sVecIt seg) const;
+    [[nodiscard]] inline cost_t insert_front_gain(const segment& node, const segment& next) const {
+        return cost(node) + dist(node,next);
+    }
+    [[nodiscard]] inline cost_t insert_between_gain(const segment& prev,
+                                                    const segment& node,
+                                                    const segment& next) const {
+        return dist(prev, node) +
+                cost(node) +
+                dist(node,next) -
+                dist(prev, next);
+    }
+    [[nodiscard]] inline cost_t insert_tail_gain(const segment& prev, const segment& node) const {
+        return dist(prev, node) + cost(node);
+    }
+
+    int n_rows;
+    int n_cols;
+    int horizontal_bound;
+private:
+    const cppied_instance& problem;
+
+    cost_t ee_dist(int,int) const;
+    cost_t ew_dist(int,int) const;
+    cost_t es_dist(int,int) const;
+    cost_t en_dist(int,int) const;
+
+    cost_t ww_dist(int,int) const;
+    cost_t we_dist(int,int) const;
+    cost_t ws_dist(int,int) const;
+    cost_t wn_dist(int,int) const;
+
+    cost_t ss_dist(int,int) const;
+    cost_t sn_dist(int,int) const;
+    cost_t se_dist(int,int) const;
+    cost_t sw_dist(int,int) const;
+
+    cost_t nn_dist(int,int) const;
+    cost_t ns_dist(int,int) const;
+    cost_t ne_dist(int,int) const;
+    cost_t nw_dist(int,int) const;
+
+    static cost_t s_shaped_dist(int dx,int dy,bool backward,bool straight);
+};
