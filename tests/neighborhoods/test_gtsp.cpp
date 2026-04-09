@@ -80,11 +80,11 @@ TEST_F(neighborhood_gtsp_fixture, SegmentToNodesExitSourceMatchesTarget) {
     EXPECT_EQ(n->geometry.get_direction(nodes[2]), rev);
 }
 
-// nodes[1] is the dummy middle: both fields must be NULL_NODE.
+// nodes[1] is the dummy middle: both fields must be path_engine::NULL_NODE.
 TEST_F(neighborhood_gtsp_fixture, SegmentToNodesMiddleIsDummy) {
     auto nodes = n->segment_to_nodes(sol.path[0]);
-    EXPECT_EQ(nodes[1].source, NULL_NODE);
-    EXPECT_EQ(nodes[1].target, NULL_NODE);
+    EXPECT_EQ(nodes[1].source, path_engine::NULL_NODE);
+    EXPECT_EQ(nodes[1].target, path_engine::NULL_NODE);
 }
 
 // nodes_to_segment(segment_to_nodes(s)) must recover the original segment.
@@ -378,7 +378,7 @@ TEST_F(neighborhood_gtsp_e2e_fixture, E2ELocalSearchPathRecoverableAfterNoImprov
 //Improving call must return true, no throw, a valid initial position and coverage update.
 TEST_F(neighborhood_gtsp_e2e_fixture, E2ELocalSearchDoesNotThrowOnImprovement){
     sol.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},
@@ -393,7 +393,7 @@ TEST_F(neighborhood_gtsp_e2e_fixture, E2ELocalSearchDoesNotThrowOnImprovement){
 
 TEST_F(neighborhood_gtsp_e2e_fixture, E2ELocalSearchFindImprovement){
     sol.path = {{6, 11},
-                {79, NULL_NODE},
+                {79, path_engine::NULL_NODE},
                 {23,18},
                 {44,42},
                 {48, 51},
@@ -425,7 +425,7 @@ TEST_F(neighborhood_gtsp_e2e_fixture, E2ELocalSearchFindImprovement){
 // not on LKH.
 TEST_F(neighborhood_gtsp_fixture, ReplacementsForSegment10_9IncludesNeighboringRow) {
     sol.path = {{6, 11},
-                {79, NULL_NODE},
+                {79, path_engine::NULL_NODE},
                 {23, 18},
                 {44, 42},
                 {48, 51},
@@ -442,8 +442,8 @@ TEST_F(neighborhood_gtsp_fixture, ReplacementsForSegment10_9IncludesNeighboringR
 
     bool found = std::any_of(candidates.begin(), candidates.end(),
         [](const segment& s) {
-            return (s.source == 16 && s.target == NULL_NODE) ||
-                   (s.source == 16 && s.target == REVERSED_NULL_NODE);
+            return (s.source == 16 && s.target == path_engine::NULL_NODE) ||
+                   (s.source == 16 && s.target == path_engine::REVERSED_NULL_NODE);
         });
     EXPECT_TRUE(found)
         << "add_replacements must include {16,15} or {15,16} as a replacement for {10,9}";
@@ -454,7 +454,7 @@ TEST_F(neighborhood_gtsp_fixture, ReplacementsForSegment10_9IncludesNeighboringR
 // the gain is at least {0,1} > {0,0}.
 TEST_F(neighborhood_gtsp_fixture, GainForSegment10_9IsPositive) {
     sol.path = {{6, 11},
-                {79, NULL_NODE},
+                {79, path_engine::NULL_NODE},
                 {23, 18},
                 {44, 42},
                 {48, 51},
@@ -482,7 +482,7 @@ TEST_F(neighborhood_gtsp_fixture, GainForSegment10_9IsPositive) {
 // neighbourhood is expected to find the improvement reliably.
 TEST_F(neighborhood_gtsp_e2e_fixture, E2ELocalSearchFindImprovement_Replaces10_9) {
     sol.path = {{6, 11},
-                {79, NULL_NODE},
+                {79, path_engine::NULL_NODE},
                 {23, 18},
                 {44, 42},
                 {48, 51},
@@ -508,8 +508,8 @@ TEST_F(neighborhood_gtsp_e2e_fixture, E2ELocalSearchFindImprovement_Replaces10_9
 
             bool has_replacement = std::any_of(sol.path.begin(), sol.path.end(),
                                                [](const segment& s) {
-                                                   return (s.source == 16 && s.target == NULL_NODE) ||
-                                                          (s.source == 16 && s.target == REVERSED_NULL_NODE);
+                                                   return (s.source == 16 && s.target == path_engine::NULL_NODE) ||
+                                                          (s.source == 16 && s.target == path_engine::REVERSED_NULL_NODE);
                                                });
             count_has_replacement_16 += has_replacement;
         }
@@ -527,7 +527,7 @@ TEST_F(neighborhood_gtsp_e2e_fixture, E2ELocalSearchFindImprovement_Replaces10_9
 
 TEST_F(neighborhood_gtsp_e2e_fixture, E2ELocalSearchAccurateCostOnImprovement){
     sol.path = {{6, 11},
-                {79, NULL_NODE},
+                {79, path_engine::NULL_NODE},
                 {23,18},
                 {44,42},
                 {48, 51},

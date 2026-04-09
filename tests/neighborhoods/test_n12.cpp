@@ -27,7 +27,7 @@ protected:
                      {48, 51},
                      {30, 35},
                      {75,74},
-                     {73, REVERSED_NULL_NODE},
+                     {73, path_engine::REVERSED_NULL_NODE},
                      {62, 63}};
         sol.cost = {0,0};
         sol.coverage = Eigen::VectorXd::Zero(P.req.size());
@@ -71,7 +71,7 @@ TEST_F(neighborhood_n12_fixture, LocalOptimaFound){
 TEST_F(neighborhood_n12_fixture, ValidCoverageUpdate){
     cppied_solution other = sol;
     other.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},

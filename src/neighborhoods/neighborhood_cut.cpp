@@ -4,7 +4,7 @@ bool neighborhood_cut::local_search(cppied_solution& pSol) {
     std::vector<segment> trials(pSol.path.size());
     std::vector<cost_t> gains(pSol.path.size());
 
-    trials[0] = {NULL_NODE, NULL_NODE};
+    trials[0] = {path_engine::NULL_NODE, path_engine::NULL_NODE};
     gains[0] = {0,0};
     int i=1;
     auto path_it = std::next(pSol.path.begin());
@@ -43,7 +43,7 @@ bool neighborhood_cut::local_search(cppied_solution& pSol) {
         std::erase_if(solution, [](const std::vector<int>& v){return v.empty();});
     };
     auto interval_transform = [&](int i){
-        int x1 = is_node(pSol.path[i].target) ?
+        int x1 = path_engine::is_node(pSol.path[i].target) ?
                  std::min(pSol.path[i].target, pSol.path[i].source) : pSol.path[i].source;
         int x2 = std::max(pSol.path[i].source, pSol.path[i].target);
         bool rotated = !geometry.is_horizontal(pSol.path[i]);
@@ -81,13 +81,13 @@ void neighborhood_cut::update(cppied_solution &pSol,
     int j = 0;
     for (int i=0; i< pSol.path.size(); ++i){
         if (j < selection.size() && i == selection[j]){
-            assert(is_node(trials[i].source));
+            assert(path_engine::is_node(trials[i].source));
             coverage.remove(pSol, trials[i]);
             geometry.correct_segment_direction(trials[i],
                                                geometry.get_direction(pSol.path[i]));
             std::array<segment, 2> S = cut_diff(pSol.path[i], trials[i]);
             for (auto& s:S){
-                if (is_node(s.source))
+                if (path_engine::is_node(s.source))
                     new_sol.push_back(s);
             }
             ++j;
@@ -99,16 +99,16 @@ void neighborhood_cut::update(cppied_solution &pSol,
 }
 
 segment neighborhood_cut::cut(cppied_solution &pSol, neighborhood::sVecIt seg) {
-    segment cut_seg = {NULL_NODE, NULL_NODE};
+    segment cut_seg = {path_engine::NULL_NODE, path_engine::NULL_NODE};
     direction dir = geometry.get_direction(*seg);
-    if (is_node(seg->target)){
+    if (path_engine::is_node(seg->target)){
         int v1 = std::min(seg->source, seg->target);
         int v2 = std::max(seg->source, seg->target);
         std::vector<int> dp_gain(v2 - v1 + 1, 0);
         segment dummy{0,0};
 
         for (int i=v1; i<= v2; ++i){
-            dummy = {i, NULL_NODE};
+            dummy = {i, path_engine::NULL_NODE};
             dp_gain[i - v1] = static_cast<int>(coverage.can_remove(pSol, dummy));
             dp_gain[i - v1] += (dp_gain[i-v1] - 1)*(geometry.n_rows + geometry.n_cols);
         }
@@ -127,7 +127,7 @@ segment neighborhood_cut::cut(cppied_solution &pSol, neighborhood::sVecIt seg) {
 
         if (res > 0){
             if (best_start == best_end){
-                cut_seg = {best_start + v1, NULL_NODE};
+                cut_seg = {best_start + v1, path_engine::NULL_NODE};
                 geometry.correct_segment_direction(cut_seg, dir);
             } else {
                 cut_seg = {best_start + v1, best_end + v1};
@@ -140,15 +140,15 @@ segment neighborhood_cut::cut(cppied_solution &pSol, neighborhood::sVecIt seg) {
 
 std::array<segment, 2> neighborhood_cut::cut_diff(const segment &a,
                                                   segment &b) {
-    std::array<segment,2> s{{{NULL_NODE, NULL_NODE},
-                            {NULL_NODE, NULL_NODE}}};
+    std::array<segment,2> s{{{path_engine::NULL_NODE, path_engine::NULL_NODE},
+                            {path_engine::NULL_NODE, path_engine::NULL_NODE}}};
     direction dir = geometry.get_direction(a);
     geometry.correct_segment_direction(b, dir);
     //Full overlap
     if (a == b)
         return s;
 
-    if (!is_node(b.target))
+    if (!path_engine::is_node(b.target))
         b.target = b.source;
 
     //Bisection
@@ -156,23 +156,23 @@ std::array<segment, 2> neighborhood_cut::cut_diff(const segment &a,
         int step = (a.source - b.source) / std::abs(a.source - b.source);
 
         s[0] = {a.source, b.source + step};
-        if (s[0].source == s[0].target) s[0].target = NULL_NODE;
+        if (s[0].source == s[0].target) s[0].target = path_engine::NULL_NODE;
         geometry.correct_segment_direction(s[0], dir);
 
         s[1] = {b.target - step, a.target};
-        if (s[1].source == s[1].target) s[1].target = NULL_NODE;
+        if (s[1].source == s[1].target) s[1].target = path_engine::NULL_NODE;
         geometry.correct_segment_direction(s[1], dir);
     }//Front
     else if (a.target != b.target){
         int step = (a.target - b.target) / std::abs(a.target - b.target);
         s[0] = {b.target + step, a.target};
-        if (s[0].source == s[0].target) s[0].target = NULL_NODE;
+        if (s[0].source == s[0].target) s[0].target = path_engine::NULL_NODE;
         geometry.correct_segment_direction(s[0], dir);
     }//Tail
     else{
         int step = (a.source - b.source) / std::abs(a.source - b.source);
         s[0] = {a.source, b.source + step};
-        if (s[0].source == s[0].target) s[0].target = NULL_NODE;
+        if (s[0].source == s[0].target) s[0].target = path_engine::NULL_NODE;
         geometry.correct_segment_direction(s[0], dir);
     }
     return s;
@@ -181,7 +181,7 @@ std::array<segment, 2> neighborhood_cut::cut_diff(const segment &a,
 cost_t neighborhood_cut::gain(const cppied_solution &pSol,
                                neighborhood::sVecIt target) {
     cost_t gain = {0,0};
-    if (is_node(target->source))
+    if (path_engine::is_node(target->source))
         gain += geometry.cost(*target) + cost_t{1,0};
     return gain;
 }

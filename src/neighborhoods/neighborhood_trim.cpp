@@ -56,7 +56,7 @@ bool neighborhood_trim::local_search(cppied_solution& pSol) {
         std::erase_if(solution, [](const std::vector<int>& v){return v.empty();});
     };
     auto interval_transform = [&](int i){
-        int x1 = is_node(pSol.path[i].target) ?
+        int x1 = path_engine::is_node(pSol.path[i].target) ?
                 std::min(pSol.path[i].target, pSol.path[i].source) : pSol.path[i].source;
         int x2 = std::max(pSol.path[i].source, pSol.path[i].target);
         bool rotated = !geometry.is_horizontal(pSol.path[i]);
@@ -89,7 +89,7 @@ void neighborhood_trim::update(cppied_solution &pSol,
                                std::vector<int> &selection) {
     auto swap = [&](int i){
         coverage.remove(pSol, pSol.path[i]);
-        if (is_node(trials[i].source))
+        if (path_engine::is_node(trials[i].source))
             coverage.insert(pSol, trials[i]);
         pSol.path[i] = trials[i];
     };
@@ -104,7 +104,7 @@ void neighborhood_trim::update(cppied_solution &pSol,
     marginal_gain = std::reduce(selection.cbegin(), selection.cend(),
                                 marginal_gain, reduce_gain);
     std::erase_if(pSol.path,
-                  [](const segment& s){return !is_node(s.source);});
+                  [](const segment& s){return !path_engine::is_node(s.source);});
     pSol.cost -= marginal_gain;
 }
 
@@ -112,7 +112,7 @@ cost_t neighborhood_trim::gain(const cppied_solution &pSol,
                                neighborhood::sVecIt source,
                                neighborhood::sVecIt target) {
     cost_t gain = geometry.removal_gain(pSol, source);
-    if (!is_node(target->source))
+    if (!path_engine::is_node(target->source))
         return gain;
     if (source != std::prev(pSol.path.end()))
         gain -= geometry.insert_between_gain(*std::prev(source), *target, *std::next(source));

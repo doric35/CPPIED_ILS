@@ -24,7 +24,7 @@ protected:
         sol.path =  {{6, 11},
                      {23,18},
                      {44,43},
-                     {6, NULL_NODE},
+                     {6, path_engine::NULL_NODE},
                      {48, 51},
                      {30, 35},
                      {75,73},
@@ -108,28 +108,28 @@ TEST_F(neighborhood_n21_fixture, LocalOptimaAfterImprovement){
 // When coverage.can_remove() is true for a segment, replace() must take the
 // fast path (no explore_replacements call) and return a trial that:
 //   · carries the removal gain of the segment
-//   · has no replacement segment  (s == {NULL_NODE, NULL_NODE})
+//   · has no replacement segment  (s == {path_engine::NULL_NODE, path_engine::NULL_NODE})
 //   · has no "other" partner      (other == -1)
 //   · has no insertion position   (position == -1)
 //
 // The test solution is built on the known 7-segment local optimum used in
-// LocalOptimaFound, extended with a single-node segment {6, NULL_NODE}.
+// LocalOptimaFound, extended with a single-node segment {6, path_engine::NULL_NODE}.
 // Vertex 6 is already visited by sweep {6, 11}, so its coverage contribution
 // is completely redundant and the segment may be removed outright.
 
 // Helper fixture for the direct-removal case.
 class neighborhood_n21_direct_removal_fixture : public neighborhood_n21_fixture {
 protected:
-    // 8-segment path: the 7-segment local optimum with {6, NULL_NODE} inserted
+    // 8-segment path: the 7-segment local optimum with {6, path_engine::NULL_NODE} inserted
     // between {44,42} and {48,51}.  Vertex 6 is already covered by {6, 11}.
-    static constexpr int REDUNDANT_IDX = 3; // 0-based index of {6, NULL_NODE}
+    static constexpr int REDUNDANT_IDX = 3; // 0-based index of {6, path_engine::NULL_NODE}
 
     void SetUp() override {
         neighborhood_n21_fixture::SetUp();
         sol.path = {{6, 11},
                     {23, 18},
                     {44, 42},
-                    {6, NULL_NODE},   // redundant: vertex 6 already in {6,11}
+                    {6, path_engine::NULL_NODE},   // redundant: vertex 6 already in {6,11}
                     {48, 51},
                     {30, 35},
                     {75, 73},
@@ -164,8 +164,8 @@ TEST_F(neighborhood_n21_direct_removal_fixture, DirectRemoval_ReplaceReturnsFast
 
     // Trial fields match the fast-path contract.
     EXPECT_EQ(t.gain,     expected_gain);
-    EXPECT_FALSE(is_node(t.s.source));   // no replacement segment
-    EXPECT_FALSE(is_node(t.s.target));
+    EXPECT_FALSE(path_engine::is_node(t.s.source));   // no replacement segment
+    EXPECT_FALSE(path_engine::is_node(t.s.target));
     EXPECT_EQ(t.other,    -1);           // no second segment to remove
     EXPECT_EQ(t.position, -1);           // no insertion position
 }

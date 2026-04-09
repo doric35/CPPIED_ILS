@@ -158,8 +158,8 @@ TEST_F(perturbation_ri_fixture, BestInsertionsIncreasesPathSize) {
     EXPECT_GT(copy.path.size(), before);
 }
 
-// Each inserted segment must be a single-vertex segment (NULL_NODE or
-// REVERSED_NULL_NODE target), since best_insertions samples raw vertices.
+// Each inserted segment must be a single-vertex segment (path_engine::NULL_NODE or
+// REVERSED_path_engine::NULL_NODE target), since best_insertions samples raw vertices.
 TEST_F(perturbation_ri_fixture, BestInsertionsProducesSingleVertexSegments) {
     cppied_solution copy = sol;
     size_t before = copy.path.size();
@@ -169,7 +169,7 @@ TEST_F(perturbation_ri_fixture, BestInsertionsProducesSingleVertexSegments) {
     // Count segments whose target is not a real node (inserted singles).
     int inserted_singles = 0;
     for (auto& s : copy.path)
-        if (!is_node(s.target)) ++inserted_singles;
+        if (!path_engine::is_node(s.target)) ++inserted_singles;
     // There must be at least as many single-vertex segments as were inserted.
     int k = static_cast<int>(copy.path.size()) - static_cast<int>(before);
     EXPECT_GE(inserted_singles, k);
@@ -394,7 +394,7 @@ protected:
         // top_6_sample can safely access 6 candidates (k = 8 >= 6).
         large_sol.path.clear();
         for (int i = 0; i < 20; ++i)
-            large_sol.path.push_back({i, NULL_NODE});
+            large_sol.path.push_back({i, path_engine::NULL_NODE});
         large_sol.coverage = Eigen::VectorXd::Zero(P.req.size());
         large_sol.cost     = {0, 0};
     }

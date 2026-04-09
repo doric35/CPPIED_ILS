@@ -105,7 +105,7 @@ bool neighborhood_n21::local_search(cppied_solution& pSol) {
         erase_if(solution, empty_vec);
     };
     auto interval_transform = [&](int i){
-        int x1 = is_node(pSol.path[i].target) ?
+        int x1 = path_engine::is_node(pSol.path[i].target) ?
                  std::min(pSol.path[i].target, pSol.path[i].source) : pSol.path[i].source;
         int x2 = std::max(pSol.path[i].source, pSol.path[i].target);
         bool rotated = !geometry.is_horizontal(pSol.path[i]);
@@ -151,7 +151,7 @@ cost_t neighborhood_n21::update(cppied_solution &pSol,
     input_set.reserve(trials.size() * 2);
 
     for (int i : selection) {
-        if (is_node(trials[i].s.source)) {
+        if (path_engine::is_node(trials[i].s.source)) {
             assert(trials[i].position > 0);
             input_set.emplace_back(trials[i].position, trials[i].s);
         }
@@ -173,7 +173,7 @@ cost_t neighborhood_n21::update(cppied_solution &pSol,
     std::transform(selection.begin(), selection.end(),
                    std::back_inserter(others), extract_other);
     std::sort(others.begin(), others.end());
-    erase_if(others, [&](int i){return !is_node(i);});
+    erase_if(others, [&](int i){return !path_engine::is_node(i);});
 
     int i=0, j=0, k=0, l=0;
     for (; i< pSol.path.size(); ++i){
@@ -211,7 +211,7 @@ n21::trial neighborhood_n21::replace(cppied_solution &pSol,
     cost_t g = geometry.removal_gain(pSol, seg);
 
     if (coverage.can_remove(pSol, seg_save)){
-        n21::trial t = {{NULL_NODE, NULL_NODE},
+        n21::trial t = {{path_engine::NULL_NODE, path_engine::NULL_NODE},
                         -1, -1, g};
         return t;
     }
@@ -285,7 +285,7 @@ n21::trial neighborhood_n21::select_best_trial(cppied_solution &pSol,
                                                std::vector<int> &candidates,
                                                std::vector<int>& global_unsat) {
     n21::trial best = {
-            {NULL_NODE, NULL_NODE},
+            {path_engine::NULL_NODE, path_engine::NULL_NODE},
             -1,
             -1,
             {std::numeric_limits<int>::min(), std::numeric_limits<int>::min()}
@@ -328,14 +328,14 @@ n21::trial neighborhood_n21::select_boxed_candidate(cppied_solution &pSol,
                                                     std::vector<int> &unsat,
                                                     sVecIt ref) {
     n21::trial best{
-            {NULL_NODE, NULL_NODE},
+            {path_engine::NULL_NODE, path_engine::NULL_NODE},
             -1,
             -1,
             {std::numeric_limits<int>::max(), std::numeric_limits<int>::max()}
     };
     if (unsat.empty()){
         best.other = static_cast<int>(std::distance(pSol.path.cbegin(), ref));
-        best.position = NULL_NODE;
+        best.position = path_engine::NULL_NODE;
         best.gain = {0,0};
         return best;
     }
@@ -368,7 +368,7 @@ n21::trial neighborhood_n21::select_boxed_candidate(cppied_solution &pSol,
             }
         }
     };
-    segment dummy = {NULL_NODE, NULL_NODE};
+    segment dummy = {path_engine::NULL_NODE, path_engine::NULL_NODE};
     for_each_segment(box, dummy, trial_select);
     return best;
 }

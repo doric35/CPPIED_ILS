@@ -10,26 +10,26 @@ segment neighborhood::trim(cppied_solution &pSol, segment seg) {
         geometry.correct_segment_direction(new_seg, direction::E);
     else
         geometry.correct_segment_direction(new_seg, direction::S);
-    if (is_node(new_seg.target)){
+    if (path_engine::is_node(new_seg.target)){
         int u = new_seg.source;
         for (; u<= new_seg.target; ++u){
-            if (!coverage.can_remove(pSol, {u, NULL_NODE}))
+            if (!coverage.can_remove(pSol, {u, path_engine::NULL_NODE}))
                 break;
         }
         int v = new_seg.target;
         for (; v>=u; --v){
-            if (!coverage.can_remove(pSol, {v, NULL_NODE}))
+            if (!coverage.can_remove(pSol, {v, path_engine::NULL_NODE}))
                 break;
         }
         if (v < u)
-            new_seg = {NULL_NODE, NULL_NODE};
+            new_seg = {path_engine::NULL_NODE, path_engine::NULL_NODE};
         else if (v==u)
-            new_seg = {u, NULL_NODE};
+            new_seg = {u, path_engine::NULL_NODE};
         else
             new_seg = {u,v};
-        if (is_node(new_seg.source))
+        if (path_engine::is_node(new_seg.source))
             geometry.correct_segment_direction(new_seg, geometry.get_direction(seg));
     } else if (coverage.can_remove(pSol, new_seg))
-        new_seg = {NULL_NODE, NULL_NODE};
+        new_seg = {path_engine::NULL_NODE, path_engine::NULL_NODE};
     return new_seg;
 }

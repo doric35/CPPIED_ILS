@@ -2,7 +2,6 @@
 
 #include <gtest/gtest.h>
 #include "../include/structures.hpp"
-#include "../include/segment_utils.hpp"
 #include "../include/cppied_method_base.hpp"
 #include "../include/utils.hpp"
 

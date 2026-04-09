@@ -49,8 +49,8 @@ void neighborhood_tsp::split(cppied_solution &pSol) {
                 new_sol.push_back(pSol.path[i]);
             } else if (geometry.cost(pSol.path[i]) == cost_t{1,0}){
                 direction dir = geometry.get_direction(pSol.path[i]);
-                segment s1 = {pSol.path[i].source, NULL_NODE};
-                segment s2 = {pSol.path[i].target, NULL_NODE};
+                segment s1 = {pSol.path[i].source, path_engine::NULL_NODE};
+                segment s2 = {pSol.path[i].target, path_engine::NULL_NODE};
                 geometry.correct_segment_direction(s1, dir);
                 geometry.correct_segment_direction(s2,dir);
                 new_sol.push_back(s1);
@@ -59,7 +59,7 @@ void neighborhood_tsp::split(cppied_solution &pSol) {
                 int mid = (pSol.path[i].target - pSol.path[i].source) / 2;
                 mid += pSol.path[i].source;
                 direction dir = geometry.get_direction(pSol.path[i]);
-                segment s1 = {pSol.path[i].source, NULL_NODE};
+                segment s1 = {pSol.path[i].source, path_engine::NULL_NODE};
                 geometry.correct_segment_direction(s1, dir);
                 segment s2 = {mid, pSol.path[i].target};
                 new_sol.push_back(s1);
@@ -72,16 +72,16 @@ void neighborhood_tsp::split(cppied_solution &pSol) {
 
                 segment s1{}, s2{};
                 if (split_point == first) {
-                    s1 = {first, NULL_NODE};
+                    s1 = {first, path_engine::NULL_NODE};
                     s2 = {first + 1, last};
                 } else if (split_point == last){
                     s1 = {first, last-1};
-                    s2 = {last, NULL_NODE};
+                    s2 = {last, path_engine::NULL_NODE};
                 } else {
                     s1 = {first, split_point};
                     s2 = {split_point+1, last};
                     if (s2.source == last)
-                        s2.target = NULL_NODE;
+                        s2.target = path_engine::NULL_NODE;
                 }
                 direction ref_dir = geometry.get_direction(pSol.path[i]);
                 geometry.correct_segment_direction(s1, ref_dir);

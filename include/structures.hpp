@@ -1,7 +1,6 @@
 #pragma once
 
 #include "utils.hpp"
-#include "segment_utils.hpp"
 
 //Handle meta-data
 struct cppied_context {
@@ -186,7 +185,7 @@ inline void draw_path(const std::vector<segment>& path,
                       cv::Mat& frame, int time, double scale){
     cv::Point first = map_to_image(helper.problem.vertex[path[0].source], scale);
     cv::Point second;
-    if (is_node(path[0].target))
+    if (helper.geometry.is_node(path[0].target))
         second = map_to_image(helper.problem.vertex[path[0].target], scale);
     else
         second = map_to_image(helper.problem.vertex[path[0].source], scale);
@@ -202,7 +201,7 @@ inline void draw_path(const std::vector<segment>& path,
                  first,
                  cv::Scalar(0,0,0),
                  20);
-        if (is_node(path[t].target))
+        if (helper.geometry.is_node(path[t].target))
             second = map_to_image(helper.problem.vertex[path[t].target], scale);
         else
             second = map_to_image(helper.problem.vertex[path[t].source], scale);
@@ -213,7 +212,7 @@ inline void draw_path(const std::vector<segment>& path,
                  cv::Scalar(0,0,0),
                  20);
     }
-    if (is_node(path[time].target)) {
+    if (helper.geometry.is_node(path[time].target)) {
         cv::circle(frame,
                    map_to_image(helper.problem.vertex[path[time].target], scale),
                    20, cv::Scalar(0, 0, 0));

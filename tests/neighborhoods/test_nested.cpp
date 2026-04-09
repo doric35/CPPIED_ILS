@@ -21,7 +21,7 @@ protected:
         sol.path =  {{6, 11},
                      {23,18},
                      {44,43},
-                     {6, NULL_NODE},
+                     {6, path_engine::NULL_NODE},
                      {48, 51},
                      {30, 35},
                      {75,73},

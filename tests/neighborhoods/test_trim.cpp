@@ -46,13 +46,13 @@ TEST_F(neighborhood_trim_fixture, LocalOptimaFound){
 TEST_F(neighborhood_trim_fixture, ImprovementFound){
     cppied_solution other = sol;
     other.path =  {{6, 11},
-                 {79, NULL_NODE},
+                 {79, path_engine::NULL_NODE},
                  {23,18},
                  {44,42},
                  {48, 51},
                  {30, 35},
                  {75,74},
-                 {16, REVERSED_NULL_NODE},
+                 {16, path_engine::REVERSED_NULL_NODE},
                  {61, 63}};
     n->coverage.reset(other);
     ASSERT_TRUE((other.coverage.array() >= P.req.array()).all());
@@ -63,13 +63,13 @@ TEST_F(neighborhood_trim_fixture, ImprovementFound){
 TEST_F(neighborhood_trim_fixture, MarginalCostUpdate){
     cppied_solution other = sol;
     other.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},
                   {30, 35},
                   {75,74},
-                  {16, REVERSED_NULL_NODE},
+                  {16, path_engine::REVERSED_NULL_NODE},
                   {61, 63}};
     n->coverage.reset(other);
     other.cost = n->geometry.cost(other);
@@ -80,13 +80,13 @@ TEST_F(neighborhood_trim_fixture, MarginalCostUpdate){
 TEST_F(neighborhood_trim_fixture, ValidCoverageUpdate){
     cppied_solution other = sol;
     other.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},
                   {30, 35},
                   {75,74},
-                  {16, REVERSED_NULL_NODE},
+                  {16, path_engine::REVERSED_NULL_NODE},
                   {61, 63}};
     n->coverage.reset(other);
     other.cost = n->geometry.cost(other);
@@ -99,13 +99,13 @@ TEST_F(neighborhood_trim_fixture, ValidCoverageUpdate){
 TEST_F(neighborhood_trim_fixture, CoverageConstraintSatisfied){
     cppied_solution other = sol;
     other.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},
                   {30, 35},
                   {75,74},
-                  {16, REVERSED_NULL_NODE},
+                  {16, path_engine::REVERSED_NULL_NODE},
                   {61, 63}};
     n->coverage.reset(other);
     other.cost = n->geometry.cost(other);
@@ -117,13 +117,13 @@ TEST_F(neighborhood_trim_fixture, CoverageConstraintSatisfied){
 TEST_F(neighborhood_trim_fixture, LocalOptimaAfterImprovement){
     cppied_solution other = sol;
     other.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},
                   {30, 35},
                   {75,74},
-                  {16, REVERSED_NULL_NODE},
+                  {16, path_engine::REVERSED_NULL_NODE},
                   {61, 63}};
     n->coverage.reset(other);
     other.cost = n->geometry.cost(other);

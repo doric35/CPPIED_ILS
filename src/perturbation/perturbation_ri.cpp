@@ -12,7 +12,7 @@ void perturbation_ri::bias_sample(cppied_solution &pSol,
                                   std::vector<int> &sampling) {
     std::vector<double> weights(problem.vertex.size(), 0.0);
     for (int v=0; v < weights.size(); v++){
-        segment dummy = {v, NULL_NODE};
+        segment dummy = {v, path_engine::NULL_NODE};
         weights[v] = coverage.over_coverage(pSol, dummy);
     }
     std::uniform_real_distribution<> dis(0.0, 1.0);
@@ -47,7 +47,7 @@ void perturbation_ri::best_insertions(cppied_solution &pSol,
                                       std::vector<int> &sampling) {
     std::shuffle(sampling.begin(), sampling.end(), rng);
     int k = static_cast<int>(std::ceil(ratio * double(pSol.path.size())));
-    std::array<int, 2> orientations{NULL_NODE, REVERSED_NULL_NODE};
+    std::array<int, 2> orientations{path_engine::NULL_NODE, path_engine::REVERSED_NULL_NODE};
     std::uniform_int_distribution<> dist(0, 1);
     std::set<int> no_goods;
     std::vector<std::pair<int, segment>> candidates;

@@ -52,16 +52,16 @@ TEST_F(cppied_context_fixture, ParameterValues){
 
 TEST_F(cppied_method_fixture, ValidDirections){
     for (int i=0; i<P.vertex.size()/2; i++){
-        segment e_i = {i, NULL_NODE};
-        segment re_i = {i, REVERSED_NULL_NODE};
+        segment e_i = {i, path_engine::NULL_NODE};
+        segment re_i = {i, path_engine::REVERSED_NULL_NODE};
         direction dir = method_instance.geometry.get_direction(e_i);
         direction rdir = method_instance.geometry.get_direction(re_i);
         ASSERT_EQ(dir, direction::E) << "Invalid direction computed: i=" << i;
         ASSERT_EQ(rdir, direction::W) << "Invalid direction computed: i=" << i;
     }
     for (int i=P.vertex.size()/2; i<P.vertex.size(); i++){
-        segment e_i = {i, NULL_NODE};
-        segment re_i = {i, REVERSED_NULL_NODE};
+        segment e_i = {i, path_engine::NULL_NODE};
+        segment re_i = {i, path_engine::REVERSED_NULL_NODE};
         direction dir = method_instance.geometry.get_direction(e_i);
         direction rdir = method_instance.geometry.get_direction(re_i);
         ASSERT_EQ(dir, direction::S) << "Invalid direction computed: i=" << i;
@@ -72,10 +72,10 @@ TEST_F(cppied_method_fixture, ValidDirections){
 TEST_F(cppied_method_fixture, SymmetricDistances){
     for (int i=0; i<P.vertex.size(); i++){
         for (int j=0; j< P.vertex.size(); j++){
-            segment e_i = {i, NULL_NODE};
-            segment e_j = {j, NULL_NODE};
-            segment re_i = {i, REVERSED_NULL_NODE};
-            segment re_j = {j, REVERSED_NULL_NODE};
+            segment e_i = {i, path_engine::NULL_NODE};
+            segment e_j = {j, path_engine::NULL_NODE};
+            segment re_i = {i, path_engine::REVERSED_NULL_NODE};
+            segment re_j = {j, path_engine::REVERSED_NULL_NODE};
             cost_t d_ij = method_instance.geometry.dist(e_i, e_j);
             cost_t dr_ij = method_instance.geometry.dist(re_j, re_i);
 
@@ -96,14 +96,14 @@ TEST_F(cppied_method_fixture, SpecificDistances){
     cost_t t1 = {4,1};
     ASSERT_EQ(d1, t1);
 
-    e1 = {3,NULL_NODE};
+    e1 = {3,path_engine::NULL_NODE};
     e2 = {78, 83};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {3,1};
     ASSERT_EQ(d1, t1);
 
     e1 = {1, 2};
-    e2 = {3,NULL_NODE};
+    e2 = {3,path_engine::NULL_NODE};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {1,0};
     ASSERT_EQ(d1, t1);
@@ -114,13 +114,13 @@ TEST_F(cppied_method_fixture, SpecificDistances){
     t1 = {3,2};
     ASSERT_EQ(d1, t1);
 
-    e1 = {79, NULL_NODE};
+    e1 = {79, path_engine::NULL_NODE};
     e2 = {23,18};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {2,1};
     ASSERT_EQ(d1, t1);
 
-    e1 = {80, NULL_NODE};
+    e1 = {80, path_engine::NULL_NODE};
     e2 = {23,18};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {1,1};
@@ -145,7 +145,7 @@ TEST_F(cppied_method_fixture, SpecificDistances){
     ASSERT_EQ(d1, t1);
 
     e1 = {10,9};
-    e2 = {61, NULL_NODE};
+    e2 = {61, path_engine::NULL_NODE};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {1,1};
     ASSERT_EQ(d1, t1);
@@ -156,13 +156,13 @@ TEST_F(cppied_method_fixture, SpecificDistances){
     t1 = {2,1};
     ASSERT_EQ(d1, t1);
 
-    e1 = {61, NULL_NODE};
+    e1 = {61, path_engine::NULL_NODE};
     e2 = {62,63};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {1,0};
     ASSERT_EQ(d1, t1);
 
-    e1 = {46, NULL_NODE};
+    e1 = {46, path_engine::NULL_NODE};
     e2 = {30,35};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {1,1};
@@ -185,7 +185,7 @@ TEST_F(cppied_method_fixture, SpecificDistances){
     t1 = {3,3};
     ASSERT_EQ(d1, t1);
 
-    e1 = {46, NULL_NODE};
+    e1 = {46, path_engine::NULL_NODE};
     e2 = {6, 11};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {7,5};
@@ -203,14 +203,14 @@ TEST_F(cppied_method_fixture, SpecificDistances){
     t1 = {7,5};
     ASSERT_EQ(d1, t1);
 
-    e1 = {45, NULL_NODE};
-    e2 = {29, REVERSED_NULL_NODE};
+    e1 = {45, path_engine::NULL_NODE};
+    e2 = {29, path_engine::REVERSED_NULL_NODE};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {9,3};
     ASSERT_EQ(d1, t1);
 
     e1 = {23, 18};
-    e2 = {29, REVERSED_NULL_NODE};
+    e2 = {29, path_engine::REVERSED_NULL_NODE};
     d1 = method_instance.geometry.dist(e1, e2);
     t1 = {10,4};
     ASSERT_EQ(d1, t1);
@@ -227,12 +227,12 @@ TEST_F(cppied_method_fixture, ValidEdgeExtensions){
     method_instance.geometry.extend(e1, e2);
     EXPECT_EQ(e1.target, 2) << "No east extension failed";
 
-    e1 = {5,NULL_NODE};
-    e2 = {83,NULL_NODE};
+    e1 = {5,path_engine::NULL_NODE};
+    e2 = {83,path_engine::NULL_NODE};
     method_instance.geometry.extend(e1, e2);
-    EXPECT_EQ(e1.target, NULL_NODE) << "No east 2 extension failed";
+    EXPECT_EQ(e1.target, path_engine::NULL_NODE) << "No east 2 extension failed";
 
-    e1 = {79,NULL_NODE};
+    e1 = {79,path_engine::NULL_NODE};
     e2 = {23,18};
     method_instance.geometry.extend(e1, e2);
     EXPECT_EQ(e1.target, 80) << "South extension failed";
@@ -247,7 +247,7 @@ TEST_F(cppied_method_fixture, ValidEdgeExtensions){
     method_instance.geometry.extend(e1, e2);
     EXPECT_EQ(e1.target, 73) << "No extension ns extension failed";
 
-    e1 = {10, REVERSED_NULL_NODE};
+    e1 = {10, path_engine::REVERSED_NULL_NODE};
     e2 = {62,63};
     method_instance.geometry.extend(e1, e2);
     EXPECT_EQ(e1.target, 9) << "No extension ns extension failed";
@@ -262,25 +262,25 @@ TEST_F(cppied_method_fixture, ValidEdgeTurn){
     segment e1 = {6,11};
     segment e2 = {23,18};
     segment turn_resp = method_instance.geometry.turn(e1,e2);
-    segment next_resp = {79, NULL_NODE};
+    segment next_resp = {79, path_engine::NULL_NODE};
     EXPECT_EQ(turn_resp, next_resp) << "First south turn failed";
 
     e1 = {75,73};
     e2 = {62,63};
     turn_resp = method_instance.geometry.turn(e1,e2);
-    next_resp = {10, REVERSED_NULL_NODE};
+    next_resp = {10, path_engine::REVERSED_NULL_NODE};
     EXPECT_EQ(turn_resp, next_resp) << "nw turn failed";
 
     e1 = {10,9};
     e2 = {62,63};
     turn_resp = method_instance.geometry.turn(e1,e2);
-    next_resp = {61, NULL_NODE};
+    next_resp = {61, path_engine::NULL_NODE};
     EXPECT_EQ(turn_resp, next_resp) << "nw turn failed";
 
-    e1 = {46, NULL_NODE};
+    e1 = {46, path_engine::NULL_NODE};
     e2 = {6, 11};
     turn_resp = method_instance.geometry.turn(e1, e2);
-    next_resp = {30, NULL_NODE};
+    next_resp = {30, path_engine::NULL_NODE};
     EXPECT_EQ(turn_resp, next_resp) << "se turn failed";
 }
 
@@ -313,7 +313,7 @@ TEST_F(cppied_method_fixture, ValidSubPathCompletion){
     path1 = {{44,42},
              {48, 51}};
     response1 = {{44,42},
-                 {0, NULL_NODE},
+                 {0, path_engine::NULL_NODE},
                  {48, 51}};
     method_instance.geometry.complete(path1);
     it_path = path1.begin();
@@ -326,8 +326,8 @@ TEST_F(cppied_method_fixture, ValidSubPathCompletion){
     path1 = {{48, 51},
              {30, 35}};
     response1 = {{48,51},
-                 {24, REVERSED_NULL_NODE},
-                 {46, NULL_NODE},
+                 {24, path_engine::REVERSED_NULL_NODE},
+                 {46, path_engine::NULL_NODE},
                  {30,35}};
     method_instance.geometry.complete(path1);
     it_path = path1.begin();
@@ -340,8 +340,8 @@ TEST_F(cppied_method_fixture, ValidSubPathCompletion){
     path1 = {{30, 35},
              {75,73}};
     response1 = {{30, 35},
-                 {82, REVERSED_NULL_NODE},
-                 {29, REVERSED_NULL_NODE},
+                 {82, path_engine::REVERSED_NULL_NODE},
+                 {29, path_engine::REVERSED_NULL_NODE},
                  {75,73}};
     method_instance.geometry.complete(path1);
     it_path = path1.begin();
@@ -377,13 +377,13 @@ TEST_F(cppied_method_fixture, ValidPathCompletion){
                                                {79,80},
                                           {23,18},
                                           {44,42},
-                                          {0, NULL_NODE},
+                                          {0, path_engine::NULL_NODE},
                                           {48, 51},
-                                          {24, REVERSED_NULL_NODE},
-                                          {46, NULL_NODE},
+                                          {24, path_engine::REVERSED_NULL_NODE},
+                                          {46, path_engine::NULL_NODE},
                                           {30, 35},
-                                          {82, REVERSED_NULL_NODE},
-                                          {29, REVERSED_NULL_NODE},
+                                          {82, path_engine::REVERSED_NULL_NODE},
+                                          {29, path_engine::REVERSED_NULL_NODE},
                                           {75,73},
                                           {10, 9},
                                           {61, 63}};
@@ -407,13 +407,13 @@ TEST_F(cppied_method_fixture, ValidPathCompletion){
                                                {79,80},
                                                {23,18},
                                                {44,42},
-                                               {0, NULL_NODE},
+                                               {0, path_engine::NULL_NODE},
                                                {48, 51},
-                                               {24, REVERSED_NULL_NODE},
-                                               {46, NULL_NODE},
+                                               {24, path_engine::REVERSED_NULL_NODE},
+                                               {46, path_engine::NULL_NODE},
                                                {30, 35},
-                                               {82, REVERSED_NULL_NODE},
-                                               {29, REVERSED_NULL_NODE},
+                                               {82, path_engine::REVERSED_NULL_NODE},
+                                               {29, path_engine::REVERSED_NULL_NODE},
                                                {75,73},
                                                {10, 9},
                                                {61, 63}};
@@ -432,13 +432,13 @@ TEST_F(cppied_method_fixture, SatisfyPathConstraints){
                                                {79,80},
                                                {23,18},
                                                {44,42},
-                                               {0, NULL_NODE},
+                                               {0, path_engine::NULL_NODE},
                                                {48, 51},
-                                               {24, REVERSED_NULL_NODE},
-                                               {46, NULL_NODE},
+                                               {24, path_engine::REVERSED_NULL_NODE},
+                                               {46, path_engine::NULL_NODE},
                                                {30, 35},
-                                               {82, REVERSED_NULL_NODE},
-                                               {29, REVERSED_NULL_NODE},
+                                               {82, path_engine::REVERSED_NULL_NODE},
+                                               {29, path_engine::REVERSED_NULL_NODE},
                                                {75,73},
                                                {10, 9},
                                                {61, 63}};
@@ -502,7 +502,7 @@ TEST_F(cppied_method_fixture, ValidLexicographicCosts){
 }
 
 TEST_F(cppied_method_fixture, ValidCoverage){
-    cppied_solution unit_sol_1 = {{{24, REVERSED_NULL_NODE}},
+    cppied_solution unit_sol_1 = {{{24, path_engine::REVERSED_NULL_NODE}},
                                          Eigen::VectorXd::Zero(P.seabed.size()),
                                          {1,0}};
     method_instance.coverage.insert(unit_sol_1, unit_sol_1.path.front());
@@ -520,13 +520,13 @@ TEST_F(cppied_method_fixture, ValidCoverage){
                             {79,80},
                             {23,18},
                             {44,42},
-                            {0, NULL_NODE},
+                            {0, path_engine::NULL_NODE},
                             {48, 51},
-                            {24, REVERSED_NULL_NODE},
-                            {46, NULL_NODE},
+                            {24, path_engine::REVERSED_NULL_NODE},
+                            {46, path_engine::NULL_NODE},
                             {30, 35},
-                            {82, REVERSED_NULL_NODE},
-                            {29, REVERSED_NULL_NODE},
+                            {82, path_engine::REVERSED_NULL_NODE},
+                            {29, path_engine::REVERSED_NULL_NODE},
                             {75,73},
                             {10, 9},
                             {61, 63}},
@@ -627,13 +627,13 @@ TEST_F(cppied_method_fixture, ValidCoverageExtraction){
                             {79,80},
                             {23,18},
                             {44,42},
-                            {0, NULL_NODE},
+                            {0, path_engine::NULL_NODE},
                             {48, 51},
-                            {24, REVERSED_NULL_NODE},
-                            {46, NULL_NODE},
+                            {24, path_engine::REVERSED_NULL_NODE},
+                            {46, path_engine::NULL_NODE},
                             {30, 35},
-                            {82, REVERSED_NULL_NODE},
-                            {29, REVERSED_NULL_NODE},
+                            {82, path_engine::REVERSED_NULL_NODE},
+                            {29, path_engine::REVERSED_NULL_NODE},
                             {75,73},
                             {10, 9},
                             {61, 63}},

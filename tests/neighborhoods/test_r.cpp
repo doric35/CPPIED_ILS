@@ -129,7 +129,7 @@ TEST_F(neighborhood_r_fixture, AddReplacementsProducesValidSegments) {
     std::vector<segment> candidates = {sol.path[2]};
     n->add_replacements(sol, candidates);
     for (const auto& s : candidates)
-        EXPECT_NE(s.source, NULL_NODE) << "NULL_NODE source in replacement candidates";
+        EXPECT_NE(s.source, path_engine::NULL_NODE) << "path_engine::NULL_NODE source in replacement candidates";
 }
 
 // ============================================================================
@@ -363,13 +363,13 @@ TEST_F(neighborhood_r_fixture, DagHeuristicReturnedSegmentVerticesInRange) {
                                       /*gamma=*/0.0,
                                       cost_func);
 
-    if (is_node(seg.source)) {
+    if (path_engine::is_node(seg.source)) {
         EXPECT_GE(seg.source, first)
             << "returned source vertex < first (likely a raw D/P index, not a vertex coordinate)";
         EXPECT_LE(seg.source, last)
             << "returned source vertex > last";
     }
-    if (is_node(seg.target)) {
+    if (path_engine::is_node(seg.target)) {
         EXPECT_GE(seg.target, first)
             << "returned target vertex < first";
         EXPECT_LE(seg.target, last)
@@ -391,7 +391,7 @@ TEST_F(neighborhood_r_fixture, DagHeuristicHorizontalSegmentOrientationValid) {
     auto [seg, rc] = n->dag_heuristic(sol, first, last, cov_duals,
                                       /*r=*/1, 0.0, 0.0, cost_func);
 
-    if (is_node(seg.source) && is_node(seg.target))
+    if (path_engine::is_node(seg.source) && path_engine::is_node(seg.target))
         EXPECT_LE(seg.source, seg.target)
             << "horizontal replacement segment has source > target "
                "(backtracking flips entry/exit due to D/P index confusion)";

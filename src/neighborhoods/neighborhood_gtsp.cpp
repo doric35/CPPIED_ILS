@@ -148,9 +148,9 @@ void neighborhood_gtsp::build_clusters(const cppied_solution &pSol,
     warm_start.push_back(1);
     warm_start.push_back(2);
     warm_start.push_back(3);
-    target.nodes.push_back({0, 0, {NULL_NODE, NULL_NODE}});
-    target.nodes.push_back({1, 1, {NULL_NODE, NULL_NODE}});
-    target.nodes.push_back({2, 2, {NULL_NODE, NULL_NODE}});
+    target.nodes.push_back({0, 0, {path_engine::NULL_NODE, path_engine::NULL_NODE}});
+    target.nodes.push_back({1, 1, {path_engine::NULL_NODE, path_engine::NULL_NODE}});
+    target.nodes.push_back({2, 2, {path_engine::NULL_NODE, path_engine::NULL_NODE}});
     target.clusters.push_back({0, {0}});
     target.clusters.push_back({1, {1}});
     target.clusters.push_back({2, {2}});
@@ -248,17 +248,17 @@ std::array<segment, 3> neighborhood_gtsp::segment_to_nodes(const segment& s){
     std::array<segment, 3> nodes{};
     direction dir = geometry.get_direction(s);
     direction other_dir = flip_direction(dir);
-    nodes[0] = {s.source, NULL_NODE};
-    nodes[1] = {NULL_NODE, NULL_NODE};
-    nodes[2] = {s.target, NULL_NODE};
-    if (!is_node(s.target)) nodes[2].source = s.source;
+    nodes[0] = {s.source, path_engine::NULL_NODE};
+    nodes[1] = {path_engine::NULL_NODE, path_engine::NULL_NODE};
+    nodes[2] = {s.target, path_engine::NULL_NODE};
+    if (!path_engine::is_node(s.target)) nodes[2].source = s.source;
     geometry.correct_segment_direction(nodes[0], dir);
     geometry.correct_segment_direction(nodes[2], other_dir);
     return nodes;
 }
 
 segment neighborhood_gtsp::nodes_to_segment(const std::vector<segment> &nodes) {
-    if (!is_node(nodes[0].source) || !is_node(nodes[2].source))
+    if (!path_engine::is_node(nodes[0].source) || !path_engine::is_node(nodes[2].source))
         throw std::runtime_error("Found NULL segment encoded in a source.");
     if (nodes[0].source == nodes[2].source)
         return nodes[0];

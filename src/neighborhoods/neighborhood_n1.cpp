@@ -55,7 +55,7 @@ bool neighborhood_n1::local_search(cppied_solution& pSol) {
                             geometry_split_func);
     };
     auto interval_transform = [&](int i){
-        int x1 = is_node(pSol.path[i].target) ?
+        int x1 = path_engine::is_node(pSol.path[i].target) ?
                  std::min(pSol.path[i].target, pSol.path[i].source) : pSol.path[i].source;
         int x2 = std::max(pSol.path[i].source, pSol.path[i].target);
         bool rotated = !geometry.is_horizontal(pSol.path[i]);

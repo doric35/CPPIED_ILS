@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../structures.hpp"
-#include "../segment_utils.hpp"
 #include "../cppied_instance.hpp"
 
 class path_engine {
@@ -52,6 +51,12 @@ public:
         return dist(prev, node) + cost(node);
     }
 
+    static inline bool is_node(int x) {
+        return (unsigned)(x + 2) > 1;
+    }
+
+    static constexpr int NULL_NODE = -1;
+    static constexpr int REVERSED_NULL_NODE = -2;
     int n_rows;
     int n_cols;
     int horizontal_bound;

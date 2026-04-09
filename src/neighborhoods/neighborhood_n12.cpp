@@ -87,7 +87,7 @@ bool neighborhood_n12::local_search(cppied_solution& pSol) {
         erase_if(solution, empty_vec);
     };
     auto interval_transform = [&](int i){
-        int x1 = is_node(pSol.path[i].target) ?
+        int x1 = path_engine::is_node(pSol.path[i].target) ?
                  std::min(pSol.path[i].target, pSol.path[i].source) : pSol.path[i].source;
         int x2 = std::max(pSol.path[i].source, pSol.path[i].target);
         bool rotated = !geometry.is_horizontal(pSol.path[i]);
@@ -183,8 +183,8 @@ n12::evaluated_trial neighborhood_n12::replace(cppied_solution &pSol, neighborho
     int position = static_cast<int>(std::distance(pSol.path.cbegin(), seg));
 
     n12::evaluated_trial best_trial =
-            {n12::trial{n12::candidate{{NULL_NODE, NULL_NODE}, {}},
-                        n12::candidate{{NULL_NODE, NULL_NODE},{}}},
+            {n12::trial{n12::candidate{{path_engine::NULL_NODE, path_engine::NULL_NODE}, {}},
+                        n12::candidate{{path_engine::NULL_NODE, path_engine::NULL_NODE},{}}},
              cost_t{std::numeric_limits<int>::min(),std::numeric_limits<int>::min()}};
     if (extraction_gain <= cost_t{0,0} - allowed_degradation)
         return best_trial;
@@ -205,8 +205,8 @@ n12::evaluated_trial neighborhood_n12::replace(cppied_solution &pSol, neighborho
 n12::evaluated_trial neighborhood_n12::explore_replacements(cppied_solution &pSol,
                                                             const segment &ref) {
     n12::evaluated_trial best_trial =
-            {n12::trial{n12::candidate{{NULL_NODE, NULL_NODE}, {}},
-                        n12::candidate{{NULL_NODE, NULL_NODE},{}}},
+            {n12::trial{n12::candidate{{path_engine::NULL_NODE, path_engine::NULL_NODE}, {}},
+                        n12::candidate{{path_engine::NULL_NODE, path_engine::NULL_NODE},{}}},
              cost_t{std::numeric_limits<int>::max(),
                     std::numeric_limits<int>::max()}};
     std::vector<int> unsat;
@@ -230,7 +230,7 @@ n12::evaluated_trial neighborhood_n12::explore_replacements(cppied_solution &pSo
         unsat = unsat_cp;
     };
     //Allow for just splitting self
-    segment dummy = {NULL_NODE, NULL_NODE};
+    segment dummy = {path_engine::NULL_NODE, path_engine::NULL_NODE};
     for_each_segment(box, dummy, pair_select);
     return best_trial;
 }
@@ -240,8 +240,8 @@ n12::evaluated_trial neighborhood_n12::select_best_pair(cppied_solution& pSol,
                                               const iRectangle& box,
                                               std::vector<int>& unsat) {
     n12::evaluated_trial best_trial;
-    best_trial.t = {{{NULL_NODE, NULL_NODE}, {}},
-                    {{NULL_NODE, NULL_NODE}, {}}};
+    best_trial.t = {{{path_engine::NULL_NODE, path_engine::NULL_NODE}, {}},
+                    {{path_engine::NULL_NODE, path_engine::NULL_NODE}, {}}};
     best_trial.gain = {std::numeric_limits<int>::max(),
                        std::numeric_limits<int>::max()};
 
@@ -269,17 +269,17 @@ n12::evaluated_trial neighborhood_n12::select_best_pair(cppied_solution& pSol,
 
             for (auto& config : test_configs){
                 n12::trial trial_basis = {{config.first,{}},{config.second, {}}};
-                if (is_node(trial_basis.s1.s.source) &&
+                if (path_engine::is_node(trial_basis.s1.s.source) &&
                         top_k_cache.find(config.first) != top_k_cache.end()) {
                     trial_basis.s1.top_k = top_k_cache[config.first];
-                } else if (is_node(trial_basis.s1.s.source)){
+                } else if (path_engine::is_node(trial_basis.s1.s.source)){
                     trial_basis.s1.top_k = geometry.get_top_k_insertion(pSol, trial_basis.s1.s, 2);
                     top_k_cache[config.first] = trial_basis.s1.top_k;
                 }
-                if (is_node(trial_basis.s2.s.source) &&
+                if (path_engine::is_node(trial_basis.s2.s.source) &&
                     top_k_cache.find(config.second) != top_k_cache.end()) {
                     trial_basis.s2.top_k = top_k_cache[config.second];
-                } else if (is_node(trial_basis.s2.s.source)){
+                } else if (path_engine::is_node(trial_basis.s2.s.source)){
                     trial_basis.s2.top_k = geometry.get_top_k_insertion(pSol, trial_basis.s2.s, 2);
                     top_k_cache[config.second] = trial_basis.s2.top_k;
                 }
@@ -291,7 +291,7 @@ n12::evaluated_trial neighborhood_n12::select_best_pair(cppied_solution& pSol,
         }
     };
     //Allow for just splitting self
-    segment dummy = {NULL_NODE, NULL_NODE};
+    segment dummy = {path_engine::NULL_NODE, path_engine::NULL_NODE};
     for_each_segment(box, dummy, trial_select);
     return best_trial;
 }
@@ -302,11 +302,11 @@ void neighborhood_n12::set_trims(cppied_solution &pSol,
         segment s1_trimed = trim(pSol, candidate.first);
         coverage.remove(pSol,candidate.first);
 
-        if (is_node(s1_trimed.source))
+        if (path_engine::is_node(s1_trimed.source))
             coverage.insert(pSol, s1_trimed);
         segment s2_trimed = trim (pSol, candidate.second);
 
-        if (is_node(s1_trimed.source))
+        if (path_engine::is_node(s1_trimed.source))
             coverage.remove(pSol, s1_trimed);
         coverage.insert(pSol,candidate.first);
 
@@ -317,15 +317,15 @@ void neighborhood_n12::set_trims(cppied_solution &pSol,
 n12::evaluated_trial neighborhood_n12::select_best_insertions(cppied_solution &pSol,
                                                               n12::trial& candidate) {
     n12::evaluated_trial t;
-    if (!is_node(candidate.s1.s.source) && !is_node(candidate.s2.s.source)){
+    if (!path_engine::is_node(candidate.s1.s.source) && !path_engine::is_node(candidate.s2.s.source)){
         t = {candidate, cost_t{0,0}};
-    } else if (!is_node(candidate.s1.s.source)){
+    } else if (!path_engine::is_node(candidate.s1.s.source)){
         std::swap(candidate.s1, candidate.s2);
         t = {candidate, candidate.s1.top_k[0].second};
-    } else if (!is_node(candidate.s2.s.source)){
+    } else if (!path_engine::is_node(candidate.s2.s.source)){
         t = {candidate, candidate.s1.top_k[0].second};
     }
-    if (!is_node(candidate.s1.s.source) || !is_node(candidate.s2.s.source))
+    if (!path_engine::is_node(candidate.s1.s.source) || !path_engine::is_node(candidate.s2.s.source))
         return t;
 
     if (candidate.s1.top_k[0].first == candidate.s2.top_k[0].first){

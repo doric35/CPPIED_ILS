@@ -48,8 +48,8 @@ TEST_F(dp_sweeper_fixture, MaximumSubarrayResultIsSubsegment){
     empty.coverage = Eigen::VectorXd::Zero(P.req.size());
     segment ref{0, 5};
     auto [seg, gain] = dps->maximum_subarray(empty, ref);
-    int lo = is_node(seg.target) ? std::min(seg.source, seg.target) : seg.source;
-    int hi = is_node(seg.target) ? std::max(seg.source, seg.target) : seg.source;
+    int lo = path_engine::is_node(seg.target) ? std::min(seg.source, seg.target) : seg.source;
+    int hi = path_engine::is_node(seg.target) ? std::max(seg.source, seg.target) : seg.source;
     EXPECT_GE(lo, 0);
     EXPECT_LE(hi, 5);
 }
@@ -57,10 +57,10 @@ TEST_F(dp_sweeper_fixture, MaximumSubarrayResultIsSubsegment){
 TEST_F(dp_sweeper_fixture, MaximumSubarraySingleVertex){
     cppied_solution empty;
     empty.coverage = Eigen::VectorXd::Zero(P.req.size());
-    segment ref{3, NULL_NODE};
+    segment ref{3, path_engine::NULL_NODE};
     auto [seg, gain] = dps->maximum_subarray(empty, ref);
     EXPECT_EQ(seg.source, 3);
-    EXPECT_FALSE(is_node(seg.target));
+    EXPECT_FALSE(path_engine::is_node(seg.target));
 }
 
 TEST_F(dp_sweeper_fixture, MaximumSubarrayNonPositiveWhenSatisfied){
@@ -76,8 +76,8 @@ TEST_F(dp_sweeper_fixture, MaximumSubarrayVerticalPositiveGain){
     segment ref{42, 47};  // first vertical column, vertices 42–47
     auto [seg, gain] = dps->maximum_subarray(empty, ref);
     EXPECT_GT(gain, 0.0);
-    int lo = is_node(seg.target) ? std::min(seg.source, seg.target) : seg.source;
-    int hi = is_node(seg.target) ? std::max(seg.source, seg.target) : seg.source;
+    int lo = path_engine::is_node(seg.target) ? std::min(seg.source, seg.target) : seg.source;
+    int hi = path_engine::is_node(seg.target) ? std::max(seg.source, seg.target) : seg.source;
     EXPECT_GE(lo, 42);
     EXPECT_LE(hi, 47);
 }
@@ -95,7 +95,7 @@ TEST_F(dp_sweeper_fixture, FilterSingleSegment){
 
 TEST_F(dp_sweeper_fixture, FilterSpacingConstraint){
     sweeper::segment_set S{
-            { {{6, NULL_NODE}, 3.0}, {{7, NULL_NODE}, 5.0} },
+            { {{6, path_engine::NULL_NODE}, 3.0}, {{7, path_engine::NULL_NODE}, 5.0} },
             0.0, true
     };
     dps->filter_segment_set(sol, S);
@@ -105,7 +105,7 @@ TEST_F(dp_sweeper_fixture, FilterSpacingConstraint){
 
 TEST_F(dp_sweeper_fixture, FilterRetainsCompatibleSegments){
     sweeper::segment_set S{
-            { {{6, NULL_NODE}, 3.0}, {{7, NULL_NODE}, 1.0}, {{8, NULL_NODE}, 4.0} },
+            { {{6, path_engine::NULL_NODE}, 3.0}, {{7, path_engine::NULL_NODE}, 1.0}, {{8, path_engine::NULL_NODE}, 4.0} },
             0.0, true
     };
     dps->filter_segment_set(sol, S);
@@ -114,7 +114,7 @@ TEST_F(dp_sweeper_fixture, FilterRetainsCompatibleSegments){
 
 TEST_F(dp_sweeper_fixture, FilterDiscardsNegativeGain){
     sweeper::segment_set S{
-            { {{6, NULL_NODE}, -2.0} },
+            { {{6, path_engine::NULL_NODE}, -2.0} },
             0.0, true
     };
     dps->filter_segment_set(sol, S);
@@ -207,14 +207,14 @@ static bool sweep_once(dp_sweeper_accessor& dps,
     for (int row = box.ul.y; row < box.lr.y; ++row){
         segment ref{row * dps.geometry.n_cols + box.ul.x,
                     row * dps.geometry.n_cols + box.lr.x - 1};
-        if (ref.source == ref.target) ref.target = NULL_NODE;
+        if (ref.source == ref.target) ref.target = path_engine::NULL_NODE;
         S[0].S.push_back(dps.maximum_subarray(sol, ref));
     }
     // Vertical: one full-column segment per column in the bounding box.
     for (int col = box.ul.x; col < box.lr.x; ++col){
         segment ref{dps.geometry.horizontal_bound + col * dps.geometry.n_rows + box.ul.y,
                     dps.geometry.horizontal_bound + col * dps.geometry.n_rows + box.lr.y - 1};
-        if (ref.source == ref.target) ref.target = NULL_NODE;
+        if (ref.source == ref.target) ref.target = path_engine::NULL_NODE;
         S[1].S.push_back(dps.maximum_subarray(sol, ref));
     }
     dps.filter_segment_set(sol, S[0]);
@@ -227,7 +227,7 @@ static bool sweep_once(dp_sweeper_accessor& dps,
 TEST_F(dp_sweeper_fixture, SweepSatisfiesCoverageConstraint){
     cppied_solution empty;
     empty.coverage = Eigen::VectorXd::Zero(P.req.size());
-    segment init = {P.initial_position, NULL_NODE};
+    segment init = {P.initial_position, path_engine::NULL_NODE};
     dps->coverage.insert(empty, init);
     empty.path.push_back(init);
 
@@ -241,7 +241,7 @@ TEST_F(dp_sweeper_fixture, SweepSatisfiesCoverageConstraint){
 TEST_F(dp_sweeper_fixture, SweepCoverageTrackingIsConsistent){
     cppied_solution empty;
     empty.coverage = Eigen::VectorXd::Zero(P.req.size());
-    segment init = {P.initial_position, NULL_NODE};
+    segment init = {P.initial_position, path_engine::NULL_NODE};
     dps->coverage.insert(empty, init);
     empty.path.push_back(init);
 
@@ -257,7 +257,7 @@ TEST_F(dp_sweeper_fixture, SweepCoverageTrackingIsConsistent){
 TEST_F(dp_sweeper_fixture, SweepMakesProgressEachIteration){
     cppied_solution empty;
     empty.coverage = Eigen::VectorXd::Zero(P.req.size());
-    segment init = {P.initial_position, NULL_NODE};
+    segment init = {P.initial_position, path_engine::NULL_NODE};
     dps->coverage.insert(empty, init);
     empty.path.push_back(init);
 

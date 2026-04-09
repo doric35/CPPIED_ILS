@@ -292,7 +292,7 @@ void neighborhood_r::add_replacements(cppied_solution& pSol,
                 candidates.push_back(s);
 
         };
-        segment dummy{NULL_NODE, NULL_NODE};
+        segment dummy{path_engine::NULL_NODE, path_engine::NULL_NODE};
         for_each_segment(box, dummy, segment_select);
     }
     coverage.insert(pSol, candidates.front());
@@ -328,7 +328,7 @@ std::pair<segment, double> neighborhood_r::dag_heuristic(const cppied_solution& 
     D[0] = 0.0;
     std::vector<int> P(last - first + 3,0);
     for (int v = first; v<= last; v++){
-        segment dummy = {v, NULL_NODE};
+        segment dummy = {v, path_engine::NULL_NODE};
         cost_t c = geometry.dist(pSol.path[r-1], dummy);
         double rc = f(c) - coverage_duals[v] - gamma_dual * c.length;
         if (D[v - first + 1] > rc)
@@ -343,7 +343,7 @@ std::pair<segment, double> neighborhood_r::dag_heuristic(const cppied_solution& 
     }
     double ac;
     for (int v = first; v<last; v++){
-        segment dummy = {v, NULL_NODE};
+        segment dummy = {v, path_engine::NULL_NODE};
         if (r < pSol.path.size() - 1){
             cost_t c = geometry.dist(dummy, pSol.path[r+1]);
             ac = f(c) - f(c_gain) - (gamma_dual*(c.length - c_gain.length));
@@ -356,7 +356,7 @@ std::pair<segment, double> neighborhood_r::dag_heuristic(const cppied_solution& 
         }
     }
     if (D.back() - r_dual >=0)
-        return {segment{NULL_NODE, NULL_NODE}, D.back() - r_dual};
+        return {segment{path_engine::NULL_NODE, path_engine::NULL_NODE}, D.back() - r_dual};
 
     //Backtrack
     int v = P.back();
@@ -365,7 +365,7 @@ std::pair<segment, double> neighborhood_r::dag_heuristic(const cppied_solution& 
         --u;
     u += first-1;
     if (u == v)
-        return {{v, NULL_NODE}, D.back() - r_dual};
+        return {{v, path_engine::NULL_NODE}, D.back() - r_dual};
     else
         return {{u,v}, D.back() - r_dual};
 }
@@ -409,7 +409,7 @@ bool neighborhood_r::add_stage_columns(cppied_solution &pSol,
 
     int i=0;
     for (; i< R.size(); i++){
-        std::pair<segment, double> best = {{NULL_NODE, NULL_NODE}, 0.0};
+        std::pair<segment, double> best = {{path_engine::NULL_NODE, path_engine::NULL_NODE}, 0.0};
         for (int v = 0; v<geometry.horizontal_bound; v+= geometry.n_cols){
             std::pair<segment, double> candidate = dag_heuristic(pSol,
                                                                  v,

@@ -29,7 +29,7 @@ public:
         int row = std::max(0, box.ul.y - (problem.max_range-1));
         int bound = std::min(geometry.n_rows, box.lr.y + (problem.max_range-1));
         int no_good;
-        if (is_node(ref.source))
+        if (path_engine::is_node(ref.source))
             no_good = geometry.is_horizontal(ref) ? ref.source / geometry.n_cols : -1;
         else
             no_good = -1;
@@ -43,7 +43,7 @@ public:
                 };
 
                 if (s.source == s.target)
-                    s.target = NULL_NODE;
+                    s.target = path_engine::NULL_NODE;
 
                 f(s);
             }
@@ -52,7 +52,7 @@ public:
         //Vertical segments
         int col = std::max(0, box.ul.x - (problem.max_range - 1));
         bound = std::min(geometry.n_cols, box.lr.x + (problem.max_range-1));
-        if (is_node(ref.source))
+        if (path_engine::is_node(ref.source))
             no_good = geometry.is_horizontal(ref) ? -1 :
                       (ref.source - geometry.horizontal_bound) / geometry.n_rows;
         else
@@ -65,7 +65,7 @@ public:
                 };
 
                 if (s.source == s.target)
-                    s.target = NULL_NODE;
+                    s.target = path_engine::NULL_NODE;
 
                 f(s);
             }

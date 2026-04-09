@@ -1,0 +1,766 @@
+name,instance,configuration,returncode,stdout,stderr
+s1616_ir0_lrc081_c11111111111,s1616_ir0_lrc081,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: 1
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+
+STDERR:
+ 
+Error while reading the CPPIED instance: 
+Failed to read matrix dimensions.",
+s1616_ir0_lrc181_c11111111111,s1616_ir0_lrc181,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: 1
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+
+STDERR:
+ 
+Error while reading the CPPIED instance: 
+Failed to read matrix dimensions.",
+s1616_ir1_lrc081_c11111111111,s1616_ir1_lrc081,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: 1
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+
+STDERR:
+ 
+Error while reading the CPPIED instance: 
+Failed to read matrix dimensions.",
+s1616_ir1_lrc181_c11111111111,s1616_ir1_lrc181,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: 1
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+
+STDERR:
+ 
+Error while reading the CPPIED instance: 
+Failed to read matrix dimensions.",
+s1616_ir2_lrc081_c11111111111,s1616_ir2_lrc081,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: 1
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+
+STDERR:
+ 
+Error while reading the CPPIED instance: 
+Failed to read matrix dimensions.",
+s1616_ir2_lrc155_c11111111111,s1616_ir2_lrc155,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+Initial cost: {l=177, t=34}
+
+STDERR:
+ Runtime error from neighborhood: 14neighborhood_r
+Constr::getFrom solution: 
+{src=80, tgt=-1}
+{src=358, tgt=360}
+{src=160, tgt=-2}
+{src=282, tgt=-1}
+{src=180, tgt=184}
+{src=185, tgt=186}
+{src=152, tgt=153}
+{src=154, tgt=158}
+{src=444, tgt=-1}
+{src=265, tgt=-2}
+{src=367, tgt=-2}
+{src=365, tgt=-2}
+{src=364, tgt=357}
+{src=356, tgt=-2}
+{src=371, tgt=368}
+{src=480, tgt=-1}
+{src=481, tgt=484}
+{src=485, tgt=494}
+{src=495, tgt=-1}
+{src=269, tgt=-1}
+{src=541, tgt=-2}
+{src=223, tgt=221}
+{src=220, tgt=-2}
+{src=219, tgt=218}
+{src=217, tgt=208}
+{src=285, tgt=287}
+{src=256, tgt=258}
+{src=335, tgt=334}
+{src=333, tgt=-2}
+{src=332, tgt=-2}
+{src=331, tgt=320}
+{src=1, tgt=-2}
+{src=272, tgt=274}
+{src=48, tgt=-1}
+{src=49, tgt=53}
+{src=54, tgt=-1}
+{src=55, tgt=63}
+{src=531, tgt=-1}
+{src=79, tgt=-2}
+{src=516, tgt=521}
+{src=175, tgt=-1}
+{src=538, tgt=-1}
+libc++abi: terminating due to uncaught exception of type GRBException",
+s1616_ir2_lrc181_c11111111111,s1616_ir2_lrc181,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: 1
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+
+STDERR:
+ 
+Error while reading the CPPIED instance: 
+Failed to read matrix dimensions.",
+s1616_ir2_lrc185_c11111111111,s1616_ir2_lrc185,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+Initial cost: {l=147, t=30}
+
+STDERR:
+ Runtime error from neighborhood: 14neighborhood_r
+Constr::getFrom solution: 
+{src=80, tgt=-1}
+{src=308, tgt=306}
+{src=33, tgt=-2}
+{src=275, tgt=-1}
+{src=64, tgt=67}
+{src=68, tgt=-1}
+{src=320, tgt=-2}
+{src=3, tgt=-1}
+{src=336, tgt=340}
+{src=341, tgt=343}
+{src=344, tgt=349}
+{src=350, tgt=-1}
+{src=351, tgt=-1}
+{src=335, tgt=-2}
+{src=334, tgt=330}
+{src=115, tgt=116}
+{src=69, tgt=78}
+{src=79, tgt=-1}
+{src=29, tgt=-2}
+{src=480, tgt=-2}
+{src=496, tgt=-1}
+{src=497, tgt=499}
+{src=500, tgt=501}
+{src=125, tgt=-2}
+{src=502, tgt=505}
+{src=506, tgt=511}
+{src=270, tgt=271}
+{src=239, tgt=236}
+{src=232, tgt=231}
+{src=230, tgt=226}
+{src=285, tgt=283}
+{src=176, tgt=180}
+{src=181, tgt=-1}
+{src=182, tgt=190}
+{src=191, tgt=-1}
+{src=538, tgt=-2}
+libc++abi: terminating due to uncaught exception of type GRBException",
+s1616_ir0_lrc081_c11111111111,s1616_ir0_lrc081,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+Initial cost: {l=412, t=87}
+
+STDERR:
+ Runtime error from neighborhood: 14neighborhood_r
+Constr::getFrom solution: 
+{src=16, tgt=18}
+{src=19, tgt=24}
+{src=25, tgt=-1}
+{src=26, tgt=31}
+{src=530, tgt=-1}
+{src=63, tgt=62}
+{src=61, tgt=58}
+{src=56, tgt=54}
+{src=375, tgt=-1}
+{src=376, tgt=-1}
+{src=150, tgt=154}
+{src=155, tgt=159}
+{src=535, tgt=-2}
+{src=127, tgt=124}
+{src=122, tgt=-2}
+{src=120, tgt=-2}
+{src=119, tgt=117}
+{src=115, tgt=112}
+{src=144, tgt=148}
+{src=362, tgt=-1}
+{src=181, tgt=186}
+{src=138, tgt=-2}
+{src=153, tgt=-2}
+{src=151, tgt=150}
+{src=134, tgt=-1}
+{src=407, tgt=-2}
+{src=69, tgt=52}
+{src=51, tgt=29}
+{src=62, tgt=58}
+{src=56, tgt=52}
+{src=228, tgt=229}
+{src=397, tgt=-2}
+{src=183, tgt=184}
+{src=186, tgt=187}
+{src=27, tgt=23}
+{src=22, tgt=19}
+{src=17, tgt=-2}
+{src=48, tgt=51}
+{src=52, tgt=-1}
+{src=370, tgt=-2}
+{src=88, tgt=85}
+{src=84, tgt=-2}
+{src=83, tgt=82}
+{src=208, tgt=-2}
+{src=284, tgt=-2}
+{src=176, tgt=-1}
+{src=177, tgt=180}
+{src=182, tgt=183}
+{src=184, tgt=189}
+{src=190, tgt=191}
+{src=255, tgt=-2}
+{src=254, tgt=252}
+{src=250, tgt=-2}
+{src=247, tgt=-2}
+{src=246, tgt=240}
+{src=224, tgt=-1}
+{src=242, tgt=246}
+{src=247, tgt=251}
+{src=478, tgt=-2}
+{src=219, tgt=221}
+{src=253, tgt=-2}
+{src=252, tgt=-2}
+{src=251, tgt=246}
+{src=243, tgt=240}
+{src=208, tgt=-1}
+{src=209, tgt=214}
+{src=215, tgt=218}
+{src=219, tgt=221}
+{src=270, tgt=271}
+{src=543, tgt=-2}
+{src=223, tgt=221}
+{src=220, tgt=216}
+{src=214, tgt=-2}
+{src=178, tgt=176}
+{src=282, tgt=-2}
+{src=144, tgt=145}
+{src=146, tgt=150}
+{src=151, tgt=156}
+{src=157, tgt=-1}
+{src=521, tgt=-1}
+{src=522, tgt=-1}
+{src=110, tgt=111}
+{src=533, tgt=-2}
+{src=95, tgt=91}
+{src=90, tgt=-2}
+{src=27, tgt=-1}
+{src=28, tgt=31}
+{src=94, tgt=-2}
+{src=92, tgt=-2}
+{src=90, tgt=89}
+{src=88, tgt=84}
+{src=83, tgt=80}
+{src=277, tgt=-1}
+{src=112, tgt=115}
+libc++abi: terminating due to uncaught exception of type GRBException",
+s1616_ir1_lrc081_c11111111111,s1616_ir1_lrc081,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+Initial cost: {l=440, t=89}
+
+STDERR:
+ [Warning] Second phase LP terminated with status3
+[Warning] First phase LP terminated with status3
+[Error] Model infeasible or unbounded
+Runtime error from neighborhood: 14neighborhood_r
+Infeasibility or unboundedness found in reallocation model.
+{src=16, tgt=-1}
+{src=34, tgt=35}
+{src=354, tgt=-1}
+{src=338, tgt=-2}
+{src=35, tgt=34}
+{src=32, tgt=-2}
+{src=17, tgt=20}
+{src=21, tgt=22}
+{src=23, tgt=27}
+{src=28, tgt=30}
+{src=31, tgt=-1}
+{src=528, tgt=-2}
+{src=15, tgt=-2}
+{src=496, tgt=-1}
+{src=482, tgt=483}
+{src=76, tgt=74}
+{src=73, tgt=-2}
+{src=72, tgt=69}
+{src=68, tgt=64}
+{src=277, tgt=-1}
+{src=96, tgt=-1}
+{src=97, tgt=101}
+{src=102, tgt=105}
+{src=107, tgt=109}
+{src=110, tgt=-1}
+{src=111, tgt=-1}
+{src=532, tgt=-2}
+{src=79, tgt=78}
+{src=76, tgt=-2}
+{src=452, tgt=-2}
+{src=450, tgt=-2}
+{src=26, tgt=24}
+{src=8, tgt=10}
+{src=40, tgt=43}
+{src=44, tgt=46}
+{src=47, tgt=-1}
+{src=78, tgt=-2}
+{src=77, tgt=73}
+{src=72, tgt=-2}
+{src=70, tgt=69}
+{src=115, tgt=114}
+{src=309, tgt=-2}
+{src=96, tgt=101}
+{src=102, tgt=104}
+{src=105, tgt=109}
+{src=518, tgt=519}
+{src=142, tgt=140}
+{src=139, tgt=135}
+{src=134, tgt=132}
+{src=131, tgt=128}
+{src=160, tgt=162}
+{src=163, tgt=164}
+{src=197, tgt=200}
+{src=202, tgt=205}
+{src=206, tgt=-1}
+{src=207, tgt=-1}
+{src=522, tgt=521}
+{src=175, tgt=-2}
+{src=174, tgt=171}
+{src=170, tgt=146}
+{src=145, tgt=121}
+{src=408, tgt=-1}
+{src=151, tgt=149}
+{src=148, tgt=146}
+{src=161, tgt=160}
+{src=192, tgt=-1}
+{src=284, tgt=-2}
+{src=192, tgt=195}
+{src=196, tgt=197}
+{src=198, tgt=205}
+{src=506, tgt=-2}
+{src=171, tgt=170}
+{src=169, tgt=-2}
+{src=168, tgt=-2}
+{src=231, tgt=-2}
+{src=215, tgt=-1}
+{src=413, tgt=-1}
+{src=232, tgt=233}
+{src=234, tgt=236}
+{src=237, tgt=239}
+{src=543, tgt=-1}
+{src=271, tgt=267}
+{src=250, tgt=246}
+{src=245, tgt=-2}
+{src=351, tgt=-1}
+{src=259, tgt=257}
+{src=287, tgt=-2}
+{src=240, tgt=-1}
+{src=241, tgt=245}
+{src=229, tgt=226}
+{src=194, tgt=195}
+{src=180, tgt=181}
+{src=166, tgt=168}
+{src=427, tgt=-1}
+{src=201, tgt=205}
+{src=206, tgt=207}
+{src=239, tgt=-2}
+{src=237, tgt=235}
+{src=251, tgt=-1}
+{src=252, tgt=253}
+{src=511, tgt=-1}
+libc++abi: terminating due to uncaught exception of type std::runtime_error: Infeasibility or unboundedness found in reallocation model.",
+s1616_ir2_lrc081_c11111111111,s1616_ir2_lrc081,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+Initial cost: {l=444, t=107}
+
+STDERR:
+ [Warning] First phase LP terminated with status3
+[Error] Model infeasible or unbounded
+Runtime error from neighborhood: 14neighborhood_r
+Infeasibility or unboundedness found in reallocation model.
+{src=16, tgt=-1}
+{src=289, tgt=-1}
+{src=305, tgt=-2}
+{src=17, tgt=-2}
+{src=290, tgt=296}
+{src=312, tgt=-2}
+{src=311, tgt=310}
+{src=97, tgt=96}
+{src=80, tgt=81}
+{src=308, tgt=-2}
+{src=292, tgt=296}
+{src=297, tgt=301}
+{src=224, tgt=-2}
+{src=286, tgt=-1}
+{src=240, tgt=244}
+{src=228, tgt=-2}
+{src=349, tgt=348}
+{src=180, tgt=-1}
+{src=411, tgt=-1}
+{src=200, tgt=-1}
+{src=459, tgt=-2}
+{src=539, tgt=-1}
+{src=508, tgt=-2}
+{src=507, tgt=502}
+{src=500, tgt=496}
+{src=12, tgt=-2}
+{src=464, tgt=470}
+{src=138, tgt=-2}
+{src=439, tgt=436}
+{src=435, tgt=432}
+{src=528, tgt=531}
+{src=534, tgt=-1}
+{src=535, tgt=538}
+{src=271, tgt=-2}
+{src=511, tgt=510}
+{src=509, tgt=501}
+{src=500, tgt=-2}
+{src=77, tgt=-2}
+{src=483, tgt=482}
+{src=46, tgt=-1}
+{src=31, tgt=30}
+{src=45, tgt=-2}
+{src=44, tgt=-2}
+{src=43, tgt=-2}
+{src=59, tgt=-1}
+{src=469, tgt=470}
+{src=471, tgt=476}
+{src=477, tgt=-1}
+{src=236, tgt=239}
+{src=542, tgt=-1}
+{src=255, tgt=253}
+{src=541, tgt=535}
+{src=534, tgt=532}
+{src=404, tgt=409}
+{src=410, tgt=413}
+{src=248, tgt=251}
+{src=447, tgt=443}
+{src=441, tgt=-2}
+{src=440, tgt=-2}
+{src=437, tgt=432}
+{src=8, tgt=-2}
+{src=400, tgt=405}
+{src=406, tgt=407}
+{src=134, tgt=-2}
+{src=375, tgt=372}
+{src=371, tgt=368}
+{src=7, tgt=-1}
+{src=400, tgt=402}
+{src=356, tgt=357}
+{src=374, tgt=377}
+{src=378, tgt=383}
+{src=247, tgt=248}
+{src=431, tgt=-1}
+{src=383, tgt=377}
+{src=376, tgt=-2}
+{src=374, tgt=369}
+{src=336, tgt=-2}
+{src=4, tgt=-1}
+{src=352, tgt=-1}
+{src=36, tgt=-2}
+{src=338, tgt=343}
+{src=344, tgt=345}
+{src=346, tgt=350}
+{src=258, tgt=-2}
+{src=319, tgt=318}
+{src=192, tgt=-2}
+{src=299, tgt=-2}
+{src=298, tgt=-2}
+{src=160, tgt=-2}
+{src=281, tgt=-2}
+{src=329, tgt=330}
+{src=378, tgt=-2}
+{src=166, tgt=170}
+{src=520, tgt=519}
+{src=471, tgt=473}
+{src=474, tgt=478}
+{src=479, tgt=-1}
+{src=267, tgt=-2}
+{src=447, tgt=-2}
+{src=446, tgt=445}
+{src=444, tgt=438}
+{src=405, tgt=407}
+{src=408, tgt=410}
+{src=412, tgt=-1}
+{src=332, tgt=-2}
+{src=331, tgt=330}
+{src=329, tgt=322}
+{src=321, tgt=320}
+libc++abi: terminating due to uncaught exception of type std::runtime_error: Infeasibility or unboundedness found in reallocation model.",
+s1616_is0_lrc081_c11111111111,s1616_is0_lrc081,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+Initial cost: {l=329, t=73}
+
+STDERR:
+ [Warning] First phase LP terminated with status3
+[Error] Model infeasible or unbounded
+Runtime error from neighborhood: 14neighborhood_r
+Infeasibility or unboundedness found in reallocation model.
+{src=16, tgt=-1}
+{src=310, tgt=311}
+{src=312, tgt=-1}
+{src=313, tgt=319}
+{src=256, tgt=-2}
+{src=285, tgt=-2}
+{src=284, tgt=-2}
+{src=274, tgt=-2}
+{src=32, tgt=-1}
+{src=307, tgt=310}
+{src=311, tgt=314}
+{src=315, tgt=317}
+{src=318, tgt=319}
+{src=351, tgt=343}
+{src=342, tgt=340}
+{src=339, tgt=-2}
+{src=322, tgt=-2}
+{src=339, tgt=342}
+{src=343, tgt=347}
+{src=348, tgt=349}
+{src=244, tgt=245}
+{src=382, tgt=379}
+{src=96, tgt=87}
+{src=86, tgt=82}
+{src=214, tgt=-1}
+{src=396, tgt=395}
+{src=351, tgt=346}
+{src=345, tgt=343}
+{src=342, tgt=336}
+{src=368, tgt=-1}
+{src=369, tgt=372}
+{src=374, tgt=378}
+{src=263, tgt=-1}
+{src=415, tgt=-2}
+{src=404, tgt=400}
+{src=432, tgt=435}
+{src=436, tgt=438}
+{src=512, tgt=-1}
+{src=29, tgt=-2}
+{src=465, tgt=468}
+{src=436, tgt=-2}
+{src=73, tgt=-2}
+{src=419, tgt=418}
+{src=400, tgt=401}
+{src=409, tgt=413}
+{src=445, tgt=443}
+{src=186, tgt=-1}
+{src=459, tgt=460}
+{src=219, tgt=221}
+{src=475, tgt=479}
+{src=271, tgt=-1}
+{src=543, tgt=-2}
+{src=254, tgt=-1}
+{src=526, tgt=523}
+{src=522, tgt=519}
+{src=517, tgt=-2}
+libc++abi: terminating due to uncaught exception of type std::runtime_error: Infeasibility or unboundedness found in reallocation model.",
+s1616_is0_lrc153_c11111111111,s1616_is0_lrc153,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+Initial cost: {l=131, t=20}
+
+STDERR:
+ [Warning] First phase LP terminated with status3
+[Error] Model infeasible or unbounded
+Runtime error from neighborhood: 14neighborhood_r
+Infeasibility or unboundedness found in reallocation model.
+{src=80, tgt=-1}
+{src=295, tgt=-1}
+{src=162, tgt=173}
+{src=174, tgt=-1}
+{src=159, tgt=-1}
+{src=536, tgt=533}
+{src=95, tgt=-2}
+{src=94, tgt=91}
+{src=90, tgt=81}
+{src=80, tgt=-2}
+{src=48, tgt=53}
+{src=54, tgt=-1}
+{src=387, tgt=-1}
+{src=71, tgt=-1}
+{src=404, tgt=407}
+{src=411, tgt=-1}
+{src=199, tgt=193}
+{src=196, tgt=192}
+{src=208, tgt=212}
+{src=213, tgt=216}
+{src=217, tgt=218}
+{src=477, tgt=-1}
+{src=478, tgt=479}
+{src=495, tgt=491}
+{src=506, tgt=500}
+{src=46, tgt=47}
+libc++abi: terminating due to uncaught exception of type std::runtime_error: Infeasibility or unboundedness found in reallocation model.",
+s1616_is2_lrc033_c11111111111,s1616_is2_lrc033,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+Initial cost: {l=178, t=29}
+
+STDERR:
+ [Warning] First phase LP terminated with status3
+[Error] Model infeasible or unbounded
+Runtime error from neighborhood: 14neighborhood_r
+Infeasibility or unboundedness found in reallocation model.
+{src=48, tgt=-1}
+{src=47, tgt=-1}
+{src=63, tgt=56}
+{src=55, tgt=51}
+{src=69, tgt=72}
+{src=73, tgt=-1}
+{src=75, tgt=-1}
+{src=46, tgt=44}
+{src=43, tgt=42}
+{src=41, tgt=-2}
+{src=40, tgt=39}
+{src=38, tgt=-2}
+{src=37, tgt=35}
+{src=34, tgt=32}
+{src=275, tgt=276}
+{src=96, tgt=99}
+{src=100, tgt=-1}
+{src=101, tgt=104}
+{src=105, tgt=106}
+{src=107, tgt=108}
+{src=109, tgt=-1}
+{src=110, tgt=111}
+{src=143, tgt=-2}
+{src=142, tgt=139}
+{src=138, tgt=-2}
+{src=137, tgt=134}
+{src=130, tgt=128}
+{src=160, tgt=-1}
+{src=162, tgt=164}
+{src=165, tgt=168}
+{src=169, tgt=170}
+{src=171, tgt=173}
+{src=505, tgt=-2}
+{src=158, tgt=159}
+{src=539, tgt=-1}
+{src=207, tgt=204}
+{src=203, tgt=-2}
+{src=201, tgt=200}
+{src=198, tgt=196}
+{src=195, tgt=192}
+{src=224, tgt=226}
+{src=366, tgt=-1}
+{src=367, tgt=-1}
+{src=335, tgt=-2}
+{src=227, tgt=230}
+{src=234, tgt=-1}
+{src=235, tgt=238}
+{src=239, tgt=-1}
+{src=431, tgt=-2}
+{src=430, tgt=427}
+{src=426, tgt=423}
+libc++abi: terminating due to uncaught exception of type std::runtime_error: Infeasibility or unboundedness found in reallocation model.",
+s1616_is2_lrc081_c11111111111,s1616_is2_lrc081,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+Initial cost: {l=281, t=60}
+
+STDERR:
+ {src=16, tgt=21}
+{src=22, tgt=25}
+{src=26, tgt=30}
+{src=95, tgt=-2}
+{src=94, tgt=86}
+{src=85, tgt=83}
+{src=98, tgt=-2}
+{src=292, tgt=291}
+{src=48, tgt=56}
+{src=57, tgt=-1}
+Found NULL segment encoded in a source.
+Runtime error from neighborhood: 17neighborhood_gtsp
+Found NULL segment encoded in a source.{src=16, tgt=21}
+{src=22, tgt=25}
+{src=26, tgt=30}
+{src=95, tgt=-2}
+{src=94, tgt=86}
+{src=85, tgt=83}
+{src=98, tgt=-2}
+{src=292, tgt=291}
+{src=48, tgt=56}
+{src=57, tgt=-1}
+{src=-1, tgt=7}
+{src=85, tgt=80}
+{src=48, tgt=49}
+{src=51, tgt=54}
+{src=55, tgt=62}
+{src=63, tgt=-1}
+{src=31, tgt=30}
+{src=107, tgt=-2}
+{src=154, tgt=155}
+{src=473, tgt=-1}
+{src=172, tgt=-1}
+{src=489, tgt=-2}
+{src=201, tgt=200}
+{src=150, tgt=152}
+{src=153, tgt=159}
+{src=127, tgt=125}
+{src=124, tgt=121}
+{src=120, tgt=112}
+{src=208, tgt=216}
+{src=217, tgt=-1}
+{src=218, tgt=223}
+{src=255, tgt=253}
+{src=252, tgt=251}
+{src=250, tgt=243}
+{src=242, tgt=240}
+{src=256, tgt=257}
+{src=383, tgt=-2}
+{src=245, tgt=244}
+{src=212, tgt=209}
+{src=177, tgt=185}
+{src=186, tgt=187}
+{src=188, tgt=191}
+{src=159, tgt=156}
+{src=153, tgt=144}
+{src=176, tgt=-1}
+{src=178, tgt=179}
+{src=180, tgt=182}
+{src=184, tgt=191}
+{src=539, tgt=-1}
+{src=524, tgt=526}
+{src=253, tgt=250}
+{src=446, tgt=-2}
+{src=445, tgt=-2}
+libc++abi: terminating due to uncaught exception of type std::runtime_error: Found NULL segment encoded in a source.",

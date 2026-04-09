@@ -306,17 +306,17 @@ TEST_F(neighborhood_tsp_fixture, SplitVerticesWithinOriginalRange){
     int hi = std::numeric_limits<int>::min();
     for (auto& s : sol.path){
         lo = std::min(lo, s.source);
-        hi = std::max(hi, is_node(s.target) ? s.target : s.source);
+        hi = std::max(hi, path_engine::is_node(s.target) ? s.target : s.source);
     }
     n->split(sol);
     for (auto& s : sol.path){
         EXPECT_GE(s.source, lo);
-        if (is_node(s.target)) EXPECT_LE(s.target, hi);
+        if (path_engine::is_node(s.target)) EXPECT_LE(s.target, hi);
     }
 }
 
 TEST_F(neighborhood_tsp_fixture, SplitSingleNodeSegmentsAreUnchanged){
-    sol.path = {{6, NULL_NODE}, {12, NULL_NODE}, {18, NULL_NODE}};
+    sol.path = {{6, path_engine::NULL_NODE}, {12, path_engine::NULL_NODE}, {18, path_engine::NULL_NODE}};
     size_t sz = sol.path.size();
     n->split(sol);
     EXPECT_EQ(sol.path.size(), sz);

@@ -100,9 +100,9 @@ void ilp::set_constraints(cppied_solution &pSolution, GRBModel &model) {
         //Flow conservation constraints
         starting_minus = true;
         for (int u : minus_sets[problem.initial_position].V)
-            if (geometry.is_horizontal({u, NULL_NODE}) ==
-                geometry.is_horizontal({problem.initial_position, NULL_NODE}) &&
-                geometry.dist({problem.initial_position, NULL_NODE}, {u, NULL_NODE}) == cost_t{1,0}){
+            if (geometry.is_horizontal({u, path_engine::NULL_NODE}) ==
+                geometry.is_horizontal({problem.initial_position, path_engine::NULL_NODE}) &&
+                geometry.dist({problem.initial_position, path_engine::NULL_NODE}, {u, path_engine::NULL_NODE}) == cost_t{1,0}){
                 starting_minus = false;
             }
         for (int v = 0; v< problem.vertex.size(); ++v){
@@ -165,8 +165,8 @@ void ilp::set_objectives(cppied_solution &pSolution, GRBModel &model) {
     for (int u =0; u< problem.vertex.size(); u++){
         for (int v = 0; v< variables[u].outgoing_variables.size(); v++){
             Z1 += variables[u].outgoing_variables[v];
-            segment dummy_u = {u, NULL_NODE};
-            segment dummy_v = {variables[u].outgoing_arcs_V1[v], NULL_NODE};
+            segment dummy_u = {u, path_engine::NULL_NODE};
+            segment dummy_v = {variables[u].outgoing_arcs_V1[v], path_engine::NULL_NODE};
             Z2 += int(
                     geometry.is_horizontal(dummy_u) != geometry.is_horizontal(dummy_v)
                     ) * variables[u].outgoing_variables[v];

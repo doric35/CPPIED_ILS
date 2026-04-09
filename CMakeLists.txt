@@ -43,7 +43,8 @@ target_link_libraries(cppied_lib
 #Main executable - O3 optimization
 add_executable(Cppied main.cpp)
 target_link_libraries(Cppied PRIVATE cppied_lib)
-target_compile_options(Cppied PRIVATE -O0 -g)
+#target_compile_options(Cppied PRIVATE -O0 -g)
+target_compile_options(Cppied PRIVATE -O3)
 
 #Google Tests
 include(FetchContent)

@@ -51,7 +51,7 @@ TEST_F(neighborhood_n1_fixture, LocalOptimaFound){
 TEST_F(neighborhood_n1_fixture, ImpromentFound){
     cppied_solution other = sol;
     other.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},
@@ -72,7 +72,7 @@ TEST_F(neighborhood_n1_fixture, ImpromentFound){
 TEST_F(neighborhood_n1_fixture, ValidCoverageUpdate){
     cppied_solution other = sol;
     other.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},
@@ -91,7 +91,7 @@ TEST_F(neighborhood_n1_fixture, ValidCoverageUpdate){
 TEST_F(neighborhood_n1_fixture, CoverageConstraintSatisfied){
     cppied_solution other = sol;
     other.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},
@@ -109,7 +109,7 @@ TEST_F(neighborhood_n1_fixture, CoverageConstraintSatisfied){
 TEST_F(neighborhood_n1_fixture, LocalOptimaAfterImprovement){
     cppied_solution other = sol;
     other.path = {{6, 11},
-                  {79, NULL_NODE},
+                  {79, path_engine::NULL_NODE},
                   {23,18},
                   {44,42},
                   {48, 51},

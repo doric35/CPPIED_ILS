@@ -34,7 +34,7 @@ public:
             };
 
             if (s.source == s.target)
-                s.target = NULL_NODE;
+                s.target = path_engine::NULL_NODE;
 
             f(s);
         }
@@ -49,7 +49,7 @@ public:
             };
 
             if (s.source == s.target)
-                s.target = NULL_NODE;
+                s.target = path_engine::NULL_NODE;
 
             f(s);
         }

@@ -5,7 +5,7 @@ void dp_sweeper::construct(cppied_solution &pSol, std::function<void(cppied_solu
     unsat.reserve(geometry.n_rows * geometry.n_cols);
 
     if (pSol.path.empty()) {
-        segment initial = {problem.initial_position, NULL_NODE};
+        segment initial = {problem.initial_position, path_engine::NULL_NODE};
         coverage.insert(pSol, initial);
         pSol.path.push_back(initial);
     }
@@ -136,6 +136,6 @@ std::pair<segment, double> dp_sweeper::maximum_subarray(cppied_solution &pSol, c
         }
     }
     if (best_l == best_u)
-        return {segment{position[best_l], NULL_NODE}, best_sum};
+        return {segment{position[best_l], path_engine::NULL_NODE}, best_sum};
     return {segment{position[best_l], position[best_u]}, best_sum};
 }

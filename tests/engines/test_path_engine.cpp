@@ -36,7 +36,7 @@ TEST_F(cppied_method_fixture, ValidRemovalGain){
 TEST_F(cppied_method_fixture, ValidInsertionGain){
     cppied_solution sol{
             {{6, 11},
-             {79, NULL_NODE},
+             {79, path_engine::NULL_NODE},
              {23,18},
              {44,42},
              {48, 51},
@@ -63,14 +63,14 @@ TEST_F(cppied_method_fixture, ValidTopInsertion){
              {48, 51},
              {30, 35},
              {75,74},
-             //{73, REVERSED_NULL_NODE},
+             //{73, path_engine::REVERSED_NULL_NODE},
              {62, 63}},
             Eigen::VectorXd::Zero(P.req.size()),
             cost_t{0,0}
     };
     method_instance.coverage.reset(sol);
     sol.cost = method_instance.geometry.cost(sol);
-    segment s = {16, REVERSED_NULL_NODE};
+    segment s = {16, path_engine::REVERSED_NULL_NODE};
     auto response =
             method_instance.geometry.get_top_k_insertion(sol, s, 1);
     EXPECT_EQ(response[0].second, (cost_t{0,0}));
@@ -85,11 +85,11 @@ TEST_F(cppied_method_fixture, ValidCompletions){
     int n_nodes = int(P.vertex.size());
     cppied_solution sol{};
     for (int i=0; i< n_nodes; i++){
-        segment s_i = {i, NULL_NODE};
-        segment s_ir = {i, REVERSED_NULL_NODE};
+        segment s_i = {i, path_engine::NULL_NODE};
+        segment s_ir = {i, path_engine::REVERSED_NULL_NODE};
         for (int j=0; j< n_nodes; j++){
-            segment s_j = {j, NULL_NODE};
-            segment s_jr = {j, REVERSED_NULL_NODE};
+            segment s_j = {j, path_engine::NULL_NODE};
+            segment s_jr = {j, path_engine::REVERSED_NULL_NODE};
             cost_t d_ij = method_instance.geometry.dist(s_i, s_j);
             std::vector<segment> path_ij{s_i, s_j};
             EXPECT_NO_THROW(method_instance.geometry.complete(path_ij)) <<
@@ -134,13 +134,13 @@ TEST_F(cppied_method_fixture, ValidDistancesComputations){
     s1={63, -1}, s2={63, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{4,4}));
 
-    s1={26, REVERSED_NULL_NODE}, s2={63, -1};
+    s1={26, path_engine::REVERSED_NULL_NODE}, s2={63, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{3,3}));
 
-    s1={57, REVERSED_NULL_NODE}, s2={63, -1};
+    s1={57, path_engine::REVERSED_NULL_NODE}, s2={63, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{2,2}));
 
-    s1={20, NULL_NODE}, s2={63, -1};
+    s1={20, path_engine::NULL_NODE}, s2={63, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{1,1}));
 
     s1={63, 64}, s2={63, -1};
@@ -182,25 +182,25 @@ TEST_F(cppied_method_fixture, ValidDistancesComputations){
     s1={31, -2}, s2={36, -2};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{2,2}));
 
-    s1={0, REVERSED_NULL_NODE}, s2={48, -1};
+    s1={0, path_engine::REVERSED_NULL_NODE}, s2={48, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{6,5}));
 
-    s1={42, NULL_NODE}, s2={48, -1};
+    s1={42, path_engine::NULL_NODE}, s2={48, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{5,4}));
 
-    s1={6, NULL_NODE}, s2={48, -1};
+    s1={6, path_engine::NULL_NODE}, s2={48, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{4,3}));
 
-    s1={7, NULL_NODE}, s2={48, -1};
+    s1={7, path_engine::NULL_NODE}, s2={48, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{3,3}));
 
-    s1={0, NULL_NODE}, s2={42, -1};
+    s1={0, path_engine::NULL_NODE}, s2={42, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{6,5}));
 
-    s1={48, NULL_NODE}, s2={42, -1};
+    s1={48, path_engine::NULL_NODE}, s2={42, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{5,4}));
 
-    s1={7, NULL_NODE}, s2={42, -1};
+    s1={7, path_engine::NULL_NODE}, s2={42, -1};
     EXPECT_EQ(method_instance.geometry.dist(s1, s2), (cost_t{4,3}));
 
     s1={54, -2}, s2={42, -1};
@@ -295,23 +295,23 @@ TEST_F(cppied_method_fixture, ValidDistancesComputations){
 }
 
 TEST_F(cppied_method_fixture, SpecificPathCompletions){
-    segment s_i = {63, NULL_NODE};
-    segment s_j = {63, NULL_NODE};
+    segment s_i = {63, path_engine::NULL_NODE};
+    segment s_j = {63, path_engine::NULL_NODE};
     std::vector<segment> path_ij{s_i, s_j};
     EXPECT_NO_THROW(method_instance.geometry.complete(path_ij)) <<
         "Throwed with " << s_i << " " << s_j;
 
-    s_i = {36, NULL_NODE}, s_j = {36, REVERSED_NULL_NODE};
+    s_i = {36, path_engine::NULL_NODE}, s_j = {36, path_engine::REVERSED_NULL_NODE};
     path_ij = {s_i, s_j};
     EXPECT_NO_THROW(method_instance.geometry.complete(path_ij)) <<
         "Throwed with " << s_i << " " << s_j;
 
-    s_i = {0, NULL_NODE}, s_j = {48, REVERSED_NULL_NODE};
+    s_i = {0, path_engine::NULL_NODE}, s_j = {48, path_engine::REVERSED_NULL_NODE};
     path_ij = {s_i, s_j};
     EXPECT_NO_THROW(method_instance.geometry.complete(path_ij)) <<
         "Throwed with " << s_i << " " << s_j;
 
-    s_i = {0, NULL_NODE}, s_j = {42, NULL_NODE};
+    s_i = {0, path_engine::NULL_NODE}, s_j = {42, path_engine::NULL_NODE};
     path_ij = {s_i, s_j};
     EXPECT_NO_THROW(method_instance.geometry.complete(path_ij)) <<
         "Throwed with " << s_i << " " << s_j;

@@ -1,12 +1,11 @@
 #pragma once
 
 #include "../structures.hpp"
-#include "../segment_utils.hpp"
+#include "path_engine.hpp"
 #include "../cppied_instance.hpp"
 
 class coverage_engine{
 public:
-
     coverage_engine(const cppied_instance& instance) : problem(instance){}
     void reset(cppied_solution& sol);
     void insert(cppied_solution& sol, const segment& seg);
@@ -15,7 +14,7 @@ public:
 
     template<class F>
     void apply(cppied_solution& sol, const segment& seg, F&& f) const{
-        if (is_node(seg.target)){
+        if (path_engine::is_node(seg.target)){
             int first = std::min(seg.source, seg.target);
             int last = std::max(seg.source, seg.target);
             for (int v = first; v<=last; v++)
@@ -27,7 +26,7 @@ public:
 
     template<class F>
     bool verify(cppied_solution& sol, const segment& seg, F&& f) const{
-        if (is_node(seg.target)){
+        if (path_engine::is_node(seg.target)){
             int first = std::min(seg.source, seg.target);
             int last = std::max(seg.source, seg.target);
             for (int v = first; v<=last; v++)
