@@ -5,16 +5,22 @@
 
 class path_engine {
 public:
-    path_engine(const cppied_instance& instance) : problem(instance){
-        n_rows = problem.seabed.rows();
-        n_cols = problem.seabed.cols();
+    explicit path_engine(const cppied_instance& instance) : problem(instance){
+        n_rows = static_cast<int>(problem.seabed.rows());
+        n_cols = static_cast<int>(problem.seabed.cols());
         horizontal_bound = (n_rows + 1) * n_cols;
+
+        set_int_coordinates();
+        set_boundaries();
+        set_displacements();
     }
 
     void complete(cppied_solution& pSol) const;
     void complete(std::vector<segment>& path) const;
     [[nodiscard]] cost_t dist(const segment& a,
                 const segment& b) const;
+    [[nodiscard]] cost_t dist_boundary(const segment& a,
+                                       const segment& b) const;
     [[nodiscard]] cost_t cost(const segment& a) const;
     [[nodiscard]] cost_t cost(const cppied_solution&) const;
     void extend(segment& source,
@@ -60,8 +66,34 @@ public:
     int n_rows;
     int n_cols;
     int horizontal_bound;
-private:
+protected:
     const cppied_instance& problem;
+
+    std::vector<bool> boundary_node;
+    std::vector<cost_t> displacement_table;
+    std::vector<int> vx;
+    std::vector<int> vy;
+
+    // dist_table has 8 * H * W entries instead of 16
+    // primary_block[from*4+to] → which of the 8 stored blocks to use
+    // flip_disp[from*4+to]     → whether to negate (sdx, sdy) before indexing
+
+    //                              EE  EW  ES  EN
+    //                              WE  WW  WS  WN
+    //                              SE  SW  SS  SN
+    //                              NE  NW  NS  NN
+    static constexpr int  primary[16] = { 0,  1,  2,  3,
+                                          1,  0,  4,  5,
+                                          5,  3,  6,  7,
+                                          4,  2,  7,  6};
+    static constexpr bool flip[16]    = { 0,  0,  0,  0,
+                                          1,  1,  0,  0,
+                                          1,  1,  0,  0,
+                                          1,  1,  1,  1};
+
+    void set_boundaries();
+    void set_displacements();
+    void set_int_coordinates();
 
     cost_t ee_dist(int,int) const;
     cost_t ew_dist(int,int) const;

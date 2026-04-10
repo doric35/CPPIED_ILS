@@ -1,6 +1,6 @@
 NAME : test_configuration_123.19.tour
 COMMENT : Length = 19
-COMMENT : Found by LKH [Keld Helsgaun] Wed Apr  8 22:21:31 2026
+COMMENT : Found by LKH [Keld Helsgaun] Thu Apr  9 16:57:29 2026
 TYPE : TOUR
 DIMENSION : 33
 TOUR_SECTION
@@ -10,9 +10,6 @@ TOUR_SECTION
 4
 5
 6
-31
-32
-33
 30
 29
 28
@@ -22,6 +19,9 @@ TOUR_SECTION
 25
 26
 27
+31
+32
+33
 13
 14
 15

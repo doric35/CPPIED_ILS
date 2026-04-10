@@ -61,6 +61,26 @@ public:
             double r_dual,
             double gamma_dual,
             const std::function<double(cost_t)>& f);
+
+    std::pair<segment, double> null_dag_heuristic(
+            const cppied_solution&,
+            int u, int v,
+            std::vector<double>& coverage_duals,
+            int r,
+            double r_dual,
+            double gamma_dual,
+            const std::function<double(cost_t)>& f
+            );
+    std::pair<segment, double> reversed_dag_heuristic(
+            const cppied_solution&,
+            int u, int v,
+            std::vector<double>& coverage_duals,
+            int r,
+            double r_dual,
+            double gamma_dual,
+            const std::function<double(cost_t)>& f
+    );
+
 protected:
     GRBLinExpr Z1 = 0;
     GRBLinExpr Z2 = 0;

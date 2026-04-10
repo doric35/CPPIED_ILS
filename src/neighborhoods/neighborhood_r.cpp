@@ -314,7 +314,17 @@ cost_t neighborhood_r::replacement_cost(const cppied_solution &pSol,
     return c;
 }
 
-std::pair<segment, double> neighborhood_r::dag_heuristic(const cppied_solution& pSol,
+std::pair<segment, double> neighborhood_r::dag_heuristic(const cppied_solution &pSol, int u, int v,
+                                                         std::vector<double> &coverage_duals, int r, double r_dual,
+                                                         double gamma_dual, const std::function<double(cost_t)> &f) {
+    std::pair<segment, double> candidate = null_dag_heuristic(pSol, u, v, coverage_duals, r, r_dual, gamma_dual, f);
+    std::pair<segment, double> other_candidate = reversed_dag_heuristic(pSol, u, v, coverage_duals, r, r_dual, gamma_dual, f);
+    if (candidate.second <= other_candidate.second)
+        return candidate;
+    return other_candidate;
+}
+
+std::pair<segment, double> neighborhood_r::null_dag_heuristic(const cppied_solution& pSol,
                                    int first, int last,
                                       std::vector<double> &coverage_duals,
                                       int r, double r_dual,
@@ -331,8 +341,7 @@ std::pair<segment, double> neighborhood_r::dag_heuristic(const cppied_solution& 
         segment dummy = {v, path_engine::NULL_NODE};
         cost_t c = geometry.dist(pSol.path[r-1], dummy);
         double rc = f(c) - coverage_duals[v] - gamma_dual * c.length;
-        if (D[v - first + 1] > rc)
-            D[v - first + 1] = rc;
+        D[v - first + 1] = rc;
     }
     for (int v = first; v<last; v++){
         double cost = D[v - first + 1] + f(cost_t{1,0}) - coverage_duals[v+1] - (gamma_dual * 1.0);
@@ -360,14 +369,87 @@ std::pair<segment, double> neighborhood_r::dag_heuristic(const cppied_solution& 
 
     //Backtrack
     int v = P.back();
-    int u = P[v];
+    int u = v;
+
     while (P[u] != 0)
-        --u;
+        u = P[u];
+
     u += first-1;
-    if (u == v)
-        return {{v, path_engine::NULL_NODE}, D.back() - r_dual};
-    else
-        return {{u,v}, D.back() - r_dual};
+    v += first - 1;
+    std::pair<segment, double> candidate = {
+            {v, path_engine::NULL_NODE},
+            D.back() - r_dual};
+    if (u != v)
+        candidate.first = {u,v};
+    return candidate;
+}
+
+std::pair<segment, double> neighborhood_r::reversed_dag_heuristic(const cppied_solution& pSol,
+                                                              int first, int last,
+                                                              std::vector<double> &coverage_duals,
+                                                              int r, double r_dual,
+                                                              double gamma_dual,
+                                                              const std::function<double(cost_t)>& f) {
+    std::vector<double> D(last - first + 3,
+                          std::numeric_limits<double>::infinity());
+    cost_t c_gain{0,0};
+
+    if (r < pSol.path.size()-1)
+        c_gain = geometry.dist(pSol.path[r-1], pSol.path[r+1]);
+    D[0] = 0.0;
+    std::vector<int> P(last - first + 3,0);
+
+    for (int v = last; v>= first; v--){
+        segment dummy = {v, path_engine::REVERSED_NULL_NODE};
+        cost_t c = geometry.dist(pSol.path[r-1], dummy);
+        double rc = f(c) - coverage_duals[v] - gamma_dual * c.length;
+        const int idx = last - v + 1;
+        D[idx] = rc;
+    }
+
+    for (int v = last; v>first; v--){
+        const int idx = last - v + 1;
+        double cost = D[idx] + f(cost_t{1,0}) - coverage_duals[v+1] - (gamma_dual * 1.0);
+        if (D[idx + 1] > cost) {
+            D[idx + 1] = cost;
+            P[idx + 1] = idx;
+        }
+    }
+
+    double ac;
+    for (int v = last; v>first; v--){
+        segment dummy = {v, path_engine::REVERSED_NULL_NODE};
+        if (r < pSol.path.size() - 1){
+            cost_t c = geometry.dist(dummy, pSol.path[r+1]);
+            ac = f(c) - f(c_gain) - (gamma_dual*(c.length - c_gain.length));
+        }
+        else
+            ac = 0.0;
+        const int idx = last - v + 1;
+        if (D.back() > D[idx] + ac) {
+            P.back() = idx;
+            D.back() = D[idx] + ac;
+        }
+    }
+
+    if (D.back() - r_dual >=0)
+        return {segment{path_engine::NULL_NODE, path_engine::NULL_NODE}, D.back() - r_dual};
+
+    //Backtrack
+    int v = P.back();
+    int u = v;
+
+    while (P[u] != 0)
+        u = P[u];
+
+    u = last - u + 1;
+    v = last - v + 1;
+    std::pair<segment, double> candidate = {
+            {v, path_engine::REVERSED_NULL_NODE},
+            D.back() - r_dual};
+    if (u != v)
+        candidate.first = {u,v};
+    return candidate;
 }
 
 void neighborhood_r::positions_coverage_rcs(const cppied_solution &,

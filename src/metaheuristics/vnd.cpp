@@ -53,7 +53,7 @@ bool vnd::search(cppied_solution &pSolution) {
             } catch (std::runtime_error& e){
                 std::string err_msg = std::string("Runtime error from neighborhood: ") + typeid(*i).name();
                 std::cerr << err_msg << std::endl;
-                std::cerr << e.what();
+                std::cerr << e.what() << std::endl;
                 for (auto &seg: pSolution.path)
                     std::cerr << seg << std::endl;
                 throw e;

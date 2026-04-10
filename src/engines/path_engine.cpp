@@ -1,6 +1,6 @@
 #include "../../include/engines/path_engine.hpp"
 
-cost_t path_engine::dist(const segment &a, const segment &b) const {
+cost_t path_engine::dist_boundary(const segment &a, const segment &b) const {
     const int from = static_cast<int>(get_direction(a));
     const int to   = static_cast<int>(get_direction(b));
     const int v    = is_node(a.target) ? a.target : a.source;
@@ -27,6 +27,124 @@ cost_t path_engine::dist(const segment &a, const segment &b) const {
     }
 }
 
+cost_t path_engine::dist(const segment &a,
+                         const segment &b) const {
+    const int from = static_cast<int>(get_direction(a));
+    const int to = static_cast<int>(get_direction(b));
+    const int v = is_node(a.target) ? a.target : a.source;
+    const int u = b.source;
+
+    const int W = 2*n_cols + 1, H = 2*n_rows + 1;
+
+    if (!boundary_node[v] && !boundary_node[u]) [[likely]] {
+        const int block = from * 4 + to;
+        int sdx = vx[u] - vx[v];
+        int sdy = vy[u] - vy[v];
+        if (flip[block]) sdx = -sdx, sdy = -sdy;
+        return displacement_table[(primary[block] * H * W) + ((sdy + n_rows) * W) + (sdx + n_cols)];
+    }
+    return dist_boundary(a, b);
+}
+
+void path_engine::set_boundaries() {
+    boundary_node.resize(problem.vertex.size(), false);
+    for (int v=0; v<horizontal_bound; v++){
+        const int col = v % n_cols, row = v / n_cols;
+        if (col == 0 || col == n_cols-1 || row == 0 || row == n_rows)
+            boundary_node[v] = true;
+    }
+    for (int v=horizontal_bound; v<(int)problem.vertex.size(); v++){
+        const int local = v - horizontal_bound;
+        const int col = local / n_rows, row = local % n_rows;
+        if (col == 0 || col == n_cols || row == 0 || row == n_rows - 1)
+            boundary_node[v] = true;
+    }
+}
+
+void path_engine::set_int_coordinates() {
+    vx.resize(problem.vertex.size());
+    vy.resize(problem.vertex.size());
+    for (int v =0; v < (int)problem.vertex.size(); v++){
+        vx[v] = static_cast<int>(problem.vertex[v](0));
+        vy[v] = static_cast<int>(problem.vertex[v](1));
+    }
+}
+
+void path_engine::set_displacements() {
+    constexpr int B_EE = 0, B_EW = 1, B_ES = 2, B_EN = 3;
+    constexpr int B_WS = 4, B_WN = 5, B_SS = 6, B_SN = 7;
+
+    const int W = 2*n_cols + 1, H = 2*n_rows + 1;
+    displacement_table.resize(8*W*H);
+
+    auto write = [&](int block, int sdx, int sdy, cost_t c) {
+        displacement_table[(block * W*H) + ((sdy + n_rows) * W) + (sdx + n_cols)] = c;
+    };
+
+    const int h_ref     = n_cols + 1;                         // horizontal: col=1, row=1
+    const int h_ref_bot = (n_rows - 1) * n_cols + 1;          // horizontal: col=1, row=n_rows-1
+    const int v_ref     = horizontal_bound + n_rows + 1;       // vertical:   col=1, row=1
+    const int v_ref_bot = horizontal_bound + 2 * n_rows - 2;   // vertical:   col=1, row=n_rows-2
+
+    // ── Horizontal → Horizontal (EE, EW) ────────────────────────────────────────
+    // Two sources cover all four (sdx, sdy) quadrants:
+    //   h_ref (top-left):    forward=(+,+), rotation=(−,−)
+    //   h_ref_bot (bot-left): forward=(+,−), rotation=(−,+)
+    for (int src : {h_ref, h_ref_bot}) {
+        for (int v = h_ref; v < horizontal_bound; ++v) {
+            if (boundary_node[v]) continue;
+            const int sdx = vx[v] - vx[src];
+            const int sdy = vy[v] - vy[src];
+            write(B_EE,  sdx,  sdy, ee_dist(src, v));
+            write(B_EE, -sdx, -sdy, ee_dist(v, src));
+            write(B_EW,  sdx,  sdy, ew_dist(src, v));
+            write(B_EW, -sdx, -sdy, ew_dist(v, src));
+        }
+    }
+
+    // ── Horizontal → Vertical (ES, EN, WS, WN) ──────────────────────────────────
+    // Four loops covering all quadrants:
+    //   Loop A: h_ref as source,     all vertical targets   → (+,+)
+    //   Loop B: all horizontal srcs, v_ref as target        → (−,−)
+    //   Loop C: h_ref_bot as source, all vertical targets   → (+,−)
+    //   Loop D: all horizontal srcs, v_ref_bot as target    → (−,+)
+    auto write_cross = [&](int src_h, int tgt_v) {
+        const int sdx = vx[tgt_v] - vx[src_h];
+        const int sdy = vy[tgt_v] - vy[src_h];
+        write(B_ES, sdx, sdy, es_dist(src_h, tgt_v));
+        write(B_EN, sdx, sdy, en_dist(src_h, tgt_v));
+        write(B_WS, sdx, sdy, ws_dist(src_h, tgt_v));
+        write(B_WN, sdx, sdy, wn_dist(src_h, tgt_v));
+    };
+    // Loops A and C: fixed horizontal source, all vertical targets
+    for (int src : {h_ref, h_ref_bot}) {
+        for (int v = v_ref; v < (int)problem.vertex.size(); ++v) {
+            if (boundary_node[v]) continue;
+            write_cross(src, v);
+        }
+    }
+    // Loops B and D: all horizontal sources, fixed vertical target
+    for (int tgt : {v_ref, v_ref_bot}) {
+        for (int v = h_ref; v < horizontal_bound; ++v) {
+            if (boundary_node[v]) continue;
+            write_cross(v, tgt);
+        }
+    }
+
+    // ── Vertical → Vertical (SS, SN) ────────────────────────────────────────────
+    // Same two-source strategy as horizontal → horizontal.
+    for (int src : {v_ref, v_ref_bot}) {
+        for (int v = v_ref; v < (int)problem.vertex.size(); ++v) {
+            if (boundary_node[v]) continue;
+            const int sdx = vx[v] - vx[src];
+            const int sdy = vy[v] - vy[src];
+            write(B_SS,  sdx,  sdy, ss_dist(src, v));
+            write(B_SS, -sdx, -sdy, ss_dist(v, src));
+            write(B_SN,  sdx,  sdy, sn_dist(src, v));
+            write(B_SN, -sdx, -sdy, sn_dist(v, src));
+        }
+    }
+}
 
 bool path_engine::satisfy(const segment& a, const segment& b) const {
     return dist(a,b) <= cost_t{1,1};
@@ -101,15 +219,16 @@ void path_engine::correct_segment_direction(segment &a, direction d) {
 }
 
 direction path_engine::get_direction(const segment &seg) const {
-    direction dir = seg.source < horizontal_bound ? direction::E : direction::S;
-    if (is_node(seg.target))
-        dir = seg.target < seg.source ? flip_direction(dir) : dir;
-    else
-        dir = seg.target == REVERSED_NULL_NODE ? flip_direction(dir) : dir;
-    return dir;
+    int dir = seg.source >= horizontal_bound;
+    dir = dir << 1;
+    int reversed = (seg.target < seg.source);
+    reversed = reversed >> (seg.target == NULL_NODE);
+    dir = dir | reversed;
+    return static_cast<direction>(dir);
 }
 
 segment path_engine::flip_segment(const segment &s){
+    if (!is_node(s.source)) return s;
     direction dir = get_direction(s);
     direction other_dir = flip_direction(dir);
     segment other = s;

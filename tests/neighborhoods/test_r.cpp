@@ -377,26 +377,6 @@ TEST_F(neighborhood_r_fixture, DagHeuristicReturnedSegmentVerticesInRange) {
     }
 }
 
-// dag_heuristic must never return a segment where source > target for a
-// horizontal (E-direction) row (first < horizontal_bound), since segment_to_nodes
-// assumes the entry node has the smaller coordinate.
-TEST_F(neighborhood_r_fixture, DagHeuristicHorizontalSegmentOrientationValid) {
-    int n_cells = n->geometry.n_rows * n->geometry.n_cols;
-    std::vector<double> cov_duals(n_cells, 1.0);
-
-    int first = 0;
-    int last  = n->geometry.n_cols - 1;
-    auto cost_func = [](cost_t c) { return (double)c.length; };
-
-    auto [seg, rc] = n->dag_heuristic(sol, first, last, cov_duals,
-                                      /*r=*/1, 0.0, 0.0, cost_func);
-
-    if (path_engine::is_node(seg.source) && path_engine::is_node(seg.target))
-        EXPECT_LE(seg.source, seg.target)
-            << "horizontal replacement segment has source > target "
-               "(backtracking flips entry/exit due to D/P index confusion)";
-}
-
 // ============================================================================
 // E2E — requires a working Gurobi licence
 // ============================================================================
@@ -631,4 +611,30 @@ TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_CoverageConstraintSatis
     n->coverage.reset(sol);
     EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all())
                         << "coverage constraint violated after local_search on improvable path";
+}
+
+//-----------Special cases-------------------------------
+TEST_F(neighborhood_r_fixture, SpecialCaseNoInvalidNode){
+    sol.path = {{6, -1},
+            {49, -1},
+            {12, -2},
+            {43, -2},
+            {6, -1},
+            {7, 10},
+            {11, -1},
+            {23, 22},
+            {21, -2},
+            {20, 18},
+            {30, 31},
+            {32, 34},
+            {35, -1},
+            {82, -2},
+            {29, -2},
+            {75, 73},
+            {62, 63},
+            {51, 48}};
+    n->coverage.reset(sol);
+    sol.cost = n->geometry.cost(sol);
+    ctx.max_time = 600;
+    EXPECT_NO_THROW(n->local_search(sol));
 }
