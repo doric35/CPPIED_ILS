@@ -5,10 +5,22 @@ Distributes all (algorithm_config × s1616 instance) pairs across worker
 processes (one pair per worker at a time).  Already-completed pairs are
 skipped by checking the existing results CSV before launching any work.
 
-Each worker writes its K rows to an isolated per-task CSV file under
-experiments/scratch/<exp_name>/results.csv; after all futures finish,
-the master process appends every successful result to the global CSV in
-one go, avoiding any concurrent-write race conditions.
+I/O strategy
+────────────
+During execution every write goes to the scratch filesystem:
+  • Per-experiment working directories (config, local CSV, solution) are
+    created under SCRATCH_DIR/<exp_name>/.
+  • Completed results and errors are buffered in memory and also streamed
+    to scratch-side buffer CSVs (results_buffer.csv / errors_buffer.csv)
+    so that progress survives a job cancellation.
+
+At the very end the master process performs a single append to the
+permanent result files (experiments/results/), keeping write traffic
+outside scratch to a minimum.
+
+SCRATCH_DIR is resolved as:
+  1. $SCRATCH/cppied_ejor/   (Compute Canada standard env var)
+  2. ~/scratch/cppied_ejor/  (fallback)
 
 Usage:
     python run_ejor_experiments_parallel.py \\
@@ -29,7 +41,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 SCRIPT_DIR    = Path(__file__).resolve().parent
 EXPERIMENTS   = SCRIPT_DIR.parent
 DATA_DIR      = EXPERIMENTS / "data"
-SCRATCH_DIR   = EXPERIMENTS / "scratch"
 RESULTS_DIR   = EXPERIMENTS / "results"
 
 CONFIGS_FILE  = DATA_DIR / "algorithm_configuration" / "random_configurations.txt"
@@ -41,6 +52,14 @@ K             = 5
 
 RESULTS_COLS = ["name", "solver", "length", "turns", "time"]
 ERRORS_COLS  = ["name", "instance", "configuration", "returncode", "stdout", "stderr"]
+
+
+def resolve_scratch_dir() -> Path:
+    """Return the scratch working directory, preferring $SCRATCH if set."""
+    base = os.environ.get("SCRATCH")
+    if base:
+        return Path(base) / "cppied_ejor"
+    return Path("~/scratch/cppied_ejor").expanduser()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -68,9 +87,9 @@ def read_existing_names(path: Path) -> set[str]:
     return names
 
 
-def write_csv_rows(path: Path, fieldnames: list[str], rows: list[dict],
-                   write_header: bool):
-    """Append a list of row dicts to *path*."""
+def append_csv_rows(path: Path, fieldnames: list[str], rows: list[dict]):
+    """Append *rows* to *path*, writing the header only when the file is new."""
+    write_header = not path.exists()
     with open(path, "a", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         if write_header:
@@ -117,13 +136,15 @@ def ensure_local_csv(path: Path):
 
 def run_experiment(
     exp_name: str,
-    instance_dir: str,      # passed as str so it survives pickling cleanly
+    instance_dir: str,      # str so it survives pickling cleanly
     algorithm_config: str,
     lkh_exe: str,
     cppied_exe: str,
+    scratch_dir: str,       # str for the same reason
 ) -> dict:
     """
     Run one (instance, config) pair via k_avg_performance.py.
+    All file I/O stays inside *scratch_dir*.
 
     Returns a dict with keys:
       success    bool
@@ -132,7 +153,7 @@ def run_experiment(
       error      dict | None – error metadata on failure, None on success
     """
     instance_dir = Path(instance_dir)
-    exp_dir = SCRATCH_DIR / exp_name
+    exp_dir = Path(scratch_dir) / exp_name
     exp_dir.mkdir(parents=True, exist_ok=True)
 
     config_path = write_config_file(
@@ -163,11 +184,9 @@ def run_experiment(
         }
 
     # Read the K rows appended by k_avg_performance.py
-    rows = []
     with open(local_csv, newline="") as fh:
         all_rows = list(csv.DictReader(fh))
-    for row in all_rows[-K:]:
-        rows.append({col: row[col] for col in RESULTS_COLS})
+    rows = [{col: row[col] for col in RESULTS_COLS} for row in all_rows[-K:]]
 
     return {
         "success":  True,
@@ -191,8 +210,15 @@ def main():
                         help="Number of parallel worker processes (default: all CPUs).")
     args = parser.parse_args()
 
+    scratch_dir = resolve_scratch_dir()
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    # Scratch-side buffer CSVs — updated as futures complete so that
+    # progress is not lost if the job is cancelled before the final flush.
+    scratch_results = scratch_dir / "results_buffer.csv"
+    scratch_errors  = scratch_dir / "errors_buffer.csv"
+
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
 
     configs   = read_configs(CONFIGS_FILE)
     instances = sorted(
@@ -224,25 +250,27 @@ def main():
         f"Already done   : {total_skip}\n"
         f"To run         : {len(pending)}\n"
         f"Workers        : {args.workers}\n"
+        f"Scratch dir    : {scratch_dir}\n"
     )
 
     if not pending:
         print("Nothing to do.")
         return
 
-    results_exist = RESULTS_FILE.exists()
-    errors_exist  = ERRORS_FILE.exists()
+    # In-memory accumulators — flushed to permanent storage once at the end
+    accumulated_results: list[dict] = []
+    accumulated_errors:  list[dict] = []
 
-    done = 0
+    done   = 0
     errors = 0
-    width = len(str(len(pending)))
+    width  = len(str(len(pending)))
 
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         futures = {
             pool.submit(
                 run_experiment,
                 exp_name, instance_dir_str, algorithm_config,
-                args.lkh, args.executable,
+                args.lkh, args.executable, str(scratch_dir),
             ): exp_name
             for exp_name, instance_dir_str, algorithm_config in pending
         }
@@ -258,21 +286,25 @@ def main():
 
             done += 1
             if result["success"]:
-                write_csv_rows(
-                    RESULTS_FILE, RESULTS_COLS, result["rows"],
-                    write_header=not results_exist,
-                )
-                results_exist = True
+                accumulated_results.extend(result["rows"])
+                # Stream to scratch buffer so progress survives cancellation
+                append_csv_rows(scratch_results, RESULTS_COLS, result["rows"])
                 print(f"  [{done:{width}}/{len(pending)}] OK    {exp_name}")
             else:
-                write_csv_rows(
-                    ERRORS_FILE, ERRORS_COLS, [result["error"]],
-                    write_header=not errors_exist,
-                )
-                errors_exist = True
+                accumulated_errors.append(result["error"])
+                append_csv_rows(scratch_errors, ERRORS_COLS, [result["error"]])
                 errors += 1
                 rc = result["error"]["returncode"]
                 print(f"  [{done:{width}}/{len(pending)}] ERROR {exp_name}  (rc={rc})")
+
+    # ── Single flush to permanent storage ────────────────────────────────────
+    print("\nFlushing results to permanent storage …")
+    if accumulated_results:
+        append_csv_rows(RESULTS_FILE, RESULTS_COLS, accumulated_results)
+        print(f"  Written {len(accumulated_results)} result rows → {RESULTS_FILE}")
+    if accumulated_errors:
+        append_csv_rows(ERRORS_FILE, ERRORS_COLS, accumulated_errors)
+        print(f"  Written {len(accumulated_errors)} error rows  → {ERRORS_FILE}")
 
     print(
         f"\nDone.  Successful: {done - errors}/{len(pending)}  "

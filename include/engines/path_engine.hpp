@@ -69,7 +69,10 @@ public:
 protected:
     const cppied_instance& problem;
 
-    std::vector<bool> boundary_node;
+    // True only for horizontal nodes on a grid edge (col==0, col==n_cols-1,
+    // row==0, row==n_rows).  Vertical nodes are never flagged: no V→V or
+    // same-type formula has an absolute-position check on the V-node itself.
+    std::vector<bool> h_boundary_node;
     std::vector<cost_t> displacement_table;
     std::vector<int> vx;
     std::vector<int> vy;
