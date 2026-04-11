@@ -36,7 +36,7 @@ protected:
         cppied_context_fixture::SetUp();
         algorithm = std::make_unique<ils_accessor>(ctx, P);
         algorithm->initialize();
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
 
         sol.path = {{6, 11},
                     {23, 18},
@@ -96,7 +96,7 @@ protected:
         algorithm->initialize();
         // Anchor start_time so that the ILS loop can measure elapsed time and
         // LKH receives a valid time budget.
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
 
         // d_solve starts from an empty solution when R is non-empty:
         // restart_backtrack::restart constructs the first solution internally.
@@ -181,14 +181,14 @@ TEST_F(ils_full_fixture, InitializeRestartBacktrackIsPresentInFullConfig) {
 // Immediately after start_time is set the elapsed time is near-zero:
 // stopping_criterion must return false.
 TEST_F(ils_minimal_fixture, StoppingCriterionReturnsFalseBeforeTimeout) {
-    ctx.start_time = std::chrono::steady_clock::now();
+    ctx.start_time = std::chrono::high_resolution_clock::now();
     EXPECT_FALSE(algorithm->stopping_criterion());
 }
 
 // When start_time is set max_time+1 seconds in the past, the full budget has
 // been consumed: stopping_criterion must return true.
 TEST_F(ils_minimal_fixture, StoppingCriterionReturnsTrueAfterTimeout) {
-    ctx.start_time = std::chrono::steady_clock::now()
+    ctx.start_time = std::chrono::high_resolution_clock::now()
                      - std::chrono::seconds(ctx.max_time + 1);
     EXPECT_TRUE(algorithm->stopping_criterion());
 }
@@ -196,7 +196,7 @@ TEST_F(ils_minimal_fixture, StoppingCriterionReturnsTrueAfterTimeout) {
 // With exactly max_time seconds elapsed the criterion must also fire
 // (>= comparison is inclusive).
 TEST_F(ils_minimal_fixture, StoppingCriterionReturnsTrueAtExactBudget) {
-    ctx.start_time = std::chrono::steady_clock::now()
+    ctx.start_time = std::chrono::high_resolution_clock::now()
                      - std::chrono::seconds(ctx.max_time);
     EXPECT_TRUE(algorithm->stopping_criterion());
 }
@@ -338,7 +338,7 @@ protected:
         algorithm->initialize();
         // Anchor start_time: gives LKH a valid TIME - elapsed budget and
         // anchors the stopping criterion for any incidental ILS calls.
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
 
         // Build a complete, coverage-feasible starting solution identical to
         // the one used in vnd_full_fixture and neighborhood_tsp_e2e_fixture.
@@ -527,7 +527,7 @@ TEST_F(ils_full_fixture, DSolveFullSecondCallDoesNotThrow) {
     algorithm->d_solve(sol);
     cov().reset(sol);
     sol.cost = geo().cost(sol);
-    ctx.start_time = std::chrono::steady_clock::now();
+    ctx.start_time = std::chrono::high_resolution_clock::now();
     EXPECT_NO_THROW(algorithm->d_solve(sol));
 }
 
@@ -535,7 +535,7 @@ TEST_F(ils_full_fixture, DSolveFullSecondCallCoverageSatisfied) {
     algorithm->d_solve(sol);
     cov().reset(sol);
     sol.cost = geo().cost(sol);
-    ctx.start_time = std::chrono::steady_clock::now();
+    ctx.start_time = std::chrono::high_resolution_clock::now();
     algorithm->d_solve(sol);
     cov().reset(sol);
     EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all());

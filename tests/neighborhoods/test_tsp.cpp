@@ -360,7 +360,7 @@ protected:
         neighborhood_tsp_fixture::SetUp();
         std::filesystem::create_directories(scratch_dir);
         // Anchor start_time so the generated TIME_LIMIT is sensible.
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
         // Start from a complete, coverage-feasible solution.
         n->geometry.complete(sol);
         n->coverage.reset(sol);

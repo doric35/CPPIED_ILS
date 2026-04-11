@@ -293,7 +293,7 @@ protected:
     void SetUp() override {
         neighborhood_gtsp_fixture::SetUp();
         std::filesystem::create_directories(scratch_dir);
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
     }
 };
 

@@ -274,7 +274,10 @@ inline void write_visulization(
             img_file.find('.')
             );
     png_to_pdf += img_file + " " + inst_name + ".pdf";
-    std::system(png_to_pdf.c_str());
+    int r_flag = std::system(png_to_pdf.c_str());
+    if (r_flag){
+        std::cerr << "[WARNING] Non 0 return when writing image png to pdf : flag " << r_flag << std::endl;
+    }
 }
 
 using cppied_solution_list =

@@ -197,7 +197,7 @@ cost_t neighborhood_n21::update(cppied_solution &pSol,
     auto func = [&](const cost_t& gain, int i){
         return gain + gains[i];
     };
-    marginal_gain = std::reduce(selection.begin(), selection.end(),
+    marginal_gain = std::accumulate(selection.begin(), selection.end(),
                                 marginal_gain, func);
     pSol.path.swap(new_sol);
     pSol.cost -= marginal_gain;

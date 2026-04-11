@@ -90,7 +90,7 @@ protected:
         v = std::make_unique<vnd_accessor>(ctx, P);
         v->initialize();
         // Anchor start_time — required by TSP/GTSP/R neighborhoods for LKH.
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
 
         sol.path = {{6, 11},
                     {23, 18},

@@ -55,7 +55,7 @@ protected:
         n = std::make_unique<neighborhood_r_accessor>(ctx, P);
         n->coverage.reset(sol);
         sol.cost = n->geometry.cost(sol);
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
     }
 };
 

@@ -31,7 +31,7 @@ protected:
         dps = std::make_unique<dp_sweeper_accessor>(ctx, P);
         dps->coverage.reset(sol);
         sol.cost = dps->geometry.cost(sol);
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
     }
 };
 

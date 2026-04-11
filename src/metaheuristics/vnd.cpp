@@ -57,14 +57,6 @@ bool vnd::search(cppied_solution &pSolution) {
                 for (auto &seg: pSolution.path)
                     std::cerr << seg << std::endl;
                 throw e;
-            } catch (const GRBException& grb_e){
-                std::string err_msg = std::string("Runtime error from neighborhood: ") + typeid(*i).name();
-                std::cerr << err_msg << std::endl;
-                std::cerr << grb_e.getMessage();
-                std::cerr << "From solution: \n";
-                for (auto &e: pSolution.path)
-                    std::cerr << e << std::endl;
-                throw grb_e;
             }
             if (callbacks.onSatisfy)
                 callbacks.onSatisfy(pSolution, i.get());

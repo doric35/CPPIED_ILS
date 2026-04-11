@@ -95,12 +95,12 @@ void neighborhood_n1::update(cppied_solution &pSol,
     std::for_each(selection.cbegin(), selection.cend(), swap);
 
     cost_t marginal_gain = {0,0};
-    auto reduce_gain = [&] (cost_t g, int i){
+    auto acc_gain = [&] (cost_t g, int i){
         return gains[i] + g;
     };
 
-    marginal_gain = std::reduce(selection.cbegin(), selection.cend(),
-                                marginal_gain, reduce_gain);
+    marginal_gain = std::accumulate(selection.cbegin(), selection.cend(),
+                                marginal_gain, acc_gain);
 
     pSol.cost -= marginal_gain;
 }

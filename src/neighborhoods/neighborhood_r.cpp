@@ -196,7 +196,7 @@ void neighborhood_r::set_constraints(cppied_solution &pSol,
     auto func = [&](cost_t reduction, const replacement_set& rep){
         return reduction + replacement_cost(pSol, std::next(pSol.path.cbegin(), rep.r), rep.candidates.front());
     };
-    acc = std::reduce(R.begin(), R.end(), acc, func);
+    acc = std::accumulate(R.begin(), R.end(), acc, func);
     GRBLinExpr rhs = acc.length;
     GRBLinExpr lhs = 0;
     for(auto & i : R) {
@@ -234,9 +234,9 @@ void neighborhood_r::select(cppied_solution &pSol,
     auto func = [&](cost_t acc, int i){
         return acc + gains[i];
     };
-    cumulative_gains[0] = std::reduce(evens.begin(), evens.end(),
+    cumulative_gains[0] = std::accumulate(evens.begin(), evens.end(),
                 cumulative_gains[0], func);
-    cumulative_gains[1] = std::reduce(odds.begin(), odds.end(),
+    cumulative_gains[1] = std::accumulate(odds.begin(), odds.end(),
                 cumulative_gains[1], func);
 
     int s = ris_heuristic::softmax_sample(cumulative_gains, rng);

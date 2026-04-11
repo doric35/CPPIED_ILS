@@ -97,12 +97,12 @@ void neighborhood_trim::update(cppied_solution &pSol,
     std::for_each(selection.cbegin(), selection.cend(), swap);
 
     cost_t marginal_gain = {0,0};
-    auto reduce_gain = [&] (cost_t g, int i){
+    auto accumulate_gain = [&] (cost_t g, int i){
         return gains[i] + g;
     };
 
-    marginal_gain = std::reduce(selection.cbegin(), selection.cend(),
-                                marginal_gain, reduce_gain);
+    marginal_gain = std::accumulate(selection.cbegin(), selection.cend(),
+                                marginal_gain, accumulate_gain);
     std::erase_if(pSol.path,
                   [](const segment& s){return !path_engine::is_node(s.source);});
     pSol.cost -= marginal_gain;

@@ -44,7 +44,7 @@ protected:
         rb = std::make_unique<restart_backtrack_accessor>(ctx, P);
 
         // Anchor the clock BEFORE any dp_sweeper / LKH call.
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
 
         sol.path = {{6, 11},
                     {23, 18},
@@ -374,7 +374,7 @@ TEST_F(restart_fixture, ConsecutiveRestartsProduceNonEmptyPaths) {
         EXPECT_GT(pSol.path.size(), 0u) << "Restart " << k << " produced empty path";
         // Re-anchor the clock between calls so that LKH always has a positive
         // time limit regardless of how long the previous restart took.
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
     }
 }
 
@@ -386,7 +386,7 @@ TEST_F(restart_fixture, ConsecutiveRestartsSatisfyCoverageConstraint) {
         cov().reset(pSol);
         EXPECT_TRUE((pSol.coverage.array() >= P.req.array()).all())
             << "Coverage constraint violated after restart " << k;
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
     }
 }
 
@@ -399,7 +399,7 @@ TEST_F(restart_fixture, AfterKRestartsHistoryFrontHasLengthK) {
     {
         cppied_solution pSol = make_empty();
         rb->restart(pSol);
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
     }
     // Verify the initial front length.
     ASSERT_EQ(rb->history.front().size(), 1u);
@@ -409,7 +409,7 @@ TEST_F(restart_fixture, AfterKRestartsHistoryFrontHasLengthK) {
     for (int k = 2; k <= K; ++k) {
         cppied_solution pSol = make_empty();
         rb->restart(pSol);
-        ctx.start_time = std::chrono::steady_clock::now();
+        ctx.start_time = std::chrono::high_resolution_clock::now();
 
         // The front of the history is now the entry of length k from the
         // original first-restart trace (entries of length 1, …, k-1 have
