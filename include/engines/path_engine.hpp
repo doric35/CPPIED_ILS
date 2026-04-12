@@ -12,15 +12,19 @@ public:
 
         set_int_coordinates();
         set_boundaries();
-        set_displacements();
+        build_dist_table();
     }
 
     void complete(cppied_solution& pSol) const;
     void complete(std::vector<segment>& path) const;
     [[nodiscard]] cost_t dist(const segment& a,
                 const segment& b) const;
-    [[nodiscard]] cost_t dist_boundary(const segment& a,
+    [[nodiscard]] cost_t dist_arithmetic(const segment& a,
                                        const segment& b) const;
+    [[nodiscard]] cost_t dist_boundary(const int block,
+                                         int dx, int dy) const;
+    bool is_true_boundary(const int block,
+                          int v, int u, int sdx, int sdy) const;
     [[nodiscard]] cost_t cost(const segment& a) const;
     [[nodiscard]] cost_t cost(const cppied_solution&) const;
     void extend(segment& source,
@@ -72,7 +76,7 @@ protected:
     // True only for horizontal nodes on a grid edge (col==0, col==n_cols-1,
     // row==0, row==n_rows).  Vertical nodes are never flagged: no V→V or
     // same-type formula has an absolute-position check on the V-node itself.
-    std::vector<bool> h_boundary_node;
+    std::vector<bool> boundary_displacement;
     std::vector<cost_t> displacement_table;
     std::vector<int> vx;
     std::vector<int> vy;
@@ -94,8 +98,18 @@ protected:
                                           1,  1,  0,  0,
                                           1,  1,  1,  1};
 
+    static constexpr int secondary[16] = { 0,  1,  2,  3,
+                                          4,  0,  5,  6,
+                                          6,  3,  7,  8,
+                                          5,  2,  9,  7};  // NE: 6→5 (WS), NW: 3→2 (ES)
+
+    static constexpr bool exchange[16]    = { 0,  0,  0,  0,
+                                          0,  1,  0,  0,   // WW: 0→1
+                                          1,  1,  0,  0,
+                                          1,  1,  0,  0};  // NN: 0→1
+
     void set_boundaries();
-    void set_displacements();
+    void build_dist_table();
     void set_int_coordinates();
 
     cost_t ee_dist(int,int) const;
@@ -117,6 +131,28 @@ protected:
     cost_t ns_dist(int,int) const;
     cost_t ne_dist(int,int) const;
     cost_t nw_dist(int,int) const;
+
+    cost_t ew_dist_boundary() const;
+    cost_t es_dist_boundary(int,int) const;
+    cost_t en_dist_boundary(int,int) const;
+
+    cost_t we_dist_boundary() const;
+    cost_t ws_dist_boundary(int,int) const;
+    cost_t wn_dist_boundary(int,int) const;
+
+    cost_t sn_dist_boundary() const;
+    cost_t ns_dist_boundary() const;
+
+    bool ew_is_boundary(int a, int b) const;
+    bool es_is_boundary(int,int, int, int) const;
+    bool en_is_boundary(int,int, int, int) const;
+
+    bool we_is_boundary(int a, int b) const;
+    bool ws_is_boundary(int,int, int, int) const;
+    bool wn_is_boundary(int,int, int, int) const;
+
+    bool sn_is_boundary(int a, int b) const;
+    bool ns_is_boundary(int a, int b) const;
 
     static cost_t s_shaped_dist(int dx,int dy,bool backward,bool straight);
 };

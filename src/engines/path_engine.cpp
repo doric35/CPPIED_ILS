@@ -1,6 +1,6 @@
 #include "../../include/engines/path_engine.hpp"
 
-cost_t path_engine::dist_boundary(const segment &a, const segment &b) const {
+cost_t path_engine::dist_arithmetic(const segment &a, const segment &b) const {
     const int from = static_cast<int>(get_direction(a));
     const int to   = static_cast<int>(get_direction(b));
     const int v    = is_node(a.target) ? a.target : a.source;
@@ -27,38 +27,149 @@ cost_t path_engine::dist_boundary(const segment &a, const segment &b) const {
     }
 }
 
+cost_t path_engine::dist_boundary(const int block, int dx, int dy) const {
+    switch (block) {
+        case 1: return ew_dist_boundary();
+        case 2: return es_dist_boundary(dx, dy);
+        case 3: return en_dist_boundary(dx, dy);
+        case 4: return we_dist_boundary();
+        case 5: return ws_dist_boundary(dx, dy);
+        case 6: return wn_dist_boundary(dx, dy);
+        case 8: return sn_dist_boundary();
+        case 9: return ns_dist_boundary();
+        default: __builtin_unreachable();
+    }
+}
+
+bool path_engine::is_true_boundary(const int block, int v, int u, int sdx, int sdy) const{
+    switch (block) {
+        case 0: return false;
+        case 1: return ew_is_boundary(v,u);
+        case 2: return es_is_boundary(v,u,sdx,sdy);
+        case 3: return en_is_boundary(v,u,sdx,sdy);
+        case 4: return we_is_boundary(v,u);
+        case 5: return ws_is_boundary(v,u,sdx,sdy);
+        case 6: return wn_is_boundary(v,u,sdx,sdy);
+        case 7: return false;
+        case 8: return sn_is_boundary(v,u);
+        case 9: return ns_is_boundary(v,u);
+        default: __builtin_unreachable();
+    }
+}
+
 cost_t path_engine::dist(const segment &a,
                          const segment &b) const {
     const int from = static_cast<int>(get_direction(a));
     const int to = static_cast<int>(get_direction(b));
     const int v = is_node(a.target) ? a.target : a.source;
     const int u = b.source;
+    const int S = problem.vertex.size();
 
     const int W = 2*n_cols + 1, H = 2*n_rows + 1;
 
-    if (!boundary_node[v] && !boundary_node[u]) [[likely]] {
-        const int block = from * 4 + to;
-        int sdx = vx[u] - vx[v];
-        int sdy = vy[u] - vy[v];
+    const int block = from * 4 + to;
+
+    const int  sec = secondary[block];
+    const int  bv  = exchange[block] ? u : v;   // endpoint role in the canonical block
+    const int  bu  = exchange[block] ? v : u;   // source   role in the canonical block
+    int sdx = vx[u] - vx[v];
+    int sdy = vy[u] - vy[v];
+    if (!boundary_displacement[sec * S + bv] ||
+        !boundary_displacement[sec * S + bu] ||
+        !is_true_boundary(sec, bv, bu,
+                          (1 - (2*exchange[block]))*sdx,
+                          (1 - (2*exchange[block]))*sdy)) [[likely]] {
         if (flip[block]) sdx = -sdx, sdy = -sdy;
         return displacement_table[(primary[block] * H * W) + ((sdy + n_rows) * W) + (sdx + n_cols)];
     }
-    return dist_boundary(a, b);
+    int dx = std::abs(problem.vertex[bv](0) - problem.vertex[bu](0));
+    int dy = std::abs(problem.vertex[bv](1) - problem.vertex[bu](1));
+    return dist_boundary(sec, dx, dy);
 }
 
 void path_engine::set_boundaries() {
-    boundary_node.resize(problem.vertex.size(), false);
-    for (int v=0; v<horizontal_bound; v++){
-        const int col = v % n_cols, row = v / n_cols;
-        if (col == 0 || col == n_cols-1 || row == 0 || row == n_rows)
-            boundary_node[v] = true;
+    const int S = problem.vertex.size();
+    boundary_displacement.resize(10 * S, false);
+    auto write = [&](int block, int v) {
+        boundary_displacement[(block * S) + v] = true;
+    };
+    //-------EE BLOCK: Nothing-------------
+    //-------EW BLOCK--------
+    int b = 1;
+    for (int v=n_cols-1; v<horizontal_bound; v+=n_cols)
+        write(b,v);
+    //--------ES BLOCK-----------
+    b=2;
+    for (int v=0; v<n_cols; v++){
+        int offset = horizontal_bound + (v * n_rows);
+        write(b, v);
+        for (int u = horizontal_bound; u <= offset; u+=n_rows)
+            write(b, u);
     }
-    for (int v=horizontal_bound; v<(int)problem.vertex.size(); v++){
-        const int local = v - horizontal_bound;
-        const int col = local / n_rows, row = local % n_rows;
-        if (col == 0 || col == n_cols || row == 0 || row == n_rows - 1)
-            boundary_node[v] = true;
+    for (int v=n_cols-1; v<horizontal_bound; v+=n_cols){
+        int offset = S - n_rows + (v / n_cols);
+        write(b, v);
+        for (int u = S - n_rows; u < offset; u++)
+            write(b, u);
     }
+    //EN BLOCK
+    b=3;
+    for (int v=horizontal_bound - n_cols; v<horizontal_bound; v++){
+        int offset = horizontal_bound + (n_rows - 1) + ((v % n_cols) * n_rows);
+        write(b, v);
+        for (int u = horizontal_bound + (n_rows - 1); u <= offset; u+=n_rows)
+            write(b, u);
+    }
+    for (int v=n_cols-1; v<horizontal_bound; v+=n_cols){
+        int offset = S - n_rows + (v / n_cols);
+        write(b, v);
+        for (int u = offset; u <= S; u++)
+            write(b, u);
+    }
+    //WE BLOCK
+    b = 4;
+    for (int v=0; v<horizontal_bound; v+=n_cols)
+        write(b,v);
+    //WW BLOCK : Nothing WW is modified to EE
+    //WS BLOCK
+    b = 5;
+    for (int v=0; v<n_cols; v++){
+        int offset = horizontal_bound + ((v + 1) * n_rows);
+        write(b, v);
+        for (int u = offset; u <= S - n_rows; u+=n_rows)
+            write(b, u);
+    }
+    for (int v=0; v<horizontal_bound; v+=n_cols){
+        int offset = horizontal_bound + v / n_cols;
+        write(b, v);
+        for (int u = horizontal_bound; u <= offset; u++)
+            write(b, u);
+    }
+
+    //WN BLOCK
+    b = 6;
+    for (int v=0; v<horizontal_bound; v+=n_cols){
+        int offset = horizontal_bound + (v / n_cols);
+        write(b, v);
+        for (int u = offset; u < horizontal_bound + n_rows; u+=n_rows)
+            write(b, u);
+    }
+    for (int v=horizontal_bound - n_cols; v<horizontal_bound; v++){
+        int offset = horizontal_bound + (n_rows -1 ) + (((v % n_cols)+ 1)*n_rows);
+        write(b, v);
+        for (int u = offset; u < S; u+= n_rows)
+            write(b, u);
+    }
+    //SS BLOCK: Nothing
+    b = 7;
+    //SN BLOCK
+    b = 8;
+    for (int v =horizontal_bound + (n_rows -1); v< S; v+= n_rows)
+        write(b, v);
+
+    b = 9;
+    for (int v = horizontal_bound; v< S; v+=n_rows)
+        write(b,v);
 }
 
 void path_engine::set_int_coordinates() {
@@ -70,81 +181,205 @@ void path_engine::set_int_coordinates() {
     }
 }
 
-void path_engine::set_displacements() {
-    constexpr int B_EE = 0, B_EW = 1, B_ES = 2, B_EN = 3;
-    constexpr int B_WS = 4, B_WN = 5, B_SS = 6, B_SN = 7;
+void path_engine::build_dist_table() {
+    const int W = 2 * n_cols + 1;
+    const int H = 2 * n_rows + 1;
+    displacement_table.resize(8 * H * W);
 
-    const int W = 2*n_cols + 1, H = 2*n_rows + 1;
-    displacement_table.resize(8*W*H);
-
-    auto write = [&](int block, int sdx, int sdy, cost_t c) {
-        displacement_table[(block * W*H) + ((sdy + n_rows) * W) + (sdx + n_cols)] = c;
+    // Helper: write a block given a formula f(sdx, sdy) → cost_t
+    auto fill = [&](int block, auto f) {
+        cost_t* base = displacement_table.data() + block * H * W;
+        for (int sdy = -n_rows; sdy <= n_rows; ++sdy)
+            for (int sdx = -n_cols; sdx <= n_cols; ++sdx)
+                base[(sdy + n_rows) * W + (sdx + n_cols)] = f(sdx, sdy);
     };
 
-    const int h_ref     = n_cols + 1;                         // horizontal: col=1, row=1
-    const int h_ref_bot = (n_rows - 1) * n_cols + 1;          // horizontal: col=1, row=n_rows-1
-    const int v_ref     = horizontal_bound + n_rows + 1;       // vertical:   col=1, row=1
-    const int v_ref_bot = horizontal_bound + 2 * n_rows - 2;   // vertical:   col=1, row=n_rows-2
+    // Block 0: EE  (backward = sdx<=0, straight = sdx>0 && sdy==0)
+    fill(0, [&](int sdx, int sdy) -> cost_t {
+        int dx = std::abs(sdx), dy = std::abs(sdy);
+        bool backward = sdx <= 0;
+        bool straight = !backward && sdy == 0;
+        if (backward && dy <= 1) return {4 + dx + dy, 4};
+        return s_shaped_dist(dx, dy, backward, straight);
+    });
 
-    // ── Horizontal → Horizontal (EE, EW) ────────────────────────────────────────
-    // Two sources cover all four (sdx, sdy) quadrants:
-    //   h_ref (top-left):    forward=(+,+), rotation=(−,−)
-    //   h_ref_bot (bot-left): forward=(+,−), rotation=(−,+)
-    for (int src : {h_ref, h_ref_bot}) {
-        for (int v = h_ref; v < horizontal_bound; ++v) {
-            if (boundary_node[v]) continue;
-            const int sdx = vx[v] - vx[src];
-            const int sdy = vy[v] - vy[src];
-            write(B_EE,  sdx,  sdy, ee_dist(src, v));
-            write(B_EE, -sdx, -sdy, ee_dist(v, src));
-            write(B_EW,  sdx,  sdy, ew_dist(src, v));
-            write(B_EW, -sdx, -sdy, ew_dist(v, src));
-        }
-    }
+    // Block 1: EW  (always 2 turns, dy==0 forces a detour)
+    fill(1, [&](int sdx, int sdy) -> cost_t {
+        int dx = std::abs(sdx), dy = std::abs(sdy);
+        int turns = 2, len = turns + dx + dy;
+        if (sdx ==0 && sdy == 0) return {5, 4};
+        if (dy == 0) { turns += 2; len += 1; }
+        else len -= 1;
+        return {len, turns};
+    });
 
-    // ── Horizontal → Vertical (ES, EN, WS, WN) ──────────────────────────────────
-    // Four loops covering all quadrants:
-    //   Loop A: h_ref as source,     all vertical targets   → (+,+)
-    //   Loop B: all horizontal srcs, v_ref as target        → (−,−)
-    //   Loop C: h_ref_bot as source, all vertical targets   → (+,−)
-    //   Loop D: all horizontal srcs, v_ref_bot as target    → (−,+)
-    auto write_cross = [&](int src_h, int tgt_v) {
-        const int sdx = vx[tgt_v] - vx[src_h];
-        const int sdy = vy[tgt_v] - vy[src_h];
-        write(B_ES, sdx, sdy, es_dist(src_h, tgt_v));
-        write(B_EN, sdx, sdy, en_dist(src_h, tgt_v));
-        write(B_WS, sdx, sdy, ws_dist(src_h, tgt_v));
-        write(B_WN, sdx, sdy, wn_dist(src_h, tgt_v));
-    };
-    // Loops A and C: fixed horizontal source, all vertical targets
-    for (int src : {h_ref, h_ref_bot}) {
-        for (int v = v_ref; v < (int)problem.vertex.size(); ++v) {
-            if (boundary_node[v]) continue;
-            write_cross(src, v);
-        }
-    }
-    // Loops B and D: all horizontal sources, fixed vertical target
-    for (int tgt : {v_ref, v_ref_bot}) {
-        for (int v = h_ref; v < horizontal_bound; ++v) {
-            if (boundary_node[v]) continue;
-            write_cross(v, tgt);
-        }
-    }
+    // Block 2: ES  (good quadrant: target right+below, sdx>0,sdy>0)
+    fill(2, [&](int sdx, int sdy) -> cost_t {
+        int dx = std::abs(sdx), dy = std::abs(sdy);
+        bool fourth = sdx > 0 && sdy >= 0;   // good: one turn
+        bool second = sdx > 0 && sdy < 0;
+        bool third  = sdx <= 0 && sdy >= 0;
+        bool first = sdx <=0 && sdy < 0;
+        int turns = fourth ? 1 : 3;
+        int len   = dx + dy + ((third | first) << 1);
+        if ((third && dy ==0) || (second && dx ==1)) len += 2;
+        return {len, turns};
+    });
 
-    // ── Vertical → Vertical (SS, SN) ────────────────────────────────────────────
-    // Same two-source strategy as horizontal → horizontal.
-    for (int src : {v_ref, v_ref_bot}) {
-        for (int v = v_ref; v < (int)problem.vertex.size(); ++v) {
-            if (boundary_node[v]) continue;
-            const int sdx = vx[v] - vx[src];
-            const int sdy = vy[v] - vy[src];
-            write(B_SS,  sdx,  sdy, ss_dist(src, v));
-            write(B_SS, -sdx, -sdy, ss_dist(v, src));
-            write(B_SN,  sdx,  sdy, sn_dist(src, v));
-            write(B_SN, -sdx, -sdy, sn_dist(v, src));
-        }
-    }
+    // Block 3: EN  (good quadrant: target right+above, sdx>0,sdy<0)
+    fill(3, [&](int sdx, int sdy) -> cost_t {
+        int dx = std::abs(sdx), dy = std::abs(sdy);
+        bool second = sdx > 0 && sdy < 0;   // good: one turn
+        bool fourth = sdx > 0 && sdy >= 0;
+        bool first  = sdx <= 0 && sdy < 0;
+        bool third  = sdx <= 0 && sdy >= 0;
+        int turns = second ? 1 : 3;
+        int len   = dx + dy + (first | fourth) - second + (3*third);
+        if ((fourth && dx ==1) || (first && dy ==1)) len += 2;
+        return {len, turns};
+    });
+
+    // Block 4: WS  (good quadrant: target left+above, sdx<0,sdy>0)
+    fill(4, [&](int sdx, int sdy) -> cost_t {
+        int dx = std::abs(sdx), dy = std::abs(sdy);
+        bool third  = sdx <= 0 && sdy >= 0;   // good: one turn
+        bool first  = sdx <= 0 && sdy < 0;
+        bool second = sdx > 0 && sdy < 0;
+        bool fourth = sdx > 0 && sdy >= 0;
+        int turns = third ? 1 : 3;
+        int len   = dx + dy + 1;
+        if ((first && dx ==0) || (fourth && dy ==0)) len += 2;
+        return {len, turns};
+    });
+
+    // Block 5: WN  (good quadrant: target left+below, sdx<0,sdy<0)
+    fill(5, [&](int sdx, int sdy) -> cost_t {
+        int dx = std::abs(sdx), dy = std::abs(sdy);
+        bool first  = sdx <= 0 && sdy < 0;   // good: one turn
+        bool third  = sdx <= 0 && sdy >= 0;
+        bool second = sdx > 0 && sdy < 0;
+        bool fourth = sdx > 0 && sdy >=0;
+        int turns = first ? 1 : 3;
+        int len   = dx + dy + ((third | fourth) << 1);
+        if ((second && dy == 1) || (third && dx == 0)) len += 2;
+        return {len, turns};
+    });
+
+    // Block 6: SS  (backward = sdy<=0, straight = sdy>0 && sdx==0)
+    fill(6, [&](int sdx, int sdy) -> cost_t {
+        int dx = std::abs(sdx), dy = std::abs(sdy);
+        bool backward = sdy <= 0;
+        bool straight = !backward && sdx == 0;
+        if (backward && dx <= 1) return {4 + dy + dx, 4};
+        if (dy == 0) return {4 + std::abs(dx - 2), 4};
+        return s_shaped_dist(dx, dy, backward, straight);
+    });
+
+    // Block 7: SN  (always 2 turns, dx==0 forces a detour)
+    fill(7, [&](int sdx, int sdy) -> cost_t {
+        int dx = std::abs(sdx), dy = std::abs(sdy);
+        int turns = 2, len = turns + dx + dy;
+        if (sdx == 0 && sdy == 0) return {5,4};
+        if (dx == 0) { turns += 2; len += 1; }
+        else len -= 1;
+        return {len, turns};
+    });
 }
+
+
+//void path_engine::set_displacements() {
+//    constexpr int B_EE = 0, B_EW = 1, B_ES = 2, B_EN = 3;
+//    constexpr int B_WS = 4, B_WN = 5, B_SS = 6, B_SN = 7;
+//
+//    int S = problem.vertex.size();
+//
+//    const int W = 2*n_cols + 1, H = 2*n_rows + 1;
+//    displacement_table.resize(8*W*H);
+//
+//    auto write = [&](int block, int sdx, int sdy, cost_t c) {
+//        displacement_table[(block * W*H) + ((sdy + n_rows) * W) + (sdx + n_cols)] = c;
+//    };
+//
+//    const int h_ref     = 0;                         // horizontal: col=0, row=0
+//    const int h_ref_bot = n_rows * n_cols;          // horizontal: col=1, row=n_rows
+//    const int v_ref     = horizontal_bound;       // vertical:   col=0, row=0
+//    const int v_ref_bot = horizontal_bound + (n_rows-1);   // vertical:   col=0, row=n_rows-1
+//
+//    // ── Horizontal → Horizontal (EE, EW) ────────────────────────────────────────
+//    // Two sources cover all four (sdx, sdy) quadrants:
+//    //   h_ref (top-left):    forward=(+,+), rotation=(−,−)
+//    //   h_ref_bot (bot-left): forward=(+,−), rotation=(−,+)
+//    for (int src : {h_ref, h_ref_bot}) {
+//        for (int v = h_ref; v < horizontal_bound; ++v) {
+//            const int sdx = vx[v] - vx[src];
+//            const int sdy = vy[v] - vy[src];
+//            if (!boundary_displacement[secondary[0]*S + src] ||
+//                !boundary_displacement[secondary[0]*S + v]) {
+//                write(B_EE, sdx, sdy, ee_dist(src, v));
+//                write(B_EE, -sdx, -sdy, ee_dist(v, src));
+//            }
+//            if (!boundary_displacement[secondary[1]*S + src] ||
+//                !boundary_displacement[secondary[1]*S + v]) {
+//                write(B_EW, -sdx, -sdy, ew_dist(v, src));
+//                write(B_EW, sdx, sdy, ew_dist(src, v));
+//            }
+//        }
+//    }
+//
+//    // ── Horizontal → Vertical (ES, EN, WS, WN) ──────────────────────────────────
+//    // Four loops covering all quadrants:
+//    //   Loop A: h_ref as source,     all vertical targets   → (+,+)
+//    //   Loop B: all horizontal srcs, v_ref as target        → (−,−)
+//    //   Loop C: h_ref_bot as source, all vertical targets   → (+,−)
+//    //   Loop D: all horizontal srcs, v_ref_bot as target    → (−,+)
+//    auto write_cross = [&](int src_h, int tgt_v) {
+//        const int sdx = vx[tgt_v] - vx[src_h];
+//        const int sdy = vy[tgt_v] - vy[src_h];
+//        if (!boundary_displacement[secondary[2]*S + src_h] ||
+//            !boundary_displacement[secondary[2]* S + tgt_v])
+//            write(B_ES, sdx, sdy, es_dist(src_h, tgt_v));
+//        if (!boundary_displacement[secondary[3]* S + src_h] ||
+//            !boundary_displacement[secondary[3]* S + tgt_v])
+//            write(B_EN, sdx, sdy, en_dist(src_h, tgt_v));
+//        if (!boundary_displacement[secondary[6]*S + src_h] ||
+//            !boundary_displacement[secondary[6]* S + tgt_v])
+//            write(B_WS, sdx, sdy, ws_dist(src_h, tgt_v));
+//        if (!boundary_displacement[secondary[7]*S + src_h] ||
+//            !boundary_displacement[secondary[7]* S + tgt_v])
+//            write(B_WN, sdx, sdy, wn_dist(src_h, tgt_v));
+//    };
+//    // Loops A and C: fixed horizontal source, all vertical targets
+//    for (int src : {h_ref, h_ref_bot}) {
+//        for (int v = v_ref; v < (int)problem.vertex.size(); ++v) {
+//            write_cross(src, v);
+//        }
+//    }
+//    // Loops B and D: all horizontal sources, fixed vertical target
+//    for (int tgt : {v_ref, v_ref_bot}) {
+//        for (int v = h_ref; v < horizontal_bound; ++v) {
+//            write_cross(v, tgt);
+//        }
+//    }
+//
+//    // ── Vertical → Vertical (SS, SN) ────────────────────────────────────────────
+//    // Same two-source strategy as horizontal → horizontal.
+//    for (int src : {v_ref, v_ref_bot}) {
+//        for (int v = v_ref; v < (int)problem.vertex.size(); ++v) {
+//            const int sdx = vx[v] - vx[src];
+//            const int sdy = vy[v] - vy[src];
+//            if (!boundary_displacement[secondary[10]*S + src] ||
+//                !boundary_displacement[secondary[10]*S + v]) {
+//                write(B_SS, sdx, sdy, ss_dist(src, v));
+//                write(B_SS, -sdx, -sdy, ss_dist(v, src));
+//            }
+//            if (!boundary_displacement[secondary[11]*S + src] ||
+//                !boundary_displacement[secondary[11]*S + v]) {
+//                write(B_SN, -sdx, -sdy, sn_dist(v, src));
+//                write(B_SN, sdx, sdy, sn_dist(src, v));
+//            }
+//        }
+//    }
+//}
 
 bool path_engine::satisfy(const segment& a, const segment& b) const {
     return dist(a,b) <= cost_t{1,1};
@@ -219,12 +454,13 @@ void path_engine::correct_segment_direction(segment &a, direction d) {
 }
 
 direction path_engine::get_direction(const segment &seg) const {
-    int dir = seg.source >= horizontal_bound;
-    dir = dir << 1;
-    int reversed = (seg.target < seg.source);
-    reversed = reversed >> (seg.target == NULL_NODE);
-    dir = dir | reversed;
-    return static_cast<direction>(dir);
+//    bool dir = (seg.source >= horizontal_bound) << 1;
+//    bool reversed = (seg.target < seg.source) >> (seg.target == NULL_NODE);
+//    return static_cast<direction>(dir | reversed);
+    return static_cast<direction>(
+            ((seg.source >= horizontal_bound) << 1) |
+            ((seg.target != NULL_NODE) & (seg.target < seg.source))
+    );
 }
 
 segment path_engine::flip_segment(const segment &s){
@@ -390,11 +626,6 @@ path_engine::ee_dist(int a, int b) const
     //Integer distances (valid)
     int dy = std::abs(ya - yb);
     int dx = std::abs(xa - xb);
-
-//    bool fourth_quadrant = (xa < xb) && (ya < yb);
-//    bool second_quadrant = (xa < xb) && (ya > yb);
-    bool first_quadrant = (xa > xb) && (ya > yb);
-    bool third_quadrant = (xa > xb) && (ya < yb);
 
     //Base turn count
     bool backward = (xb <= xa);     // need to reverse direction
@@ -584,7 +815,6 @@ path_engine::ws_dist(int a, int b) const
     //Base turn count
     int n_turns = 1;
     bool fourth_quadrant = (xa < xb) && (ya < yb);
-    bool second_quadrant = (xa < xb) && (ya > yb);
     bool first_quadrant = (xa > xb) && (ya > yb);
     bool third_quadrant = (xa > xb) && (ya < yb);
 
@@ -759,4 +989,123 @@ path_engine::s_shaped_dist(int dx, int dy, bool backward, bool straight) {
     c.turns += 2*(backward);
     c.length += 2*(backward);
     return c;
+}
+
+cost_t
+path_engine::ew_dist_boundary() const
+{
+    return {7, 6};
+}
+
+cost_t
+path_engine::es_dist_boundary(int dx, int dy) const
+{
+    return {5 + std::abs(1 - dx -dy), 5};
+}
+
+cost_t
+path_engine::en_dist_boundary(int dx, int dy) const
+{
+    int correction = dx == 0 & dy == 0;
+    return {5 + std::abs(1 - dx -dy), 5};
+}
+
+cost_t
+path_engine::we_dist_boundary() const
+{
+    return {7, 6};
+}
+
+cost_t
+path_engine::ws_dist_boundary(int dx, int dy) const
+{
+    int correction = dx == 0 & dy == 0;
+    return {5 + std::abs(1 - dx -dy), 5};
+}
+
+cost_t
+path_engine::wn_dist_boundary(int dx, int dy) const
+{
+    int correction = dx == 0 & dy == 0;
+    return {5 + std::abs(1 - dx -dy), 5};
+}
+
+cost_t
+path_engine::sn_dist_boundary() const
+{
+    return {7, 6};
+}
+
+cost_t
+path_engine::ns_dist_boundary() const
+{
+    return {7,6};
+}
+
+bool
+path_engine::ew_is_boundary(int a, int b) const
+{
+    return (a == b) & (a % n_cols == (n_cols - 1));
+}
+
+bool
+path_engine::es_is_boundary(int a, int b,
+                            int sdx, int sdy) const
+{
+    bool second = (sdx > 0) & (sdy < 0);
+    bool third = (sdx <= 0) & (sdy >=0);
+    bool rep = (a % n_cols == n_cols - 1) & second;
+    rep = rep | ((a / problem.seabed.cols() == 0) & third);
+    return rep;
+}
+
+bool
+path_engine::en_is_boundary(int a, int b,
+                            int sdx, int sdy) const
+{
+    bool fourth = (sdx > 0) & (sdy >=0);
+    bool first = (sdx <=0) & (sdy < 0);
+    bool rep = (a % n_cols == n_cols - 1) & fourth;
+    rep = rep | ((a / n_cols == n_rows) & first);
+    return rep;
+}
+
+bool
+path_engine::we_is_boundary(int a, int b) const
+{
+    return (a == b) & (a % problem.seabed.cols() == 0);
+}
+
+bool
+path_engine::ws_is_boundary(int a, int b,
+                            int sdx, int sdy) const
+{
+    bool first = (sdx <= 0) & (sdy < 0);
+    bool fourth = (sdx > 0) & (sdy >= 0);
+    bool rep = (a % n_cols == 0) & (first);
+    rep = rep | ((a / n_cols == 0) & fourth);
+    return rep;
+}
+
+bool
+path_engine::wn_is_boundary(int a, int b,
+                            int sdx, int sdy) const
+{
+    bool third = (sdx <= 0) & (sdy >=0);
+    bool second = (sdx > 0) & (sdy < 0);
+    bool rep = (a % n_cols == 0) & (third);
+    rep = rep | ((a / n_cols == n_rows) & second);
+    return rep;
+}
+
+bool
+path_engine::sn_is_boundary(int a, int b) const
+{
+    return (a == b) & ((a - horizontal_bound) % n_rows == (n_rows - 1));
+}
+
+bool
+path_engine::ns_is_boundary(int a, int b) const
+{
+    return ((a - horizontal_bound) % n_rows == 0) & (a == b);
 }

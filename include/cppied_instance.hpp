@@ -17,11 +17,18 @@ public:
 
     cppied_instance(MatrixXdRow<int> pSeabed,
                     MatrixXdRow<double> pPod,
-                    MatrixXdRow<double> pReq){
+                    MatrixXdRow<double> pReq) :
+                    seabed(),
+                    pod(),
+                    req(),
+                    adj(),
+                    s_pod(),
+                    vertex(),
+                    initial_position(0),
+                    max_range(1){
         seabed = std::move(pSeabed);
         pod = std::move(pPod);
         req = Eigen::Map<Eigen::VectorXd>(pReq.data(), pReq.size());
-
         initialize_intermediate();
         validate_parameters();
     }
@@ -29,6 +36,10 @@ public:
 protected:
     void transform_log1p();
     void initialize_intermediate();
+    void initialize_vertices();
+    void initialize_cells();
+    void initialize_sparse_pod();
+    void initialize_sparse_adj();
     bool adjacent (const Eigen::Vector2f& a,
                    const Eigen::Vector2f& b);
     void validate_parameters();

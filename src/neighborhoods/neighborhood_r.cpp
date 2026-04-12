@@ -18,6 +18,7 @@ bool neighborhood_r::local_search(cppied_solution &pSol) {
         reallocation_env.set("LogFile", "reallocation.log");
     reallocation_env.set(GRB_IntParam_OutputFlag, 0);
     reallocation_env.set(GRB_IntParam_LogToConsole, 0);
+    reallocation_env.set(GRB_IntParam_ThreadLimit, 1);
     reallocation_env.start();
     GRBModel model = GRBModel(reallocation_env);
 
