@@ -5,6 +5,7 @@
 
 class cppied_instance{
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     MatrixXdRow<int> seabed;
     MatrixXdRow<double> pod;
     Eigen::VectorXd req;

@@ -35,6 +35,12 @@ protected:
     }
 };
 
+TEST_F(dp_sweeper_fixture, NoAllignmentErrorOnInstanciation){
+    cppied_solution empty;
+    empty.coverage = Eigen::VectorXd::Zero(P.req.size());
+    EXPECT_TRUE(empty.path.empty());
+}
+
 TEST_F(dp_sweeper_fixture, MaximumSubarrayPositiveGainWhenUnsatisfied){
     cppied_solution empty;
     empty.coverage = Eigen::VectorXd::Zero(P.req.size());
