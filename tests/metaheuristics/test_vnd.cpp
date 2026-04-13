@@ -67,13 +67,13 @@ protected:
 class vnd_full_fixture : public ::testing::Test {
 protected:
     static constexpr const char* seabed_path =
-        "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_seabed.txt";
+        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_seabed.txt";
     static constexpr const char* pod_path =
-        "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_pod.txt";
+        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_pod.txt";
     static constexpr const char* req_path =
-        "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_req.txt";
+        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_req.txt";
     static constexpr const char* config_path =
-        "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/vnd_test_config";
+        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/vnd_test_config";
 
     cppied_context ctx;
     cppied_instance P;

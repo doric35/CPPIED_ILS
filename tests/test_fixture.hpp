@@ -14,13 +14,13 @@ protected:
     cppied_context ctx;
     cppied_instance P;
     static constexpr const char* seabed_path =
-            "//Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_seabed.txt";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_seabed.txt";
     static constexpr const char* pod_path =
-            "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_pod.txt";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_pod.txt";
     static constexpr const char* req_path =
-            "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_req.txt";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_req.txt";
     static constexpr const char* config_path =
-            "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_config.txt";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_config.txt";
 };
 
 struct cppied_method_fixture: public cppied_context_fixture{

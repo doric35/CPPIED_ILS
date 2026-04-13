@@ -34,7 +34,9 @@ void dp_sweeper::construct(cppied_solution &pSol, std::function<void(cppied_solu
             for_each_segment(box, set_candidates);
             filter_segment_set(pSol, S[0]);
             filter_segment_set(pSol, S[1]);
+
             select(pSol, S);
+
             unsat.clear();
             coverage.unsatisfied_cells(pSol, unsat);
             f(pSol);
@@ -44,7 +46,9 @@ void dp_sweeper::construct(cppied_solution &pSol, std::function<void(cppied_solu
     }
     pSol.cost = geometry.cost(pSol);
     neighborhood_tsp n(ctx, problem);
+    std::cout << "Before local search call " << std::endl;
     n.local_search(pSol);
+    std::cout << "After local search" << std::endl;
 }
 
 void dp_sweeper::select(cppied_solution &pSol,

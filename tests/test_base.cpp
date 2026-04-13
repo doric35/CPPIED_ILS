@@ -19,9 +19,9 @@ TEST_F(cppied_context_fixture, CorrectConfiguration) {
     EXPECT_EQ(ctx.config.at("TIME"), "600") << "Invalid configuration time";
     EXPECT_EQ(ctx.config.at("NAME"), "test_configuration_123") << "Invalid configuration name";
     EXPECT_EQ(ctx.config.at("ALGORITHM_CONFIG"), "c00000000000") << "Invalid algorithm configuration";
-    EXPECT_EQ(ctx.config.at("LKH_EXECUTABLE"), "/Users/dominikrichard/Workspace/Doctorat/Cppied/external/LKH-2.0.11/LKH")
+    EXPECT_EQ(ctx.config.at("LKH_EXECUTABLE"), "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/external/LKH-3.0.14/LKH")
                         << "Invalid configuration lkh executable";
-    EXPECT_EQ(ctx.config.at("WORKING_DIRECTORY"), "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch")
+    EXPECT_EQ(ctx.config.at("WORKING_DIRECTORY"), "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/scratch")
                         << "Invalid configuration working directory";
     EXPECT_EQ(ctx.config.size(), 5) << "Invalid number of keys in configuration";
 }
@@ -47,7 +47,7 @@ TEST_F(cppied_context_fixture, ParameterValues){
     EXPECT_EQ(P.s_pod.coeff(6,6), abs(std::log1p(-0.6)));
     EXPECT_EQ(P.s_pod.coeff(0,48), abs(std::log1p(-0.6)));
     EXPECT_EQ(P.s_pod.coeff(1,48), abs(std::log1p(-0.8)));
-    EXPECT_EQ(P.s_pod.col(41).sum(), abs(std::log1p(-0.99)));
+    EXPECT_NEAR(P.s_pod.col(41).sum(), abs(std::log1p(-0.99)), 1e-12);
 }
 
 TEST_F(cppied_method_fixture, ValidDirections){

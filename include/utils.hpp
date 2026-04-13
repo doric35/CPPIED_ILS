@@ -12,6 +12,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Core>
 #include <Eigen/Sparse>
+#include <Eigen/StdVector>
 #include <cmath>
 #include <random>
 #include <chrono>

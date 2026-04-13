@@ -1,1 +1,10 @@
 name,instance,configuration,returncode,stdout,stderr
+s1616_ir0_lrc031_c11111111111,s1616_ir0_lrc031,c11111111111,1,"Error occurred during execution, reverting the summary.
+Return code: -11
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+
+STDERR:",

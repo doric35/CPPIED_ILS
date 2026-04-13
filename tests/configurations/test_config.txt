@@ -1,6 +1,6 @@
 NAME = test_configuration_123
 TIME = 600
-WORKING_DIRECTORY = /Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch
-LKH_EXECUTABLE = /Users/dominikrichard/Workspace/Doctorat/Cppied/external/LKH-2.0.11/LKH
+WORKING_DIRECTORY = /home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/scratch
+LKH_EXECUTABLE = /home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/external/LKH-3.0.14/LKH
 ALGORITHM_CONFIG = c00000000000
 

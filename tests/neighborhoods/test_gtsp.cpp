@@ -18,7 +18,7 @@ protected:
     cppied_solution sol;
 
     static constexpr const char* scratch_dir =
-            "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/scratch";
 
     void SetUp() override {
         cppied_context_fixture::SetUp();

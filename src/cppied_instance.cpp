@@ -114,15 +114,18 @@ void cppied_instance::initialize_sparse_pod() {
 }
 
 void cppied_instance::initialize_intermediate() {
-    //std::cout << "\nInitializing .. " << std::flush;
+    std::cout << "\nInitializing .. " << std::flush;
     transform_log1p();
     max_range = int(pod.cols());
     initial_position = seabed.cols() * max_range;
 
     //std::cout << "cells coordinates... " << std::flush;
     initialize_cells();
+    //std::cout << "vertices coordinates... " << std::flush;
     initialize_vertices();
+    //std::cout << "sparse adj coordinates... " << std::flush;
     initialize_sparse_adj();
+    //std::cout << "sparse pod coordinates... " << std::flush;
     initialize_sparse_pod();
     //std::cout << "done." << std::endl;
 }
@@ -143,6 +146,9 @@ bool cppied_instance::adjacent(const Eigen::Vector2f &a, const Eigen::Vector2f &
 }
 
 void cppied_instance::validate_parameters() {
+    if (seabed.minCoeff() < 0)
+        throw algo_exception("Seabed contains negative habitat indices.");
     if (seabed.maxCoeff() >= pod.rows())
         throw algo_exception("Pod matrix does not contain enough rows for the seabed entries.");
 }
+

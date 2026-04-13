@@ -10,7 +10,7 @@ public:
     Eigen::VectorXd req;
     Eigen::SparseMatrix<int> adj;
     Eigen::SparseMatrix<double> s_pod;
-    std::vector<Eigen::Vector2f> vertex;
+    std::vector<Eigen::Vector2f,Eigen::aligned_allocator<Eigen::Vector2f> > vertex;
     Eigen::Matrix2Xf cells;
     int initial_position;
     int max_range;

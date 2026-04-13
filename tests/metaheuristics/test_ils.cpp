@@ -70,13 +70,13 @@ protected:
 class ils_full_fixture : public ::testing::Test {
 protected:
     static constexpr const char* seabed_path =
-        "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_seabed.txt";
+        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_seabed.txt";
     static constexpr const char* pod_path =
-        "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_pod.txt";
+        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_pod.txt";
     static constexpr const char* req_path =
-        "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_req.txt";
+        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_req.txt";
     static constexpr const char* config_path =
-        "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/ils_test_config";
+        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/ils_test_config";
 
     cppied_context ctx;
     cppied_instance P;
@@ -314,13 +314,13 @@ TEST_F(ils_minimal_fixture, DSolveMinimalSolutionAtLocalOptimum) {
 class ils_local_search_fixture : public ::testing::Test {
 protected:
     static constexpr const char* seabed_path =
-            "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_seabed.txt";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_seabed.txt";
     static constexpr const char* pod_path =
-            "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_pod.txt";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_pod.txt";
     static constexpr const char* req_path =
-            "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/test_req.txt";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_req.txt";
     static constexpr const char* config_path =
-            "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/configurations/ils_local_search_config";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/ils_local_search_config";
 
     cppied_context ctx;
     cppied_instance P;

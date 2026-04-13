@@ -18,7 +18,7 @@ protected:
     cppied_solution sol;
 
     static constexpr const char* scratch_dir =
-            "/Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch";
+            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/scratch";
     static constexpr const char* instance_name = "test_configuration_123";
 
     // Helpers to get canonical file paths matching ctx.config

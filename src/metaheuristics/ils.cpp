@@ -1,8 +1,10 @@
 #include "../../include/metaheuristics/ils.hpp"
 
 void ils::d_solve(cppied_solution &pSolution) {
+    std::cout << "Construction " << std::endl;
     if (!R.empty()){
         auto starter = uniform_sample(R);
+        std::cout << "Selected starter " << std::endl;
         starter->restart(pSolution);
     } else {
         dp_sweeper h(ctx, problem);
@@ -14,7 +16,7 @@ void ils::d_solve(cppied_solution &pSolution) {
     int iterations = 1;
     geometry.complete(pSolution);
     coverage.reset(pSolution);
-    std::cout << "Initial cost: " << pSolution.cost << std::endl;
+    //std::cout << "Initial cost: " << pSolution.cost << std::endl;
 
     auto cb_tmp = callbacks.onSatisfy;
 
