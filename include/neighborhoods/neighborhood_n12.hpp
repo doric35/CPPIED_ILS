@@ -17,6 +17,8 @@ namespace n12 {
         trial t;
         cost_t gain;
     };
+
+    using evaluated_candidates = std::vector<std::vector<evaluated_trial>>;
 }
 
 class neighborhood_n12 : public neighborhood{
@@ -33,6 +35,9 @@ public:
     }
 
     bool local_search(cppied_solution&) override;
+    void selection_heuristic_update(cppied_solution& pSol,
+                                    std::vector<n12::trial> &trials,
+                                    std::vector<cost_t> &gains);
     n12::evaluated_trial replace(cppied_solution&, sVecIt seg);
     n12::evaluated_trial explore_replacements(cppied_solution& pSol, const segment& ref);
     cost_t gain(const cppied_solution&,
@@ -52,6 +57,12 @@ public:
                 const std::vector<n12::trial>& trials,
                 const std::vector<cost_t>& gains,
                 std::vector<int>& selection);
+
+    bool apply_selector(cppied_solution& pSol,
+                        const n12::evaluated_candidates& candidates);
+    void precompute(cppied_solution& pSol,
+                    n12::evaluated_candidates& candidates_shell);
+    void correct_trial(n12::evaluated_trial& t, int p);
 protected:
     cost_t allowed_degradation{0,0};
     std::function<void(n12::evaluated_trial&,

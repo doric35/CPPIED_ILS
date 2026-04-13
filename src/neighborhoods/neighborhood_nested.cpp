@@ -35,7 +35,8 @@ void neighborhood_nested::degrade(std::array<cppied_solution, 4> & pCandidates,
                                   cost_t allowed_degradation) {
     neighborhood_n12 degradation_nbh(ctx, problem);
     degradation_nbh.set_degradation(allowed_degradation);
-    std::vector<n12::evaluated_trial> trials_memory;
+    n12::evaluated_candidates trials_memory;
+    degradation_nbh.precompute(pCandidates[0], trials_memory);
 
     auto gumbel = [](){
         double u = (double)rand() / RAND_MAX;
@@ -60,8 +61,9 @@ void neighborhood_nested::degrade(std::array<cppied_solution, 4> & pCandidates,
         }
     };
     degradation_nbh.set_selector(selector);
-    for (auto& sol: pCandidates)
-        degradation_nbh.local_search(sol);
+    for (auto& sol: pCandidates) {
+        degradation_nbh.apply_selector(sol, trials_memory);
+    }
 }
 
 void neighborhood_nested::upgrade(std::array<cppied_solution, 4> &pCandidates) {

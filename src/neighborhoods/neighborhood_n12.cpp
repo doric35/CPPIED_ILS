@@ -18,6 +18,13 @@ bool neighborhood_n12::local_search(cppied_solution& pSol) {
     if (*best <= cost_t{0,0} - allowed_degradation)
         return false;
 
+    selection_heuristic_update(pSol, trials, gains);
+    return true;
+}
+
+void neighborhood_n12::selection_heuristic_update(cppied_solution &pSol,
+                                                  std::vector<n12::trial> &trials,
+                                                  std::vector<cost_t> &gains) {
     cost_t bound = cost_t{0,0} - allowed_degradation;
     auto erase_func = [&] (int i){
         return gains[i] <= bound;
@@ -110,8 +117,6 @@ bool neighborhood_n12::local_search(cppied_solution& pSol) {
     selection_heuristic.solve_selection(gains, selection);
 
     update(pSol, trials, gains, selection);
-
-    return true;
 }
 
 void neighborhood_n12::update(cppied_solution &pSol,
@@ -192,14 +197,19 @@ n12::evaluated_trial neighborhood_n12::replace(cppied_solution &pSol, neighborho
     coverage.remove(pSol, *seg);
     pSol.path.erase(seg);
     best_trial = explore_replacements(pSol, seg_save);
-    if (!best_trial.t.s1.top_k.empty() &&
-        best_trial.t.s1.top_k[0].first >= position) best_trial.t.s1.top_k[0].first++;
-    if (!best_trial.t.s2.top_k.empty() &&
-        best_trial.t.s2.top_k[0].first >= position) best_trial.t.s2.top_k[0].first++;
+    correct_trial(best_trial, position);
     coverage.insert(pSol, seg_save);
     auto reinserted_item = pSol.path.insert(std::next(pSol.path.begin(),position), seg_save);
     best_trial.gain = gain(pSol, reinserted_item, best_trial);
     return best_trial;
+}
+
+void neighborhood_n12::correct_trial(n12::evaluated_trial &t,
+                                     int pos) {
+    if (!t.t.s1.top_k.empty() &&
+        t.t.s1.top_k[0].first >= pos) t.t.s1.top_k[0].first++;
+    if (!t.t.s2.top_k.empty() &&
+        t.t.s2.top_k[0].first >= pos) t.t.s2.top_k[0].first++;
 }
 
 n12::evaluated_trial neighborhood_n12::explore_replacements(cppied_solution &pSol,
@@ -246,8 +256,13 @@ n12::evaluated_trial neighborhood_n12::select_best_pair(cppied_solution& pSol,
                        std::numeric_limits<int>::max()};
 
     std::map<segment, std::vector<std::pair<int,cost_t>>> top_k_cache;
+    auto sat_topologic_order = [&](
+            const segment& other){
+        return s1.source <= other.source;
+    };
     auto trial_select = [&](const segment& seg){
-        if (coverage.insertion_satisfies(pSol, seg, unsat)){
+        if (sat_topologic_order(seg) &&
+            coverage.insertion_satisfies(pSol, seg, unsat)){
 
             coverage.insert(pSol, seg);
             std::array<std::pair<segment, segment>, 2> trim_configs{{
@@ -369,3 +384,68 @@ cost_t neighborhood_n12::gain(const cppied_solution& pSol,
     g -= t.gain;
     return g;
 }
+
+bool neighborhood_n12::apply_selector(cppied_solution& pSol,
+                                      const n12::evaluated_candidates &candidates) {
+    const int N = static_cast<int>(candidates.size());
+    std::vector<n12::trial> trials(N);
+    std::vector<cost_t>     gains(N);
+
+    gains[0] = {std::numeric_limits<int>::min(),
+                std::numeric_limits<int>::min()};
+
+    // Stochastic reduction: trial_selector (Gumbel or default) picks one winner
+    // per segment from its precomputed pool
+    cost_t restart_cost = {INT_MAX, INT_MAX};
+    for (int i = 1; i < N; ++i) {
+        if (candidates[i].empty()) {
+            gains[i] = {INT_MIN, INT_MIN};
+            continue;
+        }
+        n12::evaluated_trial best{
+                {{{path_engine::NULL_NODE, path_engine::NULL_NODE}, {}},
+                 {{path_engine::NULL_NODE, path_engine::NULL_NODE}, {}}},
+                restart_cost
+        };
+        for (const auto& et : candidates[i])
+            trial_selector(best, et);
+
+        trials[i] = best.t;
+        gains[i]  = best.gain;
+    }
+
+    auto best = std::max_element(gains.begin(), gains.end());
+    if (*best <= cost_t{0,0} - allowed_degradation)
+        return false;
+
+    // Reuse the existing ris_heuristic + update logic (identical to local_search)
+    // … (splitter / filter / interval_function lambdas unchanged) …
+    selection_heuristic_update(pSol, trials, gains);
+    return true;
+}
+
+void neighborhood_n12::precompute(cppied_solution &pSol,
+                                  n12::evaluated_candidates &candidates_shell) {
+    auto saved_selector = trial_selector;
+    candidates_shell.resize(pSol.path.size());
+
+    int i=1;
+    trial_selector = [&](n12::evaluated_trial& best,
+                        const n12::evaluated_trial& other) {
+        candidates_shell[i].push_back(other);
+        correct_trial(candidates_shell[i].back(), i);
+    };
+    for(; i< pSol.path.size(); ++i){
+        auto path_it = std::next(pSol.path.begin(),i);
+        replace(pSol, path_it);
+    }
+
+    //Correct computed gains;
+    for (i=1; i< pSol.path.size(); i++){
+        for (auto& t : candidates_shell[i])
+            t.gain = gain(pSol, std::next(pSol.path.begin(), i), t);
+    }
+
+    trial_selector = saved_selector;
+}
+

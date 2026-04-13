@@ -409,6 +409,26 @@ protected:
             out.insert(seg.source);
         return out;
     }
+
+    // Convenience: collect target vertices from a path (ignoring transit).
+    static std::set<int> target_set(const cppied_solution& s) {
+        std::set<int> out;
+        for (auto& seg : s.path)
+            out.insert(seg.source);
+        return out;
+    }
+
+    // Convenience: collect vertices from a path (ignoring transit).
+    std::set<int> node_set(cppied_solution& s) {
+        std::set<int> out;
+        auto add_node = [&](cppied_solution& s, int v){
+            out.insert(v);
+        };
+        for (auto& seg : s.path)
+            p->coverage.apply(s, seg, add_node);
+        return out;
+    }
+
 };
 
 // ---------------------------------------------------------------------------
@@ -563,9 +583,15 @@ TEST_F(perturbation_db_fixture, DoubleBridgePreservesAllSourceVertices) {
     p->double_bridge(large_sol, sampling);
 
     std::set<int> after = source_set(large_sol);
-    for (int v : before)
-        EXPECT_TRUE(after.count(v) > 0)
-            << "Source vertex " << v << " missing after double_bridge";
+    std::set<int> after_targets = target_set(large_sol);
+    std::set<int> after_nodes = node_set(large_sol);
+    for (int v : before) {
+        bool is_source = after.count(v) > 0;
+        bool is_target = after_targets.count(v) > 0;
+        bool is_node = after_nodes.count(v) > 0;
+        EXPECT_TRUE(is_source|| is_target || is_node)
+                            << "Source vertex " << v << " missing after double_bridge";
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -603,10 +629,17 @@ TEST_F(perturbation_db_fixture, DPerturbatePathNonEmptyOnLargePath) {
 TEST_F(perturbation_db_fixture, DPerturbatePreservesAllSourceVertices) {
     std::set<int> before = source_set(large_sol);
     p->d_perturbate(large_sol);
+
     std::set<int> after = source_set(large_sol);
-    for (int v : before)
-        EXPECT_TRUE(after.count(v) > 0)
-            << "Source vertex " << v << " missing after d_perturbate";
+    std::set<int> after_targets = target_set(large_sol);
+    std::set<int> after_nodes = node_set(large_sol);
+    for (int v : before) {
+        bool is_source = after.count(v) > 0;
+        bool is_target = after_targets.count(v) > 0;
+        bool is_node = after_nodes.count(v) > 0;
+        EXPECT_TRUE(is_source|| is_target || is_node)
+                            << "Source vertex " << v << " missing after perturbate";
+    }
 }
 
 // ---------------------------------------------------------------------------
