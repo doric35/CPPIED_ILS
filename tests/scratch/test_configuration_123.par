@@ -1,4 +1,4 @@
-PROBLEM_FILE = /home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/scratch/test_configuration_123.tsp
-OUTPUT_TOUR_FILE = /home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/scratch/test_configuration_123.sol
-TIME_LIMIT = 600
-INITIAL_TOUR_FILE = /home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/scratch/test_configuration_123.tour
+PROBLEM_FILE = /Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch/test_configuration_123.tsp
+OUTPUT_TOUR_FILE = /Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch/test_configuration_123.sol
+TIME_LIMIT = 500
+INITIAL_TOUR_FILE = /Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch/test_configuration_123.tour

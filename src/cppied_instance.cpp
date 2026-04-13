@@ -29,12 +29,12 @@ void cppied_instance::initialize_cells() {
 
 void cppied_instance::initialize_sparse_adj() {
     std::vector<Eigen::Triplet<int>> adjacency_list;
-    const int V = ((seabed.rows() + 1) * seabed.cols())
-                  + (seabed.rows() * (seabed.cols() + 1));
+    const int V = static_cast<int>(((seabed.rows() + 1) * seabed.cols())
+                  + (seabed.rows() * (seabed.cols() + 1)));
     adjacency_list.reserve(6 * V);
     for (int v1=0; v1<vertex.size(); v1++){
         for (int v2=v1+1; v2<vertex.size(); v2++){
-            if ((vertex[v1].array() - vertex[v2].array()).abs().sum() <= 1.0
+            if (Point2F::L1(vertex[v1], vertex[v2]) <= 1.0 + 1e-5
                 && adjacent(vertex[v1], vertex[v2])) {
                 adjacency_list.emplace_back(v1, v2, 1);
                 adjacency_list.emplace_back(v2, v1, 1);
@@ -51,8 +51,8 @@ void cppied_instance::initialize_sparse_adj() {
 }
 
 void cppied_instance::initialize_vertices() {
-    const int V = ((seabed.rows() + 1) * seabed.cols())
-            + (seabed.rows() * (seabed.cols() + 1));
+    const int V = static_cast<int>(((seabed.rows() + 1) * seabed.cols())
+            + (seabed.rows() * (seabed.cols() + 1)));
     vertex.reserve(V);
     for (int i =0; i<=seabed.rows(); i++)
         for (int j = 0; j < seabed.cols(); j++)
@@ -66,15 +66,15 @@ void cppied_instance::initialize_vertices() {
 
 void cppied_instance::initialize_sparse_pod() {
     std::vector<Eigen::Triplet<double>> set_cover_list;
-    const int V = ((seabed.rows() + 1) * seabed.cols())
-                  + (seabed.rows() * (seabed.cols() + 1));
+    const int V = static_cast<int>(((seabed.rows() + 1) * seabed.cols())
+                  + (seabed.rows() * (seabed.cols() + 1)));
     set_cover_list.reserve(V * 2* max_range);
 
     for (int i =0; i<=seabed.rows(); i++) {
-        const int offset = i * seabed.cols();
+        const int offset = static_cast<int>(i * seabed.cols());
         for (int j = 0; j < seabed.cols(); j++) {
-            Eigen::ArrayXf dx = cells.row(0).array() - vertex[offset + j](0);          // row(0) = x coordinates
-            Eigen::ArrayXf dy = cells.row(1).array() - vertex[offset + j](1);
+            Eigen::ArrayXf dx = cells.row(0).array() - vertex[offset + j].x;          // row(0) = x coordinates
+            Eigen::ArrayXf dy = cells.row(1).array() - vertex[offset + j].y;
             Eigen::Array<bool, Eigen::Dynamic, 1> mask = (dx.abs() < 1e-6f) &&
                                                          (dy.abs() < float(pod.cols()));
             int idx = offset + j;
@@ -89,10 +89,10 @@ void cppied_instance::initialize_sparse_pod() {
     }
     //std::cout << "(vertical) " << std::flush;
     for (int j=0; j<=seabed.cols(); j++) {
-        const int offset = (seabed.rows() + 1) * seabed.cols() + (j*seabed.rows());
+        const int offset = static_cast<int>((seabed.rows() + 1) * seabed.cols() + (j*seabed.rows()));
         for (int i=0; i<seabed.rows(); i++){
-            Eigen::ArrayXf dx = cells.row(0).array() - vertex[offset + i](0);          // row(0) = x coordinates
-            Eigen::ArrayXf dy = cells.row(1).array() - vertex[offset + i](1);
+            Eigen::ArrayXf dx = cells.row(0).array() - vertex[offset + i].x;          // row(0) = x coordinates
+            Eigen::ArrayXf dy = cells.row(1).array() - vertex[offset + i].y;
             Eigen::Array<bool, Eigen::Dynamic, 1> mask = (dy.abs() < 1e-6f) &&
                                                          (dx.abs() < float(pod.cols()));
             int idx = offset + i;
@@ -117,7 +117,7 @@ void cppied_instance::initialize_intermediate() {
     std::cout << "\nInitializing .. " << std::flush;
     transform_log1p();
     max_range = int(pod.cols());
-    initial_position = seabed.cols() * max_range;
+    initial_position = static_cast<int>(seabed.cols() * max_range);
 
     //std::cout << "cells coordinates... " << std::flush;
     initialize_cells();
@@ -130,12 +130,12 @@ void cppied_instance::initialize_intermediate() {
     //std::cout << "done." << std::endl;
 }
 
-bool cppied_instance::adjacent(const Eigen::Vector2f &a, const Eigen::Vector2f &b) {
-    Eigen::Vector2f vaf = a.array().floor();
-    Eigen::Vector2f vac = a.array().ceil();
+bool cppied_instance::adjacent(const Point2F &a, const Point2F &b) {
+    Point2F vaf = {std::floor(a.x), std::floor(a.y)};
+    Point2F vac = {std::ceil(a.x), std::ceil(a.y)};
 
-    Eigen::Vector2f vbf = b.array().floor();
-    Eigen::Vector2f vbc = b.array().ceil();
+    Point2F vbf = {std::floor(b.x), std::floor(b.y)};
+    Point2F vbc = {std::ceil(b.x), std::ceil(b.y)};
 
     bool is_adjacent = vaf == vbf;
     is_adjacent |= vaf == vbc;

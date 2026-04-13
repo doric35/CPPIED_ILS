@@ -82,8 +82,8 @@ cost_t path_engine::dist(const segment &a,
         if (flip[block]) sdx = -sdx, sdy = -sdy;
         return displacement_table[(primary[block] * H * W) + ((sdy + n_rows) * W) + (sdx + n_cols)];
     }
-    int dx = std::abs(problem.vertex[bv](0) - problem.vertex[bu](0));
-    int dy = std::abs(problem.vertex[bv](1) - problem.vertex[bu](1));
+    int dx = std::abs(problem.vertex[bv].x - problem.vertex[bu].x);
+    int dy = std::abs(problem.vertex[bv].y - problem.vertex[bu].y);
     return dist_boundary(sec, dx, dy);
 }
 
@@ -176,8 +176,8 @@ void path_engine::set_int_coordinates() {
     vx.resize(problem.vertex.size());
     vy.resize(problem.vertex.size());
     for (int v =0; v < (int)problem.vertex.size(); v++){
-        vx[v] = static_cast<int>(problem.vertex[v](0));
-        vy[v] = static_cast<int>(problem.vertex[v](1));
+        vx[v] = static_cast<int>(problem.vertex[v].x);
+        vy[v] = static_cast<int>(problem.vertex[v].y);
     }
 }
 
@@ -427,15 +427,15 @@ bool path_engine::is_horizontal(const segment &a) const {
 }
 
 bool path_engine::is_in_rectangle(const segment &s, iRectangle &box) const {
-    bool in = problem.vertex[s.source](0) >= box.ul.x;
-    in = in && problem.vertex[s.source](1) >= box.ul.y;
-    in = in && problem.vertex[s.source](0) <= box.lr.x;
-    in = in && problem.vertex[s.source](1) <= box.lr.y;
+    bool in = problem.vertex[s.source].x >= box.ul.x;
+    in = in && problem.vertex[s.source].y >= box.ul.y;
+    in = in && problem.vertex[s.source].x <= box.lr.x;
+    in = in && problem.vertex[s.source].y <= box.lr.y;
     if (is_node(s.target)){
-        in = in && problem.vertex[s.target](0) >= box.ul.x;
-        in = in && problem.vertex[s.target](1) >= box.ul.y;
-        in = in && problem.vertex[s.target](0) <= box.lr.x;
-        in = in && problem.vertex[s.target](1) <= box.lr.y;
+        in = in && problem.vertex[s.target].x >= box.ul.x;
+        in = in && problem.vertex[s.target].y >= box.ul.y;
+        in = in && problem.vertex[s.target].x <= box.lr.x;
+        in = in && problem.vertex[s.target].y <= box.lr.y;
     }
 
     return in;
@@ -620,8 +620,8 @@ path_engine::ee_dist(int a, int b) const
     const auto& vb = problem.vertex[b];
 
     //Integer coordinates
-    int xa = int(va(0)), ya = int(va(1));
-    int xb = int(vb(0)), yb = int(vb(1));
+    int xa = int(va.x), ya = int(va.y);
+    int xb = int(vb.x), yb = int(vb.y);
 
     //Integer distances (valid)
     int dy = std::abs(ya - yb);
@@ -652,8 +652,8 @@ path_engine::ew_dist(int a, int b) const
     const auto& vb = problem.vertex[b];
 
     //Integer coordinates
-    int xa = int(va(0)), ya = int(va(1));
-    int xb = int(vb(0)), yb = int(vb(1));
+    int xa = int(va.x), ya = int(va.y);
+    int xb = int(vb.x), yb = int(vb.y);
 
     //Integer distances (valid)
     int dy = std::abs(ya - yb);
@@ -681,8 +681,8 @@ path_engine::es_dist(int a, int b) const
     const auto& vb = problem.vertex[b];
 
     //Coordinates
-    double xa = va(0), ya = va(1);
-    double xb = vb(0), yb = vb(1);
+    double xa = va.x, ya = va.y;
+    double xb = vb.x, yb = vb.y;
 
     //integer distances
     int dy = std::abs(ya - yb);
@@ -720,8 +720,8 @@ path_engine::en_dist(int a, int b) const
     const auto& vb = problem.vertex[b];
 
     //Coordinates
-    double xa = va(0), ya = va(1);
-    double xb = vb(0), yb = vb(1);
+    double xa = va.x, ya = va.y;
+    double xb = vb.x, yb = vb.y;
 
     //integer distances
     int dy = std::abs(ya - yb);
@@ -776,8 +776,8 @@ path_engine::we_dist(int a, int b) const
     const auto& vb = problem.vertex[b];
 
     //Integer coordinates
-    int xa = int(va(0)), ya = int(va(1));
-    int xb = int(vb(0)), yb = int(vb(1));
+    int xa = int(va.x), ya = int(va.y);
+    int xb = int(vb.x), yb = int(vb.y);
 
     //Integer distances (valid)
     int dy = std::abs(ya - yb);
@@ -805,8 +805,8 @@ path_engine::ws_dist(int a, int b) const
     const auto& vb = problem.vertex[b];
 
     //Coordinates
-    double xa = va(0), ya = va(1);
-    double xb = vb(0), yb = vb(1);
+    double xa = va.x, ya = va.y;
+    double xb = vb.x, yb = vb.y;
 
     //integer distances
     int dy = std::abs(ya - yb);
@@ -843,8 +843,8 @@ path_engine::wn_dist(int a, int b) const
     const auto& vb = problem.vertex[b];
 
     //Coordinates
-    double xa = va(0), ya = va(1);
-    double xb = vb(0), yb = vb(1);
+    double xa = va.x, ya = va.y;
+    double xb = vb.x, yb = vb.y;
 
     //integer distances
     int dy = std::abs(ya - yb);
@@ -882,8 +882,8 @@ path_engine::ss_dist(int a, int b) const
     const auto& vb = problem.vertex[b];
 
     //Integer coordinates
-    int xa = int(va(0)), ya = int(va(1));
-    int xb = int(vb(0)), yb = int(vb(1));
+    int xa = int(va.x), ya = int(va.y);
+    int xb = int(vb.x), yb = int(vb.y);
 
     //Integer distances (valid)
     int dy = std::abs(ya - yb);
@@ -922,8 +922,8 @@ path_engine::sn_dist(int a, int b) const
     const auto& vb = problem.vertex[b];
 
     //Integer coordinates
-    int xa = int(va(0)), ya = int(va(1));
-    int xb = int(vb(0)), yb = int(vb(1));
+    int xa = int(va.x), ya = int(va.y);
+    int xb = int(vb.x), yb = int(vb.y);
 
     //Integer distances (valid)
     int dy = std::abs(ya - yb);

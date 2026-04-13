@@ -57,6 +57,14 @@ struct cost_t {
     auto operator<=>(const cost_t&) const = default;
 };
 
+struct Point2F{
+    float x,y;
+    static float L1(const Point2F& a, const Point2F& b){
+        return std::abs(a.x - b.x) + std::abs(a.y - b.y);
+    }
+    auto operator<=>(const Point2F&) const = default;
+};
+
 inline std::ostream& operator<<(std::ostream& os, const cost_t& c) {
     return os << "{l=" << c.length << ", t=" << c.turns << "}";
 }
@@ -118,10 +126,10 @@ inline std::ostream& operator<<(std::ostream& os, const cppied_solution& s) {
     return os;
 }
 
-inline cv::Point map_to_image(Eigen::Ref<Eigen::Vector2f> twoDCoord,
+inline cv::Point map_to_image(Point2F& p,
                               double scale){
-    int px = static_cast<int>(twoDCoord(0 ) * scale);
-    int py = static_cast<int>(twoDCoord(1) * scale);
+    int px = static_cast<int>(p.x * scale);
+    int py = static_cast<int>(p.y * scale);
     return {px, py};
 }
 

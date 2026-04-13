@@ -10,7 +10,7 @@ public:
     Eigen::VectorXd req;
     Eigen::SparseMatrix<int> adj;
     Eigen::SparseMatrix<double> s_pod;
-    std::vector<Eigen::Vector2f,Eigen::aligned_allocator<Eigen::Vector2f> > vertex;
+    std::vector<Point2F> vertex;
     Eigen::Matrix2Xf cells;
     int initial_position;
     int max_range;
@@ -40,7 +40,7 @@ protected:
     void initialize_cells();
     void initialize_sparse_pod();
     void initialize_sparse_adj();
-    bool adjacent (const Eigen::Vector2f& a,
-                   const Eigen::Vector2f& b);
+    static bool adjacent (const Point2F& a,
+                   const Point2F& b);
     void validate_parameters();
 };

@@ -21,7 +21,7 @@ void cppied_method_base::validate_solution(cppied_solution &pSolution) {
     if ((pSolution.coverage.array() < problem.req.array()).any())
         throw algo_exception("Coverage constraints not satisfied");
 
-    if ((problem.vertex[pSolution.path[0].source].array() - problem.vertex[problem.initial_position].array()).abs().sum() != 0.0)
+    if (Point2F::L1(problem.vertex[pSolution.path[0].source],problem.vertex[problem.initial_position]) >= 1e-5)
         throw algo_exception("Initial position constraint not satisfied");
 
     for (size_t v = 0; v + 1 < pSolution.path.size(); ++v){
