@@ -45,6 +45,7 @@ RESULTS_DIR   = EXPERIMENTS / "results"
 
 CONFIGS_FILE  = DATA_DIR / "algorithm_configuration" / "random_configurations.txt"
 INSTANCES_DIR = DATA_DIR / "ejor_tests"
+INSTANCES_FILE= INSTANCES_DIR / "run_instances.txt"
 RESULTS_FILE  = RESULTS_DIR / "ejor_results.csv"
 ERRORS_FILE   = RESULTS_DIR / "ejor_errors.csv"
 K_AVG_SCRIPT  = SCRIPT_DIR / "k_avg_performance.py"
@@ -52,6 +53,8 @@ K             = 5
 
 RESULTS_COLS = ["name", "solver", "length", "turns", "time"]
 ERRORS_COLS  = ["name", "instance", "configuration", "returncode", "stdout", "stderr"]
+
+TIME_MAP = {"s1616_" : 60, "s6464_" : 600, "s128128_" : 1200}
 
 
 def resolve_scratch_dir() -> Path:
@@ -73,7 +76,6 @@ def read_configs(path: Path) -> list[str]:
             if line and not line.startswith("#"):
                 configs.append(line)
     return configs
-
 
 def read_existing_names(path: Path) -> set[str]:
     """Return the set of experiment names already in the results CSV."""
@@ -107,9 +109,10 @@ def write_config_file(
     """Write the CPPIED config file into *exp_dir* and return its path."""
     local_csv   = exp_dir / "results.csv"
     config_path = exp_dir / "config.txt"
+    time = TIME_MAP[exp_name.split("_")[0] + "_"]
     config_path.write_text(
         f"NAME = {exp_name}\n"
-        f"TIME = 60\n"
+        f"TIME = {time}\n"
         f"WORKING_DIRECTORY = {exp_dir}\n"
         f"SEABED_FILE = {instance_dir / 'cppied_problem.txt'}\n"
         f"POD_FILE = {instance_dir / 'cppied_pod.txt'}\n"
@@ -221,15 +224,17 @@ def main():
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     configs   = read_configs(CONFIGS_FILE)
+    run_instances = read_configs(INSTANCES_FILE)
+
     instances = sorted(
         d for d in INSTANCES_DIR.iterdir()
-        if d.is_dir() and d.name.startswith("s1616_")
+        if d.is_dir() and d.name in run_instances
     )
 
     if not configs:
         sys.exit("No configurations found – check random_configurations.txt.")
     if not instances:
-        sys.exit("No s1616 instances found – check the ejor_tests directory.")
+        sys.exit("No instances found – check the ejor_tests directory.")
 
     existing = read_existing_names(RESULTS_FILE)
 
@@ -243,9 +248,11 @@ def main():
 
     total_all  = len(configs) * len(instances)
     total_skip = total_all - len(pending)
+    total_missed = len(run_instances) - len(instances)
     print(
         f"Configurations : {len(configs)}\n"
-        f"s1616 instances: {len(instances)}\n"
+        f"Listed instances: {len(instances)}\n"
+        f"Not found instances: {total_missed}\n"
         f"Total pairs    : {total_all}\n"
         f"Already done   : {total_skip}\n"
         f"To run         : {len(pending)}\n"
