@@ -1,5 +1,0 @@
-NAME = test_configuration_123
-TIME = 5
-WORKING_DIRECTORY = /Users/dominikrichard/Workspace/Doctorat/Cppied/tests/scratch
-LKH_EXECUTABLE = /Users/dominikrichard/Workspace/Doctorat/Cppied/external/LKH-2.0.11/LKH
-ALGORITHM_CONFIG = c11111110000
