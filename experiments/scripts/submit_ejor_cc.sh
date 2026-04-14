@@ -31,7 +31,7 @@
 #SBATCH --ntasks-per-node=64
 #SBATCH --exclusive                # guarantee sole occupancy of the node; SLURM_CPUS_ON_NODE reflects all CPUs
 #SBATCH --mem=0                    # use all available RAM on the node
-#SBATCH --time=30:00:00
+#SBATCH --time=120:00:00
 #SBATCH --output=output/%x_%j.out
 #SBATCH --error=output%x_%j.err
 # Uncomment and set the appropriate allocation account:
