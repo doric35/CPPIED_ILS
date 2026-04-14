@@ -85,6 +85,7 @@ def write_config_file(
         f"REQ_COVERAGE_FILE = {instance_dir / 'cppied_req.txt'}\n"
         f"CSV_LOG_FILE = {exp_dir / 'results.csv'}\n"
         f"SOLUTION_FILE = {exp_dir / 'solution.txt'}\n"
+        f"VIZ_FILE = {exp_dir / 'visualisation.mp4'}\n"
         f"LKH_EXECUTABLE = {lkh_exe}\n"
         f"SOLVER = ILS\n"
         f"ALGORITHM_CONFIG = {algorithm_config}\n"
