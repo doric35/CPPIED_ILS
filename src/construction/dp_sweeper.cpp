@@ -46,9 +46,9 @@ void dp_sweeper::construct(cppied_solution &pSol, std::function<void(cppied_solu
     }
     pSol.cost = geometry.cost(pSol);
     neighborhood_tsp n(ctx, problem);
-    std::cout << "Before local search call " << std::endl;
+    //std::cout << "Before local search call " << std::endl;
     n.local_search(pSol);
-    std::cout << "After local search" << std::endl;
+    //std::cout << "After local search" << std::endl;
 }
 
 void dp_sweeper::select(cppied_solution &pSol,

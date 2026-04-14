@@ -1,10 +1,10 @@
 #include "../../include/metaheuristics/ils.hpp"
 
 void ils::d_solve(cppied_solution &pSolution) {
-    std::cout << "Construction " << std::endl;
+    //std::cout << "Construction " << std::endl;
     if (!R.empty()){
         auto starter = uniform_sample(R);
-        std::cout << "Selected starter " << std::endl;
+        //std::cout << "Selected starter " << std::endl;
         starter->restart(pSolution);
     } else {
         dp_sweeper h(ctx, problem);

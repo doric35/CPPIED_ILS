@@ -114,7 +114,7 @@ void cppied_instance::initialize_sparse_pod() {
 }
 
 void cppied_instance::initialize_intermediate() {
-    std::cout << "\nInitializing .. " << std::flush;
+    //std::cout << "\nInitializing .. " << std::flush;
     transform_log1p();
     max_range = int(pod.cols());
     initial_position = static_cast<int>(seabed.cols() * max_range);

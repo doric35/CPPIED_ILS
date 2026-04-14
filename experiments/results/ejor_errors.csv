@@ -8,3 +8,230 @@ Available solvers: ILS
 Starting the optimization algorithm with solver ILS
 
 STDERR:",
+s1616_ir0_lrc185_c01100011111,s1616_ir0_lrc185,c01100011111,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+
+STDERR:
+ Runtime error from neighborhood: 14neighborhood_r
+Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.
+{src=80, tgt=93}
+{src=79, tgt=78}
+{src=500, tgt=-1}
+{src=502, tgt=509}
+{src=237, tgt=-2}
+{src=235, tgt=234}
+{src=446, tgt=-1}
+{src=479, tgt=-1}
+{src=463, tgt=454}
+{src=453, tgt=448}
+{src=27, tgt=26}
+{src=20, tgt=-2}
+{src=17, tgt=-2}
+{src=292, tgt=297}
+{src=319, tgt=314}
+{src=162, tgt=-1}
+{src=330, tgt=-1}
+{src=332, tgt=335}
+{src=259, tgt=-1}
+{src=463, tgt=461}
+{src=459, tgt=-2}
+{src=458, tgt=-2}
+{src=453, tgt=448}
+{src=5, tgt=-2}
+{src=352, tgt=367}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.",
+s1616_is0_lrc081_c10100011001,s1616_is0_lrc081,c10100011001,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+
+STDERR:
+ Runtime error from neighborhood: 14neighborhood_r
+Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.
+{src=16, tgt=31}
+{src=47, tgt=-2}
+{src=514, tgt=526}
+{src=271, tgt=-1}
+{src=255, tgt=250}
+{src=247, tgt=241}
+{src=303, tgt=-1}
+{src=256, tgt=-2}
+{src=286, tgt=283}
+{src=160, tgt=165}
+{src=377, tgt=376}
+{src=133, tgt=128}
+{src=96, tgt=-1}
+{src=97, tgt=98}
+{src=100, tgt=101}
+{src=374, tgt=375}
+{src=380, tgt=381}
+{src=229, tgt=228}
+{src=349, tgt=340}
+{src=308, tgt=313}
+{src=316, tgt=318}
+{src=242, tgt=244}
+{src=246, tgt=249}
+{src=218, tgt=220}
+{src=493, tgt=-1}
+{src=509, tgt=505}
+{src=504, tgt=503}
+{src=486, tgt=484}
+{src=436, tgt=437}
+{src=106, tgt=107}
+{src=470, tgt=475}
+{src=219, tgt=218}
+{src=444, tgt=437}
+{src=73, tgt=72}
+{src=404, tgt=412}
+{src=215, tgt=-2}
+{src=380, tgt=372}
+{src=69, tgt=68}
+{src=340, tgt=349}
+{src=227, tgt=226}
+{src=317, tgt=315}
+{src=197, tgt=194}
+{src=177, tgt=178}
+{src=181, tgt=184}
+{src=427, tgt=429}
+{src=232, tgt=-2}
+{src=397, tgt=393}
+{src=389, tgt=-2}
+{src=57, tgt=59}
+{src=483, tgt=-1}
+{src=76, tgt=74}
+{src=57, tgt=50}
+{src=290, tgt=-2}
+{src=32, tgt=-2}
+{src=64, tgt=66}
+{src=51, tgt=53}
+{src=22, tgt=23}
+{src=40, tgt=-1}
+{src=42, tgt=46}
+{src=533, tgt=-1}
+{src=535, tgt=537}
+{src=175, tgt=-2}
+{src=489, tgt=487}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.",
+s1616_ir1_lrc085_c10100011001,s1616_ir1_lrc085,c10100011001,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+
+STDERR:
+ Runtime error from neighborhood: 14neighborhood_r
+Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.
+{src=80, tgt=91}
+{src=470, tgt=479}
+{src=527, tgt=512}
+{src=14, tgt=8}
+{src=336, tgt=351}
+{src=264, tgt=266}
+{src=239, tgt=226}
+{src=335, tgt=329}
+{src=67, tgt=-1}
+{src=79, tgt=-1}
+{src=532, tgt=-1}
+{src=95, tgt=93}
+{src=92, tgt=90}
+{src=386, tgt=384}
+{src=448, tgt=-1}
+{src=121, tgt=113}
+{src=144, tgt=-2}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.",
+s1616_is2_lrc085_c10100011001,s1616_is2_lrc085,c10100011001,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+
+STDERR:
+ Runtime error from neighborhood: 14neighborhood_r
+Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.
+{src=80, tgt=-1}
+{src=81, tgt=89}
+{src=77, tgt=79}
+{src=143, tgt=142}
+{src=141, tgt=140}
+{src=139, tgt=136}
+{src=455, tgt=458}
+{src=460, tgt=461}
+{src=462, tgt=463}
+{src=479, tgt=473}
+{src=471, tgt=468}
+{src=467, tgt=464}
+{src=7, tgt=5}
+{src=336, tgt=-1}
+{src=338, tgt=351}
+{src=335, tgt=329}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.",
+s1616_ir2_lrc055_c01000010010,s1616_ir2_lrc055,c01000010010,1,"Error occurred during execution, reverting the summary.
+Return code: -6
+STDOUT:
+ Hello, welcome to CPPIED heuristic methods program.
+Setting up...
+Available solvers: ILS
+Starting the optimization algorithm with solver ILS
+
+STDERR:
+ Runtime error from neighborhood: 14neighborhood_r
+Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.
+{src=80, tgt=-1}
+{src=64, tgt=-2}
+{src=280, tgt=284}
+{src=286, tgt=287}
+{src=256, tgt=258}
+{src=264, tgt=265}
+{src=443, tgt=434}
+{src=433, tgt=-2}
+{src=432, tgt=-2}
+{src=480, tgt=494}
+{src=495, tgt=-1}
+{src=478, tgt=-2}
+{src=121, tgt=115}
+{src=313, tgt=315}
+{src=210, tgt=-1}
+{src=214, tgt=215}
+{src=415, tgt=-1}
+{src=264, tgt=-1}
+{src=447, tgt=-2}
+{src=249, tgt=243}
+{src=334, tgt=331}
+{src=179, tgt=191}
+{src=538, tgt=534}
+{src=95, tgt=-2}
+{src=516, tgt=515}
+{src=63, tgt=-1}
+{src=530, tgt=528}
+{src=14, tgt=6}
+{src=5, tgt=3}
+{src=2, tgt=1}
+{src=288, tgt=-1}
+{src=17, tgt=-1}
+{src=19, tgt=21}
+{src=368, tgt=-2}
+{src=336, tgt=340}
+{src=341, tgt=-1}
+{src=98, tgt=97}
+{src=278, tgt=-1}
+{src=112, tgt=122}
+{src=123, tgt=125}
+{src=507, tgt=511}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  Failed to connect to token server 'license1.computecanada.ca' (port 41954) - license file '/cvmfs/restricted.computecanada.ca/config/licenses/gurobi/clust'.  Consult https://www.gurobi.com/getting-started for instructions on starting a token server.",

@@ -13,18 +13,18 @@ bool neighborhood_tsp::local_search(cppied_solution &pSol) {
     std::iota(tsp_solution.begin(), tsp_solution.end(), 1);
 
     tsp_solution = std::move(tspEngine.lkh(C,tsp_solution));
-    std::cout << "Fetched LKH solution into neighborhood object " << std::endl;
+    //std::cout << "Fetched LKH solution into neighborhood object " << std::endl;
     cppied_solution trial = pSol;
     tsp_to_path(trial, tsp_solution);
-    std::cout << "Transfered tsp to path" << std::endl;
+    //std::cout << "Transfered tsp to path" << std::endl;
     trial.cost = geometry.cost(trial);
-    std::cout << "After cost computation" << std::endl;
+    //std::cout << "After cost computation" << std::endl;
     if (trial.cost < pSol.cost) {
-        std::cout << "Before trial move" << std::endl;
+        //std::cout << "Before trial move" << std::endl;
         pSol.path = std::move(trial.path);
         pSol.cost = trial.cost;
         pSol.coverage = trial.coverage;
-        std::cout << "After trial move" << std::endl;
+        //std::cout << "After trial move" << std::endl;
         return true;
     }
     return false;

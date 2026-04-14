@@ -28,11 +28,10 @@
 
 #SBATCH --job-name=ejor_cppied
 #SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=0          # 0 → SLURM gives all CPUs on the node
+#SBATCH --ntasks-per-node=64          # 0 → SLURM gives all CPUs on the node
 #SBATCH --exclusive                # guarantee sole occupancy of the node
 #SBATCH --mem=0                    # use all available RAM on the node
-#SBATCH --time=03:00:00
+#SBATCH --time=06:00:00
 #SBATCH --output=%x_%j.out
 #SBATCH --error=%x_%j.err
 # Uncomment and set the appropriate allocation account:
@@ -61,7 +60,7 @@ if [[ -z "${LKH_EXE:-}" ]]; then
 fi
 
 # ── Resolve paths ─────────────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 PARALLEL_SCRIPT="${SCRIPT_DIR}/run_ejor_experiments_parallel.py"
 LOG_DIR="${SCRIPT_DIR}/../results/logs"
 mkdir -p "${LOG_DIR}"
