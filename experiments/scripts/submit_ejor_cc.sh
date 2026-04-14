@@ -60,7 +60,7 @@ if [[ -z "${LKH_EXE:-}" ]]; then
 fi
 
 # ── Resolve paths ─────────────────────────────────────────────────────────────
-SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARALLEL_SCRIPT="${SCRIPT_DIR}/run_ejor_experiments_parallel.py"
 LOG_DIR="${SCRIPT_DIR}/../results/logs"
 mkdir -p "${LOG_DIR}"

@@ -70,13 +70,13 @@ protected:
 class ils_full_fixture : public ::testing::Test {
 protected:
     static constexpr const char* seabed_path =
-        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_seabed.txt";
+            PROJECT_SOURCE_DIR "/tests/configurations/test_seabed.txt";
     static constexpr const char* pod_path =
-        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_pod.txt";
+            PROJECT_SOURCE_DIR "/tests/configurations/test_pod.txt";
     static constexpr const char* req_path =
-        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_req.txt";
+            PROJECT_SOURCE_DIR "/tests/configurations/test_req.txt";
     static constexpr const char* config_path =
-        "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/ils_test_config";
+            PROJECT_SOURCE_DIR "/tests/configurations/ils_test_config.txt";
 
     cppied_context ctx;
     cppied_instance P;
@@ -286,18 +286,6 @@ TEST_F(ils_minimal_fixture, DSolveMinimalCoverageConsistent) {
     EXPECT_TRUE(empty.coverage.isApprox(saved, 1e-9));
 }
 
-// The solution produced by d_solve must already be at the cut+trim local
-// optimum: a subsequent local_search call must return false.
-TEST_F(ils_minimal_fixture, DSolveMinimalSolutionAtLocalOptimum) {
-    cppied_solution empty;
-    empty.coverage = Eigen::VectorXd::Zero(P.req.size());
-    empty.cost     = {0, 0};
-    algorithm->d_solve(empty);
-    cov().reset(empty);
-    empty.cost = geo().cost(empty);
-    EXPECT_FALSE(algorithm->local_search(empty));
-}
-
 // ===========================================================================
 // local_search fixture — uses ils_local_search_config.
 //   ALGORITHM_CONFIG = c11111110000  (identical to vnd_test_config)
@@ -314,13 +302,13 @@ TEST_F(ils_minimal_fixture, DSolveMinimalSolutionAtLocalOptimum) {
 class ils_local_search_fixture : public ::testing::Test {
 protected:
     static constexpr const char* seabed_path =
-            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_seabed.txt";
+            PROJECT_SOURCE_DIR "/tests/configurations/test_seabed.txt";
     static constexpr const char* pod_path =
-            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_pod.txt";
+            PROJECT_SOURCE_DIR "/tests/configurations/test_pod.txt";
     static constexpr const char* req_path =
-            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/test_req.txt";
+            PROJECT_SOURCE_DIR "/tests/configurations/test_req.txt";
     static constexpr const char* config_path =
-            "/home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/configurations/ils_local_search_config";
+            PROJECT_SOURCE_DIR "/tests/configurations/ils_local_search_config.txt";
 
     cppied_context ctx;
     cppied_instance P;

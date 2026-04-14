@@ -13,12 +13,14 @@ protected:
                                   read_matrix<double>(req_path)){}
     cppied_context ctx;
     cppied_instance P;
+    // Raw data files live in the source tree
     static constexpr const char* seabed_path =
             PROJECT_SOURCE_DIR "/tests/configurations/test_seabed.txt";
     static constexpr const char* pod_path =
             PROJECT_SOURCE_DIR "/tests/configurations/test_pod.txt";
     static constexpr const char* req_path =
             PROJECT_SOURCE_DIR "/tests/configurations/test_req.txt";
+    // Generated config files (with resolved paths) live in the build tree
     static constexpr const char* config_path =
             PROJECT_SOURCE_DIR "/tests/configurations/test_config.txt";
 };

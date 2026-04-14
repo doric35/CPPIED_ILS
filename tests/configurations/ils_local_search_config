@@ -1,6 +1,0 @@
-NAME = test_configuration_123
-TIME = 5
-WORKING_DIRECTORY = /home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/tests/scratch
-LKH_EXECUTABLE = /home/doric35/projects/def-mmorin-ab/doric35/CppiedEjor/external/LKH-3.0.14/LKH
-ALGORITHM_CONFIG = c11111110000
-
