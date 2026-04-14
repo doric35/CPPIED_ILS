@@ -238,7 +238,7 @@ inline void write_visulization(
         cppied_solution& s,
         T& helper,
         int max_time){
-    double scale = 600.0 / double(helper.geometry.n_cols);
+    double scale = 512.0 / double(helper.geometry.n_cols);
     int height, width;
     height = static_cast<int>(std::ceil(scale * double(helper.geometry.n_rows)));
     width = static_cast<int>(std::ceil(scale * double(helper.geometry.n_cols)));
@@ -253,10 +253,17 @@ inline void write_visulization(
 
     cv::VideoWriter writer(
             file_name,
-            cv::VideoWriter::fourcc('m','p','4','v'),
+            cv::VideoWriter::fourcc('a','v','c','1'),
             fps,                      // FPS
             cv::Size(width, height)  // frame size
     );
+
+    if (!writer.isOpened()) {
+        std::cerr << "[ERROR] VideoWriter failed to open: " << file_name
+                  << "\n  Check that the mp4v codec is available in this OpenCV build."
+                  << std::endl;
+        return;
+    }
 
     sol_cp.coverage = Eigen::VectorXd::Zero(sol_cp.coverage.size());
     Eigen::VectorXd exp_coverage(sol_cp.coverage.size());
