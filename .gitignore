@@ -5,3 +5,4 @@ experiments/scratch
 external
 cmake
 CMakeLists.txt
+tests/*.txt
