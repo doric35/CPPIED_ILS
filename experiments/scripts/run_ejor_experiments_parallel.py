@@ -1,7 +1,7 @@
 """
 Parallel version of run_ejor_experiments.py.
 
-Distributes all (algorithm_config × s1616 instance) pairs across worker
+Distributes all (algorithm_config × instance) pairs across worker
 processes (one pair per worker at a time).  Already-completed pairs are
 skipped by checking the existing results CSV before launching any work.
 
@@ -109,7 +109,11 @@ def write_config_file(
     """Write the CPPIED config file into *exp_dir* and return its path."""
     local_csv   = exp_dir / "results.csv"
     config_path = exp_dir / "config.txt"
-    time = TIME_MAP[exp_name.split("_")[0] + "_"]
+    prefix = exp_name.split("_")[0] + "_"
+    time = TIME_MAP.get(prefix, 60)
+    if prefix not in TIME_MAP:
+        import warnings
+        warnings.warn(f"Unknown instance prefix '{prefix}'; defaulting TIME to {time}s.")
     config_path.write_text(
         f"NAME = {exp_name}\n"
         f"TIME = {time}\n"
@@ -203,7 +207,7 @@ def run_experiment(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Parallel CPPIED EJOR experiments (all configs × all s1616 instances)."
+        description="Parallel CPPIED EJOR experiments (all configs × listed instances)."
     )
     parser.add_argument("-e", "--executable", required=True,
                         help="Absolute path to the CPPIED executable.")
@@ -224,7 +228,7 @@ def main():
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     configs   = read_configs(CONFIGS_FILE)
-    run_instances = read_configs(INSTANCES_FILE)
+    run_instances = set(read_configs(INSTANCES_FILE))
 
     instances = sorted(
         d for d in INSTANCES_DIR.iterdir()
