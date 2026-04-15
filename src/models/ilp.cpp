@@ -1,12 +1,6 @@
 #include "../../include/models/ilp.hpp"
 
 void ilp::d_solve(cppied_solution &pSolution) {
-    int tmp_time = ctx.max_time;
-    if (ils_start){
-        ctx.max_time = ctx.max_time / (2 + int(no_rel));
-        ils_heuristic.d_solve(pSolution);
-        ctx.max_time = tmp_time;
-    }
 
     GRBEnv modeling_env = GRBEnv(true);
     auto log_item = ctx.config.find("WORKING_DIRECTORY");
@@ -18,6 +12,7 @@ void ilp::d_solve(cppied_solution &pSolution) {
         modeling_env.set("LogFile", "modeling.log");
     modeling_env.set(GRB_IntParam_OutputFlag, 0);
     modeling_env.set(GRB_IntParam_LogToConsole, 0);
+    modeling_env.set(GRB_IntParam_ThreadLimit, 1);
     modeling_env.start();
     GRBModel model = GRBModel(modeling_env);
 
@@ -28,6 +23,10 @@ void ilp::d_solve(cppied_solution &pSolution) {
 
     int t = remaining_time();
     model.set(GRB_DoubleParam_TimeLimit, t + 1.0);
+
+    subtour_elimination cb(*this);
+    model.set(GRB_IntParam_LazyConstraints, 1);
+    model.setCallback(&cb);
 
     model.update();
     model.optimize();
@@ -199,6 +198,25 @@ void ilp::retrieve_solution(cppied_solution &pSolution) {
         find_cycle(pSolution, subpath, *current, curr_minus);
         path.splice(std::next(current), subpath);
     }
+    set_solution(pSolution, path);
+}
+
+void ilp::set_solution(cppied_solution &pSolution, std::list<int> &path) {
+    pSolution.path.clear();
+    pSolution.path.emplace_back(problem.initial_position, path_engine::NULL_NODE);
+    for (int v : path){
+        if (geometry.is_horizontal({v, path_engine::NULL_NODE}) ==
+            geometry.is_horizontal(pSolution.path.back()))
+            pSolution.path.back().target = v;
+        else{
+            segment s = {v, path_engine::NULL_NODE};
+            if (geometry.dist(pSolution.path.back(), s) > cost_t{1,1})
+                s = geometry.flip_segment(s);
+            pSolution.path.push_back(s);
+        }
+    }
+    coverage.reset(pSolution);
+    pSolution.cost = geometry.cost(pSolution);
 }
 
 void ilp::find_source_to_target(cppied_solution &pSolution,

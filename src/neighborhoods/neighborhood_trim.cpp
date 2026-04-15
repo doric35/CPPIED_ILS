@@ -64,7 +64,8 @@ bool neighborhood_trim::local_search(cppied_solution& pSol) {
         interval candidate = {gains[i], x1, x2, y, rotated, i};
         return candidate;
     };
-    auto interval_function = [&](const std::vector<int>& candidates,
+    auto interval_function = [&](
+            const std::vector<int>& candidates,
             std::vector<interval>& pSol){
         pSol.reserve(candidates.size());
         std::transform(candidates.begin(), candidates.end(),

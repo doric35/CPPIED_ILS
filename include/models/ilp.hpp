@@ -24,18 +24,15 @@ namespace lp {
 class ilp : public cppied_method_base {
 public:
     ilp(cppied_context& c, cppied_instance& i) :
-        cppied_method_base(c, i), ils_heuristic(c, i){};
+        cppied_method_base(c, i){};
+
+    friend class subtour_elimination;
 
     void initialize() override {
         std::string configuration = ctx.config["SOLVER_CONFIG"];
-        assert(configuration.size() == 3);
+        assert(configuration.size() == 2);
         if (configuration[1] == '1')
-            ils_start = true;
-        if (configuration[2] == '1')
             no_rel = true;
-        if (ils_start)
-            ils_heuristic.initialize();
-
     }
 
     void terminate() override {
@@ -54,7 +51,7 @@ public:
                     std::list<int>& path,
                     int current_node,
                     bool curr_minus);
-    void set_solution(cppied_solution& pSolution, std::vector<int>& path);
+    void set_solution(cppied_solution& pSolution, std::list<int>& path);
 
 protected:
     GRBLinExpr Z1=0;
@@ -66,10 +63,102 @@ protected:
     lp::node source;
     std::vector<GRBVar> targets_minus;
     std::vector<GRBVar> targets_plus;
-    ils ils_heuristic;
 
     bool starting_minus;
 
     bool ils_start;
     bool no_rel;
+};
+
+class subtour_elimination: public GRBCallback{
+public:
+    ilp& math_program;
+    friend class ilp;
+    explicit subtour_elimination(ilp& pProgram) : math_program(pProgram), dummy(){
+        dummy.path = {};
+        dummy.coverage = Eigen::VectorXd::Zero(math_program.problem.req.size());
+        dummy.cost = {0,0};
+    }
+
+protected:
+    cppied_solution dummy;
+    const int M = 10;
+    void callback() override {
+        try {
+            if (where == GRB_CB_MIPSOL) {
+                //Found an integer solution, identify subtours;
+                math_program.retrieve_solution(dummy);
+                std::pair<int, int> root_edge = subtour_root();
+                if (path_engine::is_node(root_edge.first)) {
+                    std::list<int> subtour;
+                    math_program.find_cycle(dummy, subtour,
+                                            root_edge.second, true);
+                    bool minus;
+                    if (std::find(math_program.minus_sets[root_edge.second].V.begin(),
+                                  math_program.minus_sets[root_edge.second].V.end(),
+                                  root_edge.first)
+                        != math_program.minus_sets[root_edge.second].V.end()) {
+                        minus = true;
+                    } else
+                        minus = false;
+                    math_program.variables[root_edge.first].variables_flow[root_edge.second] -= 1;
+                    subtour = {root_edge.first, root_edge.second};
+                    math_program.find_cycle(dummy, subtour,
+                                            root_edge.second, minus);
+                    add_subtour_elimination_constraint(subtour);
+                }
+            }
+        }
+        catch (GRBException& e) {
+            std::cerr << "Error number: " << e.getErrorCode() << std::endl;
+            std::cerr << e.getMessage() << std::endl;
+            throw e;
+        }
+        catch (std::runtime_error& e){
+            std::cerr << "Error occured during callback" << std::endl;
+            throw e;
+        }
+
+    }
+
+    std::pair<int,int> subtour_root(){
+        for (int u=0; u<math_program.problem.vertex.size(); ++u){
+            for (int v =0; v<math_program.variables[u].outgoing_variables.size(); ++v){
+                if (math_program.variables[u].variables_flow[v] > 0.5)
+                    return {u, math_program.variables[u].outgoing_arcs_V1[v]};
+            }
+        }
+        return {path_engine::NULL_NODE, path_engine::NULL_NODE};
+    }
+
+    void add_subtour_elimination_constraint(std::list<int>& subtour){
+        std::vector<bool> S(math_program.problem.vertex.size(), false);
+
+        std::set<int> subtour_set(subtour.begin(), subtour.end());
+
+        auto add_v = [&](int v){
+            S[v] = true;
+        };
+        std::for_each(subtour_set.begin(), subtour_set.end(), add_v);
+
+        int u;
+        std::sample(subtour_set.begin(), subtour_set.end(),
+                            &u, 1, math_program.rng);
+
+        GRBLinExpr outgoing_arcs_sum = 0.0;
+        auto add_arcs_contribution = [&](int u){
+            for (int v =0; v<math_program.variables[u].outgoing_arcs_V1.size(); v++){
+                if (!S[math_program.variables[u].outgoing_arcs_V1[v]])
+                    outgoing_arcs_sum += math_program.variables[u].outgoing_variables[v];
+            }
+        };
+
+        outgoing_arcs_sum += math_program.targets_minus[u] +
+                math_program.targets_plus[u];
+
+        std::for_each(subtour_set.begin(), subtour_set.end(), add_arcs_contribution);
+        for (int v =0; v<math_program.variables[u].outgoing_arcs_V1.size(); v++)
+            if (S[math_program.variables[u].outgoing_arcs_V1[v]])
+                addLazy((M * outgoing_arcs_sum) - math_program.variables[u].outgoing_variables[v] >= 0);
+    }
 };
