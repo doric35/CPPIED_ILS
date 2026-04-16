@@ -1,9 +1,5 @@
 #include "../test_fixture.hpp"
 #include "../../include/metaheuristics/ils.hpp"
-#include "../../include/perturbations/perturbation_ri.hpp"
-#include "../../include/perturbations/perturbation_pt.hpp"
-#include "../../include/perturbations/perturbation_db.hpp"
-#include "../../include/restart/restart_backtrack.hpp"
 
 // ---------------------------------------------------------------------------
 // Accessor: exposes protected members of ils for white-box inspection.

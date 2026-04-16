@@ -5,6 +5,16 @@ Distributes all (algorithm_config × instance) pairs across worker
 processes (one pair per worker at a time).  Already-completed pairs are
 skipped by checking the existing results CSV before launching any work.
 
+Solver selection
+────────────────
+The solver (ILS or ILP) is chosen automatically per instance based on
+its size prefix, following SOLVER_MAP.  Use --solver to override for
+all instances:
+
+  --solver auto    Size-based default (s1616_ → GUROBI, larger → ILS) [default]
+  --solver ILS     Force ILS for every instance
+  --solver GUROBI  Force GUROBI for every instance
+
 I/O strategy
 ────────────
 During execution every write goes to the scratch filesystem:
@@ -27,181 +37,16 @@ Usage:
         -e /path/to/cppied_executable \\
         --lkh /path/to/LKH \\
         [--workers N]          # default: all available CPUs
+        [--solver {auto,ILS,GUROBI}]
 """
 
-import sys
-import subprocess
-import argparse
-import csv
-import os
-from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from ejor_experiments_helpers import *
 
-# ── Resolve layout relative to this script ───────────────────────────────────
-SCRIPT_DIR    = Path(__file__).resolve().parent
-EXPERIMENTS   = SCRIPT_DIR.parent
-DATA_DIR      = EXPERIMENTS / "data"
-RESULTS_DIR   = EXPERIMENTS / "results"
-
-CONFIGS_FILE  = DATA_DIR / "algorithm_configuration" / "random_configurations.txt"
-INSTANCES_DIR = DATA_DIR / "ejor_tests"
-INSTANCES_FILE= INSTANCES_DIR / "run_instances.txt"
 RESULTS_FILE  = RESULTS_DIR / "ejor_results.csv"
 ERRORS_FILE   = RESULTS_DIR / "ejor_errors.csv"
-K_AVG_SCRIPT  = SCRIPT_DIR / "k_avg_performance.py"
-K             = 5
 
-RESULTS_COLS = ["name", "solver", "length", "turns", "time"]
-ERRORS_COLS  = ["name", "instance", "configuration", "returncode", "stdout", "stderr"]
-
-TIME_MAP = {"s1616_" : 60, "s6464_" : 600, "s128128_" : 1200}
-
-
-def resolve_scratch_dir() -> Path:
-    """Return the scratch working directory, preferring $SCRATCH if set."""
-    base = os.environ.get("SCRATCH")
-    if base:
-        return Path(base) / "cppied_ejor"
-    return Path("~/scratch/cppied_ejor").expanduser()
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def read_configs(path: Path) -> list[str]:
-    """Return non-empty, non-comment lines from the configuration file."""
-    configs = []
-    with open(path) as fh:
-        for line in fh:
-            line = line.strip()
-            if line and not line.startswith("#"):
-                configs.append(line)
-    return configs
-
-def read_existing_names(path: Path) -> set[str]:
-    """Return the set of experiment names already in the results CSV."""
-    if not path.exists():
-        return set()
-    names = set()
-    with open(path, newline="") as fh:
-        reader = csv.DictReader(fh)
-        for row in reader:
-            names.add(row["name"])
-    return names
-
-
-def append_csv_rows(path: Path, fieldnames: list[str], rows: list[dict]):
-    """Append *rows* to *path*, writing the header only when the file is new."""
-    write_header = not path.exists()
-    with open(path, "a", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames)
-        if write_header:
-            writer.writeheader()
-        writer.writerows(rows)
-
-
-def write_config_file(
-    exp_dir: Path,
-    exp_name: str,
-    instance_dir: Path,
-    algorithm_config: str,
-    lkh_exe: str,
-) -> Path:
-    """Write the CPPIED config file into *exp_dir* and return its path."""
-    local_csv   = exp_dir / "results.csv"
-    config_path = exp_dir / "config.txt"
-    prefix = exp_name.split("_")[0] + "_"
-    time = TIME_MAP.get(prefix, 60)
-    if prefix not in TIME_MAP:
-        import warnings
-        warnings.warn(f"Unknown instance prefix '{prefix}'; defaulting TIME to {time}s.")
-    config_path.write_text(
-        f"NAME = {exp_name}\n"
-        f"TIME = {time}\n"
-        f"WORKING_DIRECTORY = {exp_dir}\n"
-        f"SEABED_FILE = {instance_dir / 'cppied_problem.txt'}\n"
-        f"POD_FILE = {instance_dir / 'cppied_pod.txt'}\n"
-        f"REQ_COVERAGE_FILE = {instance_dir / 'cppied_req.txt'}\n"
-        f"CSV_LOG_FILE = {local_csv}\n"
-        f"SOLUTION_FILE = {exp_dir / 'solution.txt'}\n"
-        f"LKH_EXECUTABLE = {lkh_exe}\n"
-        f"SOLVER = ILS\n"
-        f"ALGORITHM_CONFIG = {algorithm_config}\n"
-        f"VERBOSE = SUMMARY\n"
-    )
-    return config_path
-
-
-def ensure_local_csv(path: Path):
-    """Create an empty results CSV (header only) if it does not exist yet."""
-    if not path.exists():
-        with open(path, "w", newline="") as fh:
-            writer = csv.DictWriter(fh, fieldnames=RESULTS_COLS)
-            writer.writeheader()
-
-
-# ── Worker function (runs in a separate process) ──────────────────────────────
-
-def run_experiment(
-    exp_name: str,
-    instance_dir: str,      # str so it survives pickling cleanly
-    algorithm_config: str,
-    lkh_exe: str,
-    cppied_exe: str,
-    scratch_dir: str,       # str for the same reason
-) -> dict:
-    """
-    Run one (instance, config) pair via k_avg_performance.py.
-    All file I/O stays inside *scratch_dir*.
-
-    Returns a dict with keys:
-      success    bool
-      exp_name   str
-      rows       list[dict]  – K result rows on success, empty on failure
-      error      dict | None – error metadata on failure, None on success
-    """
-    instance_dir = Path(instance_dir)
-    exp_dir = Path(scratch_dir) / exp_name
-    exp_dir.mkdir(parents=True, exist_ok=True)
-
-    config_path = write_config_file(
-        exp_dir, exp_name, instance_dir, algorithm_config, lkh_exe
-    )
-    local_csv = exp_dir / "results.csv"
-    ensure_local_csv(local_csv)
-
-    proc = subprocess.run(
-        [sys.executable, str(K_AVG_SCRIPT), "-e", cppied_exe, "-c", str(config_path)],
-        capture_output=True,
-        text=True,
-    )
-
-    if proc.returncode != 0:
-        return {
-            "success":  False,
-            "exp_name": exp_name,
-            "rows":     [],
-            "error": {
-                "name":          exp_name,
-                "instance":      instance_dir.name,
-                "configuration": algorithm_config,
-                "returncode":    proc.returncode,
-                "stdout":        proc.stdout.strip()[:4000],
-                "stderr":        proc.stderr.strip()[:4000],
-            },
-        }
-
-    # Read the K rows appended by k_avg_performance.py
-    with open(local_csv, newline="") as fh:
-        all_rows = list(csv.DictReader(fh))
-    rows = [{col: row[col] for col in RESULTS_COLS} for row in all_rows[-K:]]
-
-    return {
-        "success":  True,
-        "exp_name": exp_name,
-        "rows":     rows,
-        "error":    None,
-    }
-
+ILS_CONFIGS_FILE    = DATA_DIR / "algorithm_configuration" / "random_configurations.txt"
+GUROBI_CONFIGS_FILE = DATA_DIR / "algorithm_configuration" / "gurobi_configurations.txt"
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
@@ -215,6 +60,14 @@ def main():
                         help="Absolute path to the LKH executable.")
     parser.add_argument("--workers", type=int, default=os.cpu_count(),
                         help="Number of parallel worker processes (default: all CPUs).")
+    parser.add_argument(
+        "--solver", choices=["auto", "ILS", "GUROBI"], default="auto",
+        help=(
+            "Solver to use. 'auto' (default) picks GUROBI for small instances "
+            "(s1616_) and ILS for larger ones. 'ILS' or 'GUROBI' forces a single "
+            "solver for all instances regardless of size."
+        ),
+    )
     args = parser.parse_args()
 
     scratch_dir = resolve_scratch_dir()
@@ -227,41 +80,64 @@ def main():
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    configs   = read_configs(CONFIGS_FILE)
-    run_instances = set(read_configs(INSTANCES_FILE))
+    ils_configs    = read_configs(ILS_CONFIGS_FILE)
+    gurobi_configs = read_configs(GUROBI_CONFIGS_FILE)
+    run_instances  = set(read_configs(INSTANCES_FILE))
 
     instances = sorted(
         d for d in INSTANCES_DIR.iterdir()
         if d.is_dir() and d.name in run_instances
     )
 
-    if not configs:
-        sys.exit("No configurations found – check random_configurations.txt.")
+    if not ils_configs:
+        sys.exit("No ILS configurations found – check random_configurations.txt.")
+    if not gurobi_configs:
+        sys.exit("No GUROBI configurations found – check gurobi_configurations.txt.")
     if not instances:
         sys.exit("No instances found – check the ejor_tests directory.")
 
     existing = read_existing_names(RESULTS_FILE)
 
-    # Build the pending work list
-    pending = []
-    for algorithm_config in configs:
-        for instance_dir in instances:
+    # Build the pending work list.
+    # Both ILS and GUROBI iterate over their respective config lists.
+    # ILS   entry: (instance × ils_config)    — exp_name = <instance>_<config>
+    # GUROBI entry: (instance × gurobi_config) — exp_name = <instance>_<config>
+    # pending items: (exp_name, instance_dir_str, algorithm_config, solver)
+    pending: list[tuple[str, str, str, str]] = []
+    total_ils_all = total_gurobi_all = 0
+
+    for instance_dir in instances:
+        prefix = instance_dir.name.split("_")[0] + "_"
+        solver = resolve_solver(prefix, args.solver)
+        cfgs   = configs_for_solver(solver, ils_configs, gurobi_configs)
+
+        if solver == "GUROBI":
+            total_gurobi_all += len(cfgs)
+        else:
+            total_ils_all += len(cfgs)
+
+        for algorithm_config in cfgs:
             exp_name = f"{instance_dir.name}_{algorithm_config}"
             if exp_name not in existing:
-                pending.append((exp_name, str(instance_dir), algorithm_config))
+                pending.append((exp_name, str(instance_dir), algorithm_config, solver))
 
-    total_all  = len(configs) * len(instances)
-    total_skip = total_all - len(pending)
+    total_all   = total_ils_all + total_gurobi_all
+    total_skip  = total_all - len(pending)
     total_missed = len(run_instances) - len(instances)
+    n_ils_inst    = total_ils_all    // max(len(ils_configs),    1)
+    n_gurobi_inst = total_gurobi_all // max(len(gurobi_configs), 1)
     print(
-        f"Configurations : {len(configs)}\n"
-        f"Listed instances: {len(instances)}\n"
-        f"Not found instances: {total_missed}\n"
-        f"Total pairs    : {total_all}\n"
-        f"Already done   : {total_skip}\n"
-        f"To run         : {len(pending)}\n"
-        f"Workers        : {args.workers}\n"
-        f"Scratch dir    : {scratch_dir}\n"
+        f"ILS configurations   : {len(ils_configs)}\n"
+        f"GUROBI configurations: {len(gurobi_configs)}\n"
+        f"Listed instances     : {len(instances)}  "
+        f"(ILS: {n_ils_inst}, GUROBI: {n_gurobi_inst})\n"
+        f"Not found instances  : {total_missed}\n"
+        f"Total pairs          : {total_all}\n"
+        f"Already done         : {total_skip}\n"
+        f"To run               : {len(pending)}\n"
+        f"Workers              : {args.workers}\n"
+        f"Scratch dir          : {scratch_dir}\n"
+        f"Solver selection     : {args.solver}\n"
     )
 
     if not pending:
@@ -281,9 +157,9 @@ def main():
             pool.submit(
                 run_experiment,
                 exp_name, instance_dir_str, algorithm_config,
-                args.lkh, args.executable, str(scratch_dir),
+                args.lkh, args.executable, str(scratch_dir), solver,
             ): exp_name
-            for exp_name, instance_dir_str, algorithm_config in pending
+            for exp_name, instance_dir_str, algorithm_config, solver in pending
         }
 
         for future in as_completed(futures):

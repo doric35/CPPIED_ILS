@@ -2,8 +2,10 @@
 #include "include/structures.hpp"
 #include "include/solver_factory.hpp"
 #include "include/metaheuristics/ils.hpp"
+#include "include/models/ilp.hpp"
 
 REGISTER_SOLVER("ILS", ils)
+REGISTER_SOLVER("GUROBI", ilp)
 
 class viz_helper : public cppied_method_base{
 public:

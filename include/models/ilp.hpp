@@ -9,7 +9,7 @@ namespace lp {
         std::vector<GRBVar> outgoing_variables;
         std::vector<int> outgoing_arcs_V1;
         std::map<int,int> vertex_to_arc;
-        std::vector<int> variables_flow;
+        std::vector<double> variables_flow;
     };
 
     struct V_minus{
@@ -24,12 +24,15 @@ namespace lp {
 class ilp : public cppied_method_base {
 public:
     ilp(cppied_context& c, cppied_instance& i) :
-        cppied_method_base(c, i){};
+        cppied_method_base(c, i), no_rel(false), starting_minus(false){};
 
     friend class subtour_elimination;
 
     void initialize() override {
-        std::string configuration = ctx.config["SOLVER_CONFIG"];
+        auto config_item = ctx.config.find("ALGORITHM_CONFIG");
+        if (config_item == ctx.config.end())
+            throw std::runtime_error("Did not identify ilp solver configuration with c0 or c1.\n");
+        std::string configuration = config_item->second;
         assert(configuration.size() == 2);
         if (configuration[1] == '1')
             no_rel = true;
@@ -44,9 +47,11 @@ public:
     void set_constraints(cppied_solution& pSolution, GRBModel& model);
     void set_objectives(cppied_solution& pSolution, GRBModel& model);
     void set_flow_sets(cppied_solution& pSolution);
-    void set_warm_start(cppied_solution& pSolution, GRBModel& model);
-    void retrieve_solution(cppied_solution& pSolution);
-    void find_source_to_target(cppied_solution& pSolution, std::list<int>& path);
+
+    void retrieve_solution(cppied_solution& pSolution,
+                           const std::function<void()>& set_flow_variables);
+    void find_source_to_target(cppied_solution& pSolution,
+                               std::list<int>& path);
     void find_cycle(cppied_solution& pSolution,
                     std::list<int>& path,
                     int current_node,
@@ -54,20 +59,20 @@ public:
     void set_solution(cppied_solution& pSolution, std::list<int>& path);
 
 protected:
-    GRBLinExpr Z1=0;
-    GRBLinExpr Z2=0;
-
     std::vector<lp::node> variables;
     std::vector<lp::V_minus> minus_sets;
     std::vector<lp::V_plus> plus_sets;
     lp::node source;
     std::vector<GRBVar> targets_minus;
+    std::vector<double> targets_minus_flow;
     std::vector<GRBVar> targets_plus;
+    std::vector<double> targets_plus_flow;
 
+    bool no_rel;
     bool starting_minus;
 
-    bool ils_start;
-    bool no_rel;
+    GRBLinExpr Z1=0;
+    GRBLinExpr Z2=0;
 };
 
 class subtour_elimination: public GRBCallback{
@@ -82,29 +87,38 @@ public:
 
 protected:
     cppied_solution dummy;
-    const int M = 10;
+    double M = 0.0;
     void callback() override {
         try {
             if (where == GRB_CB_MIPSOL) {
                 //Found an integer solution, identify subtours;
-                math_program.retrieve_solution(dummy);
+                M = std::max(M, getDoubleInfo(GRB_CB_MIPSOL_OBJ));
+                auto flow_setter = [&](){
+                    for (int u=0; u<math_program.problem.vertex.size(); ++u){
+                        for (int v =0; v<math_program.variables[u].outgoing_variables.size(); ++v){
+                            math_program.variables[u].variables_flow[v] =
+                                    getSolution(math_program.variables[u].outgoing_variables[v]);
+                        }
+                        math_program.targets_minus_flow[u] = getSolution(math_program.targets_minus[u]);
+                        math_program.targets_plus_flow[u] = getSolution(math_program.targets_plus[u]);
+                    }
+                };
+                //std::cout << "Before CB retrieve" << std::endl;
+                math_program.retrieve_solution(dummy, flow_setter);
+                //std::cout << "After CB retrieve" << std::endl;
                 std::pair<int, int> root_edge = subtour_root();
                 if (path_engine::is_node(root_edge.first)) {
+                    bool minus;
+                    if (std::find(math_program.minus_sets[root_edge.first].V.begin(),
+                                  math_program.minus_sets[root_edge.first].V.end(),
+                                  root_edge.second)
+                        != math_program.minus_sets[root_edge.first].V.end()) {
+                        minus = false;
+                    } else
+                        minus = true;
                     std::list<int> subtour;
                     math_program.find_cycle(dummy, subtour,
-                                            root_edge.second, true);
-                    bool minus;
-                    if (std::find(math_program.minus_sets[root_edge.second].V.begin(),
-                                  math_program.minus_sets[root_edge.second].V.end(),
-                                  root_edge.first)
-                        != math_program.minus_sets[root_edge.second].V.end()) {
-                        minus = true;
-                    } else
-                        minus = false;
-                    math_program.variables[root_edge.first].variables_flow[root_edge.second] -= 1;
-                    subtour = {root_edge.first, root_edge.second};
-                    math_program.find_cycle(dummy, subtour,
-                                            root_edge.second, minus);
+                                            root_edge.first, minus);
                     add_subtour_elimination_constraint(subtour);
                 }
             }
@@ -132,33 +146,24 @@ protected:
     }
 
     void add_subtour_elimination_constraint(std::list<int>& subtour){
-        std::vector<bool> S(math_program.problem.vertex.size(), false);
-
-        std::set<int> subtour_set(subtour.begin(), subtour.end());
-
-        auto add_v = [&](int v){
-            S[v] = true;
-        };
-        std::for_each(subtour_set.begin(), subtour_set.end(), add_v);
-
-        int u;
-        std::sample(subtour_set.begin(), subtour_set.end(),
-                            &u, 1, math_program.rng);
-
+        std::set<int> S(subtour.begin(), subtour.end());
         GRBLinExpr outgoing_arcs_sum = 0.0;
+        std::vector<GRBVar*> candidate_constraints;
+        candidate_constraints.reserve(S.size());
+
         auto add_arcs_contribution = [&](int u){
             for (int v =0; v<math_program.variables[u].outgoing_arcs_V1.size(); v++){
-                if (!S[math_program.variables[u].outgoing_arcs_V1[v]])
+                if (S.contains(math_program.variables[u].outgoing_arcs_V1[v]))
+                    candidate_constraints.push_back(&math_program.variables[u].outgoing_variables[v]);
+                else
                     outgoing_arcs_sum += math_program.variables[u].outgoing_variables[v];
             }
         };
-
-        outgoing_arcs_sum += math_program.targets_minus[u] +
-                math_program.targets_plus[u];
-
-        std::for_each(subtour_set.begin(), subtour_set.end(), add_arcs_contribution);
-        for (int v =0; v<math_program.variables[u].outgoing_arcs_V1.size(); v++)
-            if (S[math_program.variables[u].outgoing_arcs_V1[v]])
-                addLazy((M * outgoing_arcs_sum) - math_program.variables[u].outgoing_variables[v] >= 0);
+        std::for_each(S.begin(), S.end(), add_arcs_contribution);
+        outgoing_arcs_sum = M * outgoing_arcs_sum;
+        auto add_constraint = [&](GRBVar* v){
+            addLazy(outgoing_arcs_sum - *v >= 0);
+        };
+        std::for_each(candidate_constraints.begin(), candidate_constraints.end(), add_constraint);
     }
 };
