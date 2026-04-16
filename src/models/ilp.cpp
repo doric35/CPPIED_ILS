@@ -23,6 +23,8 @@ void ilp::d_solve(cppied_solution &pSolution) {
 
     int t = remaining_time();
     model.set(GRB_DoubleParam_TimeLimit, t + 1.0);
+    if (no_rel)
+        model.set(GRB_DoubleParam_NoRelHeurTime, double(t) / 2.0);
 
     subtour_elimination cb(*this);
     model.set(GRB_IntParam_LazyConstraints, 1);
