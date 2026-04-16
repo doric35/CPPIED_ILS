@@ -181,19 +181,34 @@ def incumbent_configuration(
       name, solver, length, turns, time
     The instance and config are extracted by splitting ``name``.
     """
-    # Group rows by (config, instance)
+    # Group rows by (config, instance); skip malformed names
     pair_values: dict[tuple, list] = defaultdict(list)
     for r in results:
-        parts    = r["name"].split("_")
+        parts = r["name"].split("_")
+        if len(parts) < 4:
+            print(f"  [WARN] Skipping malformed result name: {r['name']!r}")
+            continue
         instance = "_".join(parts[:3])   # e.g. s6464_ir0_lrc031
         config   = parts[3]              # e.g. c10110001011
+        if instance not in bks:
+            print(f"  [WARN] No BKS entry for instance {instance!r}; skipping.")
+            continue
         pair_values[(config, instance)].append(r)
+
+    if not pair_values:
+        return None
 
     # Aggregate per-instance RADs for each config
     config_rads: dict[str, list] = defaultdict(list)
     for (config, instance), values in pair_values.items():
         rad = run_statistics(values, bks, instance)
+        if any(v != v for v in rad):   # NaN check
+            print(f"  [WARN] NaN RAD for config={config} instance={instance}; skipping.")
+            continue
         config_rads[config].append(rad)
+
+    if not config_rads:
+        return None
 
     # Pick the lexicographically best config across all instances
     best = ["", (float("inf"), float("inf"))]
@@ -202,7 +217,7 @@ def incumbent_configuration(
         mean_rad = (float(np_rads[:, 0].mean()), float(np_rads[:, 1].mean()))
         best = best_lexico(best, [config, mean_rad])
 
-    return best
+    return best if best[0] else None
 
 
 def save_best_config(config: str, rad: tuple, path: Path):
@@ -234,6 +249,11 @@ def main():
     if not ils_configs:
         sys.exit("No ILS configurations found – check ils_configuration.txt.")
 
+    if not GLOBAL_RESULTS_FILE.exists():
+        sys.exit(
+            f"Global results file not found: {GLOBAL_RESULTS_FILE}\n"
+            "Run run_ejor_experiments_parallel.py first to generate BKS data."
+        )
     BKS = get_bks(GLOBAL_RESULTS_FILE)
 
     scratch_dir = resolve_scratch_dir()
@@ -276,8 +296,9 @@ def main():
             cfgs, instances, existing, scratch_dir, solver,
             scratch_results, scratch_errors, args,
         )
-        if results:
-            incumbent_config = incumbent_configuration(results, BKS)
+        candidate = incumbent_configuration(results, BKS) if results else None
+        if candidate:
+            incumbent_config = candidate
 
         # Perturbation phase — flip each bit in positions 8-10
         cfgs = perturbation_experiments_configs(incumbent_config[0])
@@ -285,8 +306,9 @@ def main():
             cfgs, instances, existing, scratch_dir, solver,
             scratch_results, scratch_errors, args,
         )
-        if results:
-            incumbent_config = incumbent_configuration(results, BKS)
+        candidate = incumbent_configuration(results, BKS) if results else None
+        if candidate:
+            incumbent_config = candidate
 
         # Restart phase — flip the last bit
         cfgs = restart_experiments_configs(incumbent_config[0])
@@ -294,8 +316,9 @@ def main():
             cfgs, instances, existing, scratch_dir, solver,
             scratch_results, scratch_errors, args,
         )
-        if results:
-            incumbent_config = incumbent_configuration(results, BKS)
+        candidate = incumbent_configuration(results, BKS) if results else None
+        if candidate:
+            incumbent_config = candidate
 
         print(
             f"\nEnd of iteration.  Incumbent: {incumbent_config[0]}  "
