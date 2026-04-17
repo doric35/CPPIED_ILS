@@ -35,7 +35,7 @@
 #SBATCH --output=output/%x_%j.out
 #SBATCH --error=output%x_%j.err
 # Uncomment and set the appropriate allocation account:
-##SBATCH --account=<your_account>
+#SBATCH --account=def-mmorin-ab
 
 # ── Parse optional --executable / --lkh arguments passed to sbatch ───────────
 # (sbatch forwards extra arguments after the script name)
