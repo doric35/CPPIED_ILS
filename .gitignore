@@ -6,3 +6,4 @@ external
 cmake
 CMakeLists.txt
 tests/*.txt
+tests/scratch/*

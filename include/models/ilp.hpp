@@ -119,7 +119,10 @@ protected:
                     std::list<int> subtour;
                     math_program.find_cycle(dummy, subtour,
                                             root_edge.first, minus);
-                    add_subtour_elimination_constraint(subtour);
+                    if (!subtour.empty())
+                        add_subtour_elimination_constraint(root_edge.first, minus,
+                                                           subtour);
+                    else throw std::runtime_error("Entered subtour elimination routine but no subtour was extracted.\n");
                 }
             }
         }
@@ -145,25 +148,47 @@ protected:
         return {path_engine::NULL_NODE, path_engine::NULL_NODE};
     }
 
-    void add_subtour_elimination_constraint(std::list<int>& subtour){
+    void add_subtour_elimination_constraint(int root, bool root_minus,
+                                            std::list<int>& subtour){
         std::set<int> S(subtour.begin(), subtour.end());
-        GRBLinExpr outgoing_arcs_sum = 0.0;
+        GRBLinExpr parity_outgoing_arcs_sum = 0.0;
         std::vector<GRBVar*> candidate_constraints;
         candidate_constraints.reserve(S.size());
 
-        auto add_arcs_contribution = [&](int u){
-            for (int v =0; v<math_program.variables[u].outgoing_arcs_V1.size(); v++){
-                if (S.contains(math_program.variables[u].outgoing_arcs_V1[v]))
-                    candidate_constraints.push_back(&math_program.variables[u].outgoing_variables[v]);
+        auto process_node = [&](int from, bool curr_minus){
+            const auto& exit_set = curr_minus ? math_program.plus_sets[from].V :
+                                                                    math_program.minus_sets[from].V;
+
+            for (int w : exit_set){
+                auto it = math_program.variables[from].vertex_to_arc.find(w);
+                if (it == math_program.variables[from].vertex_to_arc.end()) continue;
+                auto& var = math_program.variables[from].outgoing_variables[it->second];
+                if (S.contains(w))
+                    candidate_constraints.push_back(&var);
                 else
-                    outgoing_arcs_sum += math_program.variables[u].outgoing_variables[v];
+                    parity_outgoing_arcs_sum += var;
             }
+            if (curr_minus)
+                parity_outgoing_arcs_sum += math_program.targets_plus[from];
+            else
+                parity_outgoing_arcs_sum += math_program.targets_minus[from];
         };
-        std::for_each(S.begin(), S.end(), add_arcs_contribution);
-        outgoing_arcs_sum = M * outgoing_arcs_sum;
+
+        int prev = root;
+        bool curr_minus = root_minus;
+        for (int node : subtour){
+            process_node(prev, curr_minus);
+            curr_minus = std::find(math_program.minus_sets[node].V.begin(),
+                                 math_program.minus_sets[node].V.end(), prev)
+                       != math_program.minus_sets[node].V.end();
+            prev = node;
+        }
+        parity_outgoing_arcs_sum = M * parity_outgoing_arcs_sum;
         auto add_constraint = [&](GRBVar* v){
-            addLazy(outgoing_arcs_sum - *v >= 0);
+            addLazy(parity_outgoing_arcs_sum - *v >= 0);
         };
-        std::for_each(candidate_constraints.begin(), candidate_constraints.end(), add_constraint);
+        std::for_each(candidate_constraints.begin(),
+                      candidate_constraints.end(),
+                      add_constraint);
     }
 };

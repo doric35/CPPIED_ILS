@@ -1,5 +1,5 @@
 """
-ILS configuration local search on Compute Canada.
+ILS configuration local search — local machine version.
 
 Runs a local search over ILS algorithm configurations.  At each
 iteration three phases are applied in order to the current incumbent:
@@ -17,25 +17,15 @@ candidate is found.
 The search terminates after 24 h or when the incumbent did not change
 over a full iteration.
 
-I/O strategy
-────────────
-During execution every write goes to the scratch filesystem:
-  • Per-experiment working directories (config, local CSV, solution) are
-    created under SCRATCH_DIR/<exp_name>/.
-  • Completed results and errors are buffered in memory and also streamed
-    to scratch-side buffer CSVs (results_buffer.csv / errors_buffer.csv)
-    so that progress survives a job cancellation.
-
-At the end of each phase the master process performs a single append to
-the permanent result files (experiments/results/), keeping write traffic
-outside scratch to a minimum.
-
-SCRATCH_DIR is resolved as:
-  1. $SCRATCH/cppied_ejor/   (Compute Canada standard env var)
-  2. ~/scratch/cppied_ejor/  (fallback)
+Differences from the Compute Canada version
+───────────────────────────────────────────
+  • Working directories live under experiments/scratch/ (no $SCRATCH).
+  • Results are written to permanent storage immediately as each future
+    completes (no end-of-phase flush).
+  • No scratch-side buffer CSVs.
 
 Usage:
-    python run_ejor_ls_config_parallel.py \\
+    python run_ejor_ls_config_parallel_local.py \\
         -e /path/to/cppied_executable \\
         --lkh /path/to/LKH \\
         [--workers N]          # default: all available CPUs
@@ -45,14 +35,17 @@ import numpy as np
 from ejor_experiments_helpers import *
 import time
 
-ILS_CONFIGS_FILE    = DATA_DIR / "algorithm_configuration" / "ils_configuration.txt"
-RESULTS_FILE        = RESULTS_DIR / "ejor_configuration_results.csv"
-ERRORS_FILE         = RESULTS_DIR / "ejor_configuration_errors.csv"
-BEST_CONFIG_FILE    = RESULTS_DIR / "ejor_best_config.txt"
+SCRATCH_DIR      = EXPERIMENTS / "scratch"
+
+ILS_CONFIGS_FILE = DATA_DIR / "algorithm_configuration" / "ils_configuration.txt"
+RESULTS_FILE     = RESULTS_DIR / "ejor_configuration_results.csv"
+ERRORS_FILE      = RESULTS_DIR / "ejor_configuration_errors.csv"
+BEST_CONFIG_FILE = RESULTS_DIR / "ejor_best_config.txt"
 
 GLOBAL_RESULTS_FILE = RESULTS_DIR / "ejor_results.csv"
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+
+# ── Search helpers ────────────────────────────────────────────────────────────
 
 def neighborhood_experiments_configs(source_config: str) -> list[str]:
     """Return configs obtained by flipping each 0-bit in positions 1-7 to 1."""
@@ -89,15 +82,14 @@ def run_and_save_configurations(
         cfgs: list[str],
         instances,
         existing: set[str],
-        scratch_dir,
         solver: str,
-        scratch_results: Path,
-        scratch_errors: Path,
         args,
 ) -> list[dict]:
-    """Run all (cfg × instance) pairs that are not yet in *existing*.
+    """Run all (cfg × instance) pairs not yet in *existing*.
 
-    Returns the accumulated result rows (may be empty).
+    Results and errors are written to permanent storage immediately as
+    each future completes.  Returns the accumulated result rows (may be
+    empty).
     """
     pending = []
     for instance_dir in instances:
@@ -111,10 +103,7 @@ def run_and_save_configurations(
         print("Nothing to do.")
         return []
 
-    # In-memory accumulators — flushed to permanent storage once at the end
     accumulated_results: list[dict] = []
-    accumulated_errors:  list[dict] = []
-
     done   = 0
     errors = 0
     width  = len(str(len(pending)))
@@ -124,7 +113,7 @@ def run_and_save_configurations(
             pool.submit(
                 run_experiment,
                 exp_name, instance_dir_str, algorithm_config,
-                args.lkh, args.executable, str(scratch_dir), solver,
+                args.lkh, args.executable, str(SCRATCH_DIR), solver,
             ): exp_name
             for exp_name, instance_dir_str, algorithm_config, solver in pending
         }
@@ -141,23 +130,14 @@ def run_and_save_configurations(
             done += 1
             if result["success"]:
                 accumulated_results.extend(result["rows"])
-                append_csv_rows(scratch_results, RESULTS_COLS, result["rows"])
+                # Write immediately so progress survives interruption
+                append_csv_rows(RESULTS_FILE, RESULTS_COLS, result["rows"])
                 print(f"  [{done:{width}}/{len(pending)}] OK    {exp_name}")
             else:
-                accumulated_errors.append(result["error"])
-                append_csv_rows(scratch_errors, ERRORS_COLS, [result["error"]])
+                append_csv_rows(ERRORS_FILE, ERRORS_COLS, [result["error"]])
                 errors += 1
                 rc = result["error"]["returncode"]
                 print(f"  [{done:{width}}/{len(pending)}] ERROR {exp_name}  (rc={rc})")
-
-    # ── Flush to permanent storage ─────────────────────────────────────────────
-    print("\nFlushing results to permanent storage…")
-    if accumulated_results:
-        append_csv_rows(RESULTS_FILE, RESULTS_COLS, accumulated_results)
-        print(f"  Written {len(accumulated_results)} result rows → {RESULTS_FILE}")
-    if accumulated_errors:
-        append_csv_rows(ERRORS_FILE, ERRORS_COLS, accumulated_errors)
-        print(f"  Written {len(accumulated_errors)} error rows  → {ERRORS_FILE}")
 
     print(
         f"\nDone.  Successful: {done - errors}/{len(pending)}  "
@@ -180,12 +160,14 @@ def best_lexico(
 def incumbent_configuration(
         results: list[dict],
         bks: dict[str, list],
-) -> list:
-    """Return [best_config_str, (mean_rad_length, mean_rad_turns)].
+) -> list | None:
+    """Return [best_config_str, (mean_rad_length, mean_rad_turns)], or None.
 
     *results* rows have keys from RESULTS_COLS:
       name, solver, length, turns, time
     The instance and config are extracted by splitting ``name``.
+    Returns None when no valid RAD can be computed (all rows malformed,
+    missing BKS, or producing NaN).
     """
     # Group rows by (config, instance); skip malformed names
     pair_values: dict[tuple, list] = defaultdict(list)
@@ -219,7 +201,7 @@ def incumbent_configuration(
     # Pick the lexicographically best config across all instances
     best = ["", (float("inf"), float("inf"))]
     for config, rads in config_rads.items():
-        np_rads = np.array(rads)
+        np_rads  = np.array(rads)
         mean_rad = (float(np_rads[:, 0].mean()), float(np_rads[:, 1].mean()))
         best = best_lexico(best, [config, mean_rad])
 
@@ -231,16 +213,18 @@ def save_best_config(config: str, rad: tuple, path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         f"# Best ILS configuration found by local search\n"
-        f"config    = {config}\n"
+        f"config          = {config}\n"
         f"mean_rad_length = {rad[0]:.6f}\n"
         f"mean_rad_turns  = {rad[1]:.6f}\n"
     )
     print(f"  Best configuration saved → {path}")
 
 
+# ── Main ──────────────────────────────────────────────────────────────────────
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Parallel CPPIED EJOR experiments (all configs × listed instances)."
+        description="Local ILS configuration search (local machine version)."
     )
     parser.add_argument("-e", "--executable", required=True,
                         help="Absolute path to the CPPIED executable.")
@@ -250,7 +234,7 @@ def main():
                         help="Number of parallel worker processes (default: all CPUs).")
     args = parser.parse_args()
 
-    # Guard: read configs before using ils_configs[0]
+    # Guard: read configs before accessing ils_configs[0]
     ils_configs = read_configs(ILS_CONFIGS_FILE)
     if not ils_configs:
         sys.exit("No ILS configurations found – check ils_configuration.txt.")
@@ -258,16 +242,11 @@ def main():
     if not GLOBAL_RESULTS_FILE.exists():
         sys.exit(
             f"Global results file not found: {GLOBAL_RESULTS_FILE}\n"
-            "Run run_ejor_experiments_parallel.py first to generate BKS data."
+            "Run run_ejor_experiments_parallel_local.py first to generate BKS data."
         )
     BKS = get_bks(GLOBAL_RESULTS_FILE)
 
-    scratch_dir = resolve_scratch_dir()
-    scratch_dir.mkdir(parents=True, exist_ok=True)
-
-    scratch_results = scratch_dir / "results_buffer.csv"
-    scratch_errors  = scratch_dir / "errors_buffer.csv"
-
+    SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     run_instances = set(read_configs(INSTANCES_FILE))
@@ -281,15 +260,15 @@ def main():
 
     existing = read_existing_names(RESULTS_FILE)
 
-    solver         = "ILS"
-    start_time     = time.time()
-    prev_incumbent = ""
+    solver           = "ILS"
+    start_time       = time.time()
+    prev_incumbent   = ""
     incumbent_config = [ils_configs[0], (float("inf"), float("inf"))]
 
     print(
         f"Listed instances     : {len(instances)}\n"
         f"Workers              : {args.workers}\n"
-        f"Scratch dir          : {scratch_dir}\n"
+        f"Scratch dir          : {SCRATCH_DIR}\n"
         f"Starting config      : {incumbent_config[0]}\n"
     )
 
@@ -299,10 +278,7 @@ def main():
         # Neighborhood phase — flip 0-bits one at a time in positions 1-7
         print(f"\n── Neighborhood phase  (incumbent: {incumbent_config[0]}) ──")
         cfgs = neighborhood_experiments_configs(incumbent_config[0])
-        results = run_and_save_configurations(
-            cfgs, instances, existing, scratch_dir, solver,
-            scratch_results, scratch_errors, args,
-        )
+        results = run_and_save_configurations(cfgs, instances, existing, solver, args)
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
             incumbent_config = candidate
@@ -310,10 +286,7 @@ def main():
         # Perturbation phase — flip each bit in positions 8-10
         print(f"\n── Perturbation phase  (incumbent: {incumbent_config[0]}) ──")
         cfgs = perturbation_experiments_configs(incumbent_config[0])
-        results = run_and_save_configurations(
-            cfgs, instances, existing, scratch_dir, solver,
-            scratch_results, scratch_errors, args,
-        )
+        results = run_and_save_configurations(cfgs, instances, existing, solver, args)
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
             incumbent_config = candidate
@@ -321,10 +294,7 @@ def main():
         # Restart phase — flip the last bit
         print(f"\n── Restart phase       (incumbent: {incumbent_config[0]}) ──")
         cfgs = restart_experiments_configs(incumbent_config[0])
-        results = run_and_save_configurations(
-            cfgs, instances, existing, scratch_dir, solver,
-            scratch_results, scratch_errors, args,
-        )
+        results = run_and_save_configurations(cfgs, instances, existing, solver, args)
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
             incumbent_config = candidate
@@ -334,8 +304,10 @@ def main():
             f"RAD=({incumbent_config[1][0]:.4f}, {incumbent_config[1][1]:.4f})\n"
         )
 
-    print(f"\nSearch finished.  Best config: {incumbent_config[0]}  "
-          f"RAD=({incumbent_config[1][0]:.4f}, {incumbent_config[1][1]:.4f})")
+    print(
+        f"\nSearch finished.  Best config: {incumbent_config[0]}  "
+        f"RAD=({incumbent_config[1][0]:.4f}, {incumbent_config[1][1]:.4f})"
+    )
     save_best_config(incumbent_config[0], incumbent_config[1], BEST_CONFIG_FILE)
 
 

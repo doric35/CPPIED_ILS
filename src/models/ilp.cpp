@@ -34,7 +34,8 @@ void ilp::d_solve(cppied_solution &pSolution) {
     model.optimize();
     //Retrieve solution
     int status = model.get(GRB_IntAttr_Status);
-    if (status == GRB_OPTIMAL || status == GRB_SUBOPTIMAL) {
+    if (status == GRB_OPTIMAL || status == GRB_SUBOPTIMAL ||
+            (status == GRB_TIME_LIMIT && model.get(GRB_IntAttr_SolCount) > 0)) {
         // A feasible solution exists, safe to retrieve
         auto flow_setter = [&](){
             for (int u=0; u<problem.vertex.size(); ++u){
@@ -53,8 +54,8 @@ void ilp::d_solve(cppied_solution &pSolution) {
         std::cerr << "[Error] Model infeasible or unbounded\n";
         throw std::runtime_error("Infeasibility or unboundedness found in ilp model.\n");
     } else {
-        // Possibly interrupted due to TimeLimit
-        std::cerr << "[Warning] Optimization interrupted in ilp model, did not find a feasible solution.\n";
+        std::cerr << "[Warning] Optimization interrupted in ilp model, did not find a feasible solution. Status ["
+                  << status << "]" << "\n";
     }
 }
 

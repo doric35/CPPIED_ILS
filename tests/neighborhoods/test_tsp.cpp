@@ -519,7 +519,7 @@ TEST_F(neighborhood_tsp_e2e_fixture, E2ELocalSearchImprovesScrambledOrdering) {
     // The scrambled solution must still satisfy the coverage constraint.
     ASSERT_TRUE((sol.coverage.array() >= P.req.array()).all());
 
-    if (sol.cost <= original_cost)
+    if (sol.cost.length <= original_cost.length)
         GTEST_SKIP() << "Scrambled ordering did not increase cost; "
                         "improvement test is inconclusive for this geometry";
 

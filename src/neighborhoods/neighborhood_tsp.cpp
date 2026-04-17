@@ -13,18 +13,13 @@ bool neighborhood_tsp::local_search(cppied_solution &pSol) {
     std::iota(tsp_solution.begin(), tsp_solution.end(), 1);
 
     tsp_solution = std::move(tspEngine.lkh(C,tsp_solution));
-    //std::cout << "Fetched LKH solution into neighborhood object " << std::endl;
     cppied_solution trial = pSol;
     tsp_to_path(trial, tsp_solution);
-    //std::cout << "Transfered tsp to path" << std::endl;
     trial.cost = geometry.cost(trial);
-    //std::cout << "After cost computation" << std::endl;
     if (trial.cost < pSol.cost) {
-        //std::cout << "Before trial move" << std::endl;
         pSol.path = std::move(trial.path);
         pSol.cost = trial.cost;
         pSol.coverage = trial.coverage;
-        //std::cout << "After trial move" << std::endl;
         return true;
     }
     return false;
@@ -163,11 +158,13 @@ segment neighborhood_tsp::tour_id_to_segment(cppied_solution &pSol, int i) {
     assert(i > 3);
 
     int idx;
-
+    segment s{};
     if (i % 3 == 1) {
         idx = (i - 2) / 3;
+        s = pSol.path[idx];
     } else if (i % 3 == 0) {
         idx = (i - 6) / 3;
+        s = geometry.flip_segment(pSol.path[idx]);
     } else {
         throw std::runtime_error("Encountered segment mid point in tsp solution.");
     }
@@ -179,7 +176,7 @@ segment neighborhood_tsp::tour_id_to_segment(cppied_solution &pSol, int i) {
         abort();
     }
 
-    return pSol.path[idx];
+    return s;
 }
 
 void neighborhood_tsp::tsp_to_path(cppied_solution &pSol,
