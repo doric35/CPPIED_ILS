@@ -33,7 +33,7 @@
 #SBATCH --mem=0                    # use all available RAM on the node
 #SBATCH --time=160:00:00
 #SBATCH --output=output/%x_%j.out
-#SBATCH --error=output%x_%j.err
+#SBATCH --error=output/%x_%j.err
 # Uncomment and set the appropriate allocation account:
 #SBATCH --account=def-mmorin-ab
 

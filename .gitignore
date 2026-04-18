@@ -7,3 +7,4 @@ cmake
 CMakeLists.txt
 tests/*.txt
 tests/scratch/*
+*.pyc
