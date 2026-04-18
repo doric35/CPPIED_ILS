@@ -21,10 +21,11 @@ namespace tsp{
     };
 
     struct GTSPGraph{
-        std::vector<node> nodes;
+        std::vector<node>    nodes;
         std::vector<cluster> clusters;
 
         Eigen::MatrixXi cost;
+
         int penalty;
     };
 }

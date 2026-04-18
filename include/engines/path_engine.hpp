@@ -65,8 +65,9 @@ public:
         return (unsigned)(x + 2) > 1;
     }
 
-    static constexpr int NULL_NODE = -1;
+    static constexpr int NULL_NODE          = -1;
     static constexpr int REVERSED_NULL_NODE = -2;
+
     int n_rows;
     int n_cols;
     int horizontal_bound;
@@ -77,7 +78,8 @@ protected:
     // row==0, row==n_rows).  Vertical nodes are never flagged: no V→V or
     // same-type formula has an absolute-position check on the V-node itself.
     std::vector<uint8_t> boundary_displacement;
-    std::vector<cost_t> displacement_table;
+    std::vector<cost_t>  displacement_table;
+
     std::vector<int> vx;
     std::vector<int> vy;
 
@@ -89,24 +91,24 @@ protected:
     //                              WE  WW  WS  WN
     //                              SE  SW  SS  SN
     //                              NE  NW  NS  NN
-    static constexpr int  primary[16] = { 0,  1,  2,  3,
-                                          1,  0,  4,  5,
-                                          5,  3,  6,  7,
-                                          4,  2,  7,  6};
-    static constexpr bool flip[16]    = { 0,  0,  0,  0,
-                                          1,  1,  0,  0,
-                                          1,  1,  0,  0,
-                                          1,  1,  1,  1};
+    static constexpr int  primary[16] = {0, 1, 2, 3,
+                                         1, 0, 4, 5,
+                                         5, 3, 6, 7,
+                                         4, 2, 7, 6};
+    static constexpr bool flip[16]    = {0, 0, 0, 0,
+                                         1, 1, 0, 0,
+                                         1, 1, 0, 0,
+                                         1, 1, 1, 1};
 
-    static constexpr int secondary[16] = { 0,  1,  2,  3,
-                                          4,  0,  5,  6,
-                                          6,  3,  7,  8,
-                                          5,  2,  9,  7};  // NE: 6→5 (WS), NW: 3→2 (ES)
+    static constexpr int secondary[16] = {0, 1, 2, 3,
+                                          4, 0, 5, 6,
+                                          6, 3, 7, 8,
+                                          5, 2, 9, 7};  // NE: 6→5 (WS), NW: 3→2 (ES)
 
-    static constexpr bool exchange[16]    = { 0,  0,  0,  0,
-                                          0,  1,  0,  0,   // WW: 0→1
-                                          1,  1,  0,  0,
-                                          1,  1,  0,  0};  // NN: 0→1
+    static constexpr bool exchange[16] = {0, 0, 0, 0,
+                                          0, 1, 0, 0,   // WW: 0→1
+                                          1, 1, 0, 0,
+                                          1, 1, 0, 0};  // NN: 0→1
 
     void set_boundaries();
     void build_dist_table();

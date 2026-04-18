@@ -47,15 +47,22 @@ void ilp::d_solve(cppied_solution &pSolution) {
                 targets_plus_flow[u] = targets_plus[u].get(GRB_DoubleAttr_X);
             }
         };
-        std::cout << "Solved" << std::endl;
         retrieve_solution(pSolution, flow_setter);
+        if (status == GRB_OPTIMAL)
+            throw algo_flag("Solved.", algorithm_flag::OPTIMAL);
+        else
+            throw algo_flag("Found solution.", algorithm_flag::SUBOPTIMAL);
     } else if (status == GRB_INF_OR_UNBD || status == GRB_INFEASIBLE) {
         // No feasible solution found
         std::cerr << "[Error] Model infeasible or unbounded\n";
         throw std::runtime_error("Infeasibility or unboundedness found in ilp model.\n");
-    } else {
+    } else if (status == GRB_TIME_LIMIT){
+        throw algo_flag("Time out encountered without valid solution found within time limit.",
+                        algorithm_flag::TIME_LIMIT_INFEASIBLE);
+    } else{
         std::cerr << "[Warning] Optimization interrupted in ilp model, did not find a feasible solution. Status ["
                   << status << "]" << "\n";
+        throw std::runtime_error("Not allowed status after GRB optimization.");
     }
 }
 
@@ -325,12 +332,31 @@ void ilp::find_cycle(cppied_solution &pSolution,
         }
 
         if (next_node == -1)
-            return;  // no outgoing arc in the expected direction — end of this cycle
+            break;  // no outgoing arc in the expected direction — end of this cycle
 
         curr_minus = std::find(minus_sets[next_node].V.begin(),
                                minus_sets[next_node].V.end(), current_node)
                      != minus_sets[next_node].V.end();
         current_node = next_node;
         path.push_back(current_node);
+    }
+
+    if (path.empty()) return;
+
+    auto node = path.begin();
+    curr_minus = std::find(minus_sets[*node].V.begin(),
+                           minus_sets[*node].V.end(), path.back())
+                 != minus_sets[*node].V.end();
+    while (true){
+        std::list<int> subtour;
+        find_cycle(pSolution, subtour, *node, curr_minus);
+        path.splice(std::next(node), subtour);
+        ++node;
+
+        if (node == path.end()) return;
+
+        curr_minus = std::find(minus_sets[*node].V.begin(),
+                               minus_sets[*node].V.end(), *std::prev(node))
+                     != minus_sets[*node].V.end();
     }
 }

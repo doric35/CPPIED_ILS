@@ -24,8 +24,13 @@ INSTANCES_FILE= INSTANCES_DIR / "run_instances.txt"
 K_AVG_SCRIPT  = SCRIPT_DIR / "k_avg_performance.py"
 K             = 5
 
-RESULTS_COLS = ["name", "solver", "length", "turns", "time"]
+RESULTS_COLS = ["name", "solver", "length", "turns", "time", "status"]
 ERRORS_COLS  = ["name", "instance", "configuration", "returncode", "stdout", "stderr"]
+
+# Rows carrying this status represent runs where the solver terminated cleanly
+# but found no feasible solution (e.g. Gurobi TIME_LIMIT with SolCount == 0).
+# They must be excluded from every statistical computation (BKS, RAD, …).
+TIME_LIMIT_INFEASIBLE_STATUS = "TIME_LIMIT_INFEASIBLE"
 
 TIME_MAP   = {"s1616_": 60,    "s6464_": 600,  "s128128_": 1200}
 # Default solver per instance-size prefix.  Small instances are solved
@@ -198,10 +203,16 @@ def run_experiment(
             },
         }
 
-    # Read the K rows appended by k_avg_performance.py
+    # Read the K rows appended by k_avg_performance.py.
+    # Use .get() so that old scratch CSVs without the 'status' column do not
+    # raise KeyError; they are treated as having an empty status.
     with open(local_csv, newline="") as fh:
         all_rows = list(csv.DictReader(fh))
-    rows = [{col: row[col] for col in RESULTS_COLS} for row in all_rows[-K:]]
+    rows = [
+        {col: row.get(col, "") for col in RESULTS_COLS}
+        for row in all_rows[-K:]
+        if row.get("status", "") != TIME_LIMIT_INFEASIBLE_STATUS
+    ]
 
     return {
         "success":  True,
@@ -214,13 +225,16 @@ def run_statistics(results : list[dict], bks: dict[str, (int, int)], instance : 
     """
     :param instance: Instance name as string
     :param bks: dictionnary mapping instance to best known (length, turns) of an instance
-    :param results: [name,solver,length,turns,time]
+    :param results: [name,solver,length,turns,time,status]
     :return: [RAD length, RAD turns]
     """
-    values = [float(r["length"]) for r in results]
+    feasible = [r for r in results if r.get("status", "") != TIME_LIMIT_INFEASIBLE_STATUS]
+    if not feasible:
+        return float("nan"), float("nan")
+    values = [float(r["length"]) for r in feasible]
     avg_val = statistics.mean(values)
     l_rad = (avg_val - bks[instance][0]) / bks[instance][0] * 100
-    values = [float(r["turns"]) for r in results]
+    values = [float(r["turns"]) for r in feasible]
     avg_val = statistics.mean(values)
     t_rad = (avg_val - bks[instance][1]) / bks[instance][1] * 100
     return l_rad, t_rad
@@ -230,6 +244,10 @@ def get_bks(csv_results : Path):
     rows = []
     with open(csv_results, newline="") as fh:
         for row in csv.DictReader(fh):
+            # Skip runs that produced no feasible solution — their length/turns
+            # values are not meaningful and would corrupt the BKS.
+            if row.get("status", "") == TIME_LIMIT_INFEASIBLE_STATUS:
+                continue
             # name = {size}_{typeRID}_{lrcRID}_{config}
             # e.g.  s1616_ir0_lrc031_c11111111111
             parts    = row["name"].split("_")

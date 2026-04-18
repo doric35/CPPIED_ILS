@@ -61,6 +61,7 @@ public:
 
 protected:
     const cppied_instance& problem;
+    
     void update_vertex_insert(cppied_solution&, int v);
     void update_vertex_remove(cppied_solution&, int v);
     void add_over_coverage_contribution(cppied_solution&, int v, double& acc_oc, int& acc_size);

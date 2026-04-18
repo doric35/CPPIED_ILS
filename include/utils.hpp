@@ -42,15 +42,26 @@ public:
     }
 };
 
+enum class algorithm_flag{
+    TIME_LIMIT_INFEASIBLE,
+    SUBOPTIMAL,
+    OPTIMAL
+};
+
 class algo_flag : public std::exception {
 private:
     std::string message_;
+    algorithm_flag f_;
 public:
-    explicit algo_flag(const std::string& message)
-            : message_(message) {}
+    explicit algo_flag(const std::string& message, const algorithm_flag& f)
+            : message_(message), f_(f) {}
 
     [[nodiscard]] const char* what() const noexcept override {
         return message_.c_str();
+    }
+
+    [[nodiscard]] const algorithm_flag flag() const noexcept{
+        return f_;
     }
 };
 
