@@ -14,6 +14,7 @@ namespace sweeper{
 class dp_sweeper: public construction{
 protected:
     double mPenalty=0.01;
+
     std::function<int(const std::array<sweeper::segment_set,2>&)> mChoice =
             [](const std::array<sweeper::segment_set,2>&){
         return -1;

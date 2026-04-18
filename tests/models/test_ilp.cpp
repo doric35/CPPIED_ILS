@@ -1,6 +1,7 @@
 #include "gurobi_c++.h"
 #include "../test_fixture.hpp"
 #include "../../include/models/ilp.hpp"
+#include "../../include/construction/dp_sweeper.hpp"
 
 // ============================================================================
 // Accessor — exposes protected members for white-box testing
@@ -812,4 +813,115 @@ TEST_F(ilp_fixture, DsolveClearsZ1Z2AfterCompletion) {
     EXPECT_NE(model2.get(GRB_IntAttr_Status), GRB_INFEASIBLE)
         << "fresh model after d_solve completion is infeasible; "
            "Z1/Z2 may contain stale expressions from the previous call";
+}
+
+//-----------Testing on a larger fixture for SEC debugging-----------------------
+class ilp_large_fixture : public cppied_context_large_fixture {
+protected:
+    std::unique_ptr<ilp_accessor> m;
+    cppied_solution sol;
+    std::function<void()> flow_setter;
+
+    void SetUp() override {
+        cppied_context_large_fixture::SetUp();
+        // 7-segment local optimum on the 6×6 test seabed (same path used
+        // across neighbourhood tests to ensure coverage feasibility).
+        sol.path = {};
+        sol.cost     = {0, 0};
+        sol.coverage = Eigen::VectorXd::Zero(P.req.size());
+
+        dp_sweeper dps(ctx, P);
+        auto history_save = [](cppied_solution&){
+
+        };
+        dps.construct(sol, history_save);
+
+        m = std::make_unique<ilp_accessor>(ctx, P);
+        m->coverage.reset(sol);
+        sol.cost = m->geometry.cost(sol);
+        ctx.start_time = std::chrono::high_resolution_clock::now();
+        ctx.max_time   = 60;
+        flow_setter = [&](){
+            for (int u=0; u<m->problem.vertex.size(); ++u){
+                for (int v =0; v<m->variables[u].outgoing_variables.size(); ++v){
+                    m->variables[u].variables_flow[v] =
+                            m->variables[u].outgoing_variables[v].get(GRB_DoubleAttr_X);
+                }
+                m->targets_minus_flow[u] = m->targets_minus[u].get(GRB_DoubleAttr_X);
+                m->targets_plus_flow[u] = m->targets_plus[u].get(GRB_DoubleAttr_X);
+            }
+        };
+    }
+};
+
+class ilp_variables_large_fixture : public ilp_large_fixture {
+protected:
+    GRBEnv genv{true};
+    std::unique_ptr<GRBModel> grb_model;
+
+    void SetUp() override {
+        ilp_large_fixture::SetUp();
+        genv.set(GRB_IntParam_OutputFlag, 0);
+        genv.start();
+        grb_model = std::make_unique<GRBModel>(genv);
+        m->set_flow_sets(sol);
+        m->set_variables(sol, *grb_model);
+        grb_model->set(GRB_DoubleParam_TimeLimit, ctx.max_time);
+        grb_model->update();
+    }
+};
+
+class ilp_constraints_large_fixture : public ilp_variables_large_fixture {
+protected:
+    // Must outlive grb_model: Gurobi holds a raw pointer to the callback object
+    // and invokes it during optimize().  A stack variable in SetUp() is destroyed
+    // before any test body runs, leaving a dangling pointer → BAD ACCESS.
+    std::unique_ptr<subtour_elimination> cb;
+
+    void SetUp() override {
+        ilp_variables_large_fixture::SetUp();
+        m->set_constraints(sol, *grb_model);
+        cb = std::make_unique<subtour_elimination>(*m);
+        grb_model->set(GRB_IntParam_LazyConstraints, 1);
+        grb_model->setCallback(cb.get());
+        grb_model->update();
+    }
+};
+
+class ilp_objectives_large_fixture : public ilp_constraints_large_fixture {
+protected:
+    void SetUp() override {
+        ilp_constraints_large_fixture::SetUp();
+        m->set_objectives(sol, *grb_model);
+        grb_model->update();
+    }
+};
+
+class ilp_solved_large_fixture : public ilp_objectives_large_fixture {
+protected:
+    void SetUp() override {
+        ilp_objectives_large_fixture::SetUp();
+        grb_model->optimize();
+        int status = grb_model->get(GRB_IntAttr_Status);
+        if (status != GRB_OPTIMAL && status != GRB_SUBOPTIMAL &&
+            !(status == GRB_TIME_LIMIT && grb_model->get(GRB_IntAttr_SolCount) > 0))
+            GTEST_SKIP() << "Gurobi did not find a feasible solution; skipping retrieve tests";
+    }
+};
+
+// Bug (documented behaviour): retrieve_solution consumes variables_flow by
+// decrementing arc flows to zero as it walks the graph.  After the call, all
+// flow values must be 0 — a second call would find no arcs to follow and
+// produce an incorrect or empty path.
+TEST_F(ilp_solved_large_fixture, RetrieveSolutionConsumesVariablesFlow) {
+    cppied_solution result = sol;
+    result.coverage = Eigen::VectorXd::Zero(P.req.size());
+    m->retrieve_solution(result, flow_setter);
+
+    for (int u = 0; u < (int)m->variables.size(); ++u)
+        for (int f : m->variables[u].variables_flow)
+            EXPECT_EQ(f, 0)
+                                << "variables_flow[" << u << "][*] is non-zero after retrieve_solution; "
+                                                             "the method is destructive — it consumes the flow during path extraction. "
+                                                             "A second call cannot reconstruct the path.";
 }

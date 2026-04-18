@@ -4,9 +4,26 @@ void cppied_method_base::solve(cppied_solution &solution) {
     assert(solution.coverage.size() == problem.cells.cols());
     initialize();
     ctx.start_time = std::chrono::high_resolution_clock::now();
-    d_solve(solution);
+    std::string status;
+    bool validate = true;
+    try {
+        d_solve(solution);
+    } catch (algo_flag& f){
+        if (f.flag() == algorithm_flag::TIME_LIMIT_INFEASIBLE){
+            std::cerr << "[WARNING] could not find a feasible solution within allowed time." << std::endl;
+            status = "TIME_LIMIT_INFEASIBLE";
+            validate = false;
+        } else if (f.flag() == algorithm_flag::OPTIMAL)
+            status = "OPTIMAL";
+        else
+            status = "SUBOPTIMAL";
+    } catch (std::runtime_error& e){
+        std::cerr << e.what() << std::endl;
+        throw e;
+    }
     ctx.end_time = std::chrono::high_resolution_clock::now();
-    validate_solution(solution);
+    if (validate)
+        validate_solution(solution);
     terminate();
     ctx.csv_log.push_back(ctx.config["NAME"]);
     ctx.csv_log.push_back(ctx.config["SOLVER"]);
@@ -15,6 +32,7 @@ void cppied_method_base::solve(cppied_solution &solution) {
     auto elapsed_time =
             std::chrono::duration_cast<std::chrono::seconds>(ctx.end_time - ctx.start_time);
     ctx.csv_log.push_back(std::to_string(elapsed_time.count()));
+    ctx.csv_log.push_back(status);
 }
 
 void cppied_method_base::validate_solution(cppied_solution &pSolution) {

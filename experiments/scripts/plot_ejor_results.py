@@ -13,6 +13,9 @@ import csv
 from collections import defaultdict
 from pathlib import Path
 import statistics
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ejor_experiments_helpers import TIME_LIMIT_INFEASIBLE_STATUS
 
 import matplotlib
 matplotlib.use("Agg")
@@ -27,6 +30,10 @@ RESULTS_CSV = RESULTS_DIR / "ejor_results.csv"
 rows = []
 with open(RESULTS_CSV, newline="") as fh:
     for row in csv.DictReader(fh):
+        # Skip infeasible runs — their length/turns are not meaningful and
+        # would corrupt the BKS baseline and produce division-by-zero RADs.
+        if row.get("status", "") == TIME_LIMIT_INFEASIBLE_STATUS:
+            continue
         # name = {size}_{typeRID}_{lrcRID}_{config}
         # e.g.  s1616_ir0_lrc031_c11111111111
         parts    = row["name"].split("_")

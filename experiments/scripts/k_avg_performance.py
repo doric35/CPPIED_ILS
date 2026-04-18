@@ -23,6 +23,8 @@ parser.add_argument("-c", "--configuration",
 
 args = parser.parse_args()
 
+SUCCESS_STATUS = ["OPTIMAL", "SUBOPTIMAL"]
+
 def parse_config(file_path):
     file_config = {}
 
@@ -73,9 +75,10 @@ if __name__=="__main__":
             sys.exit(1)
 
     new_results_df = pd.read_csv(config["CSV_LOG_FILE"], delimiter=',', header=0)
+    new_results_df = new_results_df[new_results_df["status"].isin(SUCCESS_STATUS)]
     new_results_df = new_results_df.tail(K)
 
-    required_cols = {"length", "turns"}
+    required_cols = {"length", "turns", "status"}
     if not required_cols.issubset(new_results_df.columns):
         raise ValueError(f"Missing columns: {required_cols - set(new_results_df.columns)}")
 

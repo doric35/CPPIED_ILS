@@ -43,6 +43,7 @@ public:
     
 protected:
     vnd ls;
+
     std::vector<std::unique_ptr<perturbation>> P{};
-    std::vector<std::unique_ptr<restarts>> R{};
+    std::vector<std::unique_ptr<restarts>>     R{};
 };
