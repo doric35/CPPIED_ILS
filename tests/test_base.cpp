@@ -20,7 +20,7 @@ TEST_F(cppied_context_fixture, CorrectConfiguration) {
     EXPECT_EQ(ctx.config.at("NAME"), "test_configuration_123") << "Invalid configuration name";
     EXPECT_EQ(ctx.config.at("ALGORITHM_CONFIG"), "c00000000000") << "Invalid algorithm configuration";
     EXPECT_EQ(ctx.config.at("LKH_EXECUTABLE"),
-              std::string(PROJECT_SOURCE_DIR) + "/external/LKH-2.0.11/LKH")
+              std::string(PROJECT_SOURCE_DIR) + "/external/LKH-3.0.14/LKH")
                         << "Invalid configuration lkh executable";
     EXPECT_EQ(ctx.config.at("WORKING_DIRECTORY"),
               std::string(PROJECT_SOURCE_DIR) + "/tests/scratch")
