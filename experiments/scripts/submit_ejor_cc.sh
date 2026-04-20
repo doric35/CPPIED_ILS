@@ -18,7 +18,8 @@
 # Usage:
 #   sbatch submit_ejor_cc.sh \
 #       --executable /path/to/cppied  \
-#       --lkh        /path/to/LKH
+#       --lkh        /path/to/LKH  \
+#       --solver     ID
 #
 #   Or set CPPIED_EXE and LKH_EXE as environment variables before submitting:
 #   export CPPIED_EXE=/path/to/cppied
@@ -43,6 +44,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --executable|-e) CPPIED_EXE="$2"; shift 2 ;;
         --lkh)           LKH_EXE="$2";   shift 2 ;;
+        --solver)        SOLVER_ID="$2"; shift 2 ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
     esac
 done
@@ -58,7 +60,11 @@ if [[ -z "${LKH_EXE:-}" ]]; then
          "Use --lkh or export LKH_EXE." >&2
     exit 1
 fi
-
+if [[ -z "${SOLVER_ID:-}" ]]; then
+    echo "WARNING: Solver ID not set." \
+         "Using auto solver configuration." >$2
+    SOLVER_ID = "${SOLVER_ID:-auto}"
+fi
 # ── Resolve paths ─────────────────────────────────────────────────────────────
 # SLURM copies the script to a spool directory, so BASH_SOURCE[0] points there.
 # SLURM_SUBMIT_DIR is the directory from which sbatch was called — use that instead.
@@ -89,6 +95,7 @@ echo "Node          : $(hostname)"
 echo "CPUs on node  : ${SLURM_CPUS_ON_NODE}"
 echo "CPPIED exe    : ${CPPIED_EXE}"
 echo "LKH exe       : ${LKH_EXE}"
+echo "SOLVER        : ${SOLVER_ID}"
 echo "Python        : $(which python3) ($(python3 --version))"
 echo "Start time    : $(date)"
 echo "================================================================"
@@ -97,7 +104,8 @@ echo "================================================================"
 python3 "${PARALLEL_SCRIPT}" \
     --executable "${CPPIED_EXE}" \
     --lkh        "${LKH_EXE}"    \
-    --workers    "${SLURM_CPUS_ON_NODE}"
+    --workers    "${SLURM_CPUS_ON_NODE}" \
+    --solver     "${SOLVER_ID}"
 
 EXIT_CODE=$?
 

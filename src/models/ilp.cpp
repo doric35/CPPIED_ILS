@@ -33,9 +33,9 @@ void ilp::d_solve(cppied_solution &pSolution) {
     model.update();
     model.optimize();
     //Retrieve solution
-    int status = model.get(GRB_IntAttr_Status);
-    if (status == GRB_OPTIMAL || status == GRB_SUBOPTIMAL ||
-            (status == GRB_TIME_LIMIT && model.get(GRB_IntAttr_SolCount) > 0)) {
+    int grb_status = model.get(GRB_IntAttr_Status);
+    if (grb_status == GRB_OPTIMAL || grb_status == GRB_SUBOPTIMAL ||
+            (grb_status == GRB_TIME_LIMIT && model.get(GRB_IntAttr_SolCount) > 0)) {
         // A feasible solution exists, safe to retrieve
         auto flow_setter = [&](){
             for (int u=0; u<problem.vertex.size(); ++u){
@@ -48,20 +48,19 @@ void ilp::d_solve(cppied_solution &pSolution) {
             }
         };
         retrieve_solution(pSolution, flow_setter);
-        if (status == GRB_OPTIMAL)
-            throw algo_flag("Solved.", algorithm_flag::OPTIMAL);
+        if (grb_status == GRB_OPTIMAL)
+            status = algorithm_flag::OPTIMAL;
         else
-            throw algo_flag("Found solution.", algorithm_flag::SUBOPTIMAL);
-    } else if (status == GRB_INF_OR_UNBD || status == GRB_INFEASIBLE) {
+            status = algorithm_flag::SUBOPTIMAL;
+    } else if (grb_status == GRB_INF_OR_UNBD || grb_status == GRB_INFEASIBLE) {
         // No feasible solution found
         std::cerr << "[Error] Model infeasible or unbounded\n";
         throw std::runtime_error("Infeasibility or unboundedness found in ilp model.\n");
-    } else if (status == GRB_TIME_LIMIT){
-        throw algo_flag("Time out encountered without valid solution found within time limit.",
-                        algorithm_flag::TIME_LIMIT_INFEASIBLE);
+    } else if (grb_status == GRB_TIME_LIMIT){
+        status = algorithm_flag::TIME_LIMIT_INFEASIBLE;
     } else{
         std::cerr << "[Warning] Optimization interrupted in ilp model, did not find a feasible solution. Status ["
-                  << status << "]" << "\n";
+                  << grb_status << "]" << "\n";
         throw std::runtime_error("Not allowed status after GRB optimization.");
     }
 }
