@@ -42,8 +42,10 @@ void ils::d_solve(cppied_solution &pSolution) {
         callbacks.onSatisfy = sat_check;
     }
 
-    if (R.empty() && P.empty() && ls.neighborhoods_count() <=2)
-        throw algo_flag("Completed DpSweeper. No ILS.", algorithm_flag::SUBOPTIMAL);
+    if (R.empty() && P.empty() && ls.neighborhoods_count() <=2) {
+        status =algorithm_flag::SUBOPTIMAL;
+        return;
+    }
 
     if (callbacks.onSatisfy) {
         std::string msg = "Before starting first ILS local search.";
@@ -124,7 +126,7 @@ void ils::d_solve(cppied_solution &pSolution) {
     geometry.complete(pSolution);
     coverage.reset(pSolution);
     callbacks.onSatisfy = cb_tmp;
-    throw algo_flag("Completed ILS.", algorithm_flag::SUBOPTIMAL);
+    status = algorithm_flag::SUBOPTIMAL;
 }
 
 bool ils::local_search(cppied_solution &pSol){

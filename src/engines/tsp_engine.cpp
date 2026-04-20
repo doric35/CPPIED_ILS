@@ -41,6 +41,7 @@ void tsp_engine::write_configuration(std::vector<int> &warm_start) {
     std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock ::now();
     int elapsed_time = int(std::chrono::duration_cast<std::chrono::seconds>(now - ctx.start_time).count());
     config_stream << "TIME_LIMIT = " << ctx.max_time - elapsed_time << "\n";
+    config_stream << "RUNS = 1\n";
     if ((ctx.max_time - elapsed_time) <= 0){
         config_stream.close();
         throw timeout_error("Did not run LKH due to time out.\n");

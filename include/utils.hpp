@@ -22,6 +22,35 @@
 #include <functional>
 #include <any>
 #include <opencv2/opencv.hpp>
+#include <optional>
+
+#define ALGORITHM_FLAG_LIST \
+    X(NONE)                 \
+    X(TIME_LIMIT_INFEASIBLE)\
+    X(SUBOPTIMAL)           \
+    X(OPTIMAL)
+
+enum class algorithm_flag{
+#define X(name) name,
+    ALGORITHM_FLAG_LIST
+#undef X
+};
+
+inline std::string to_string(algorithm_flag f){
+    switch (f) {
+#define X(name) case algorithm_flag::name: return #name;
+        ALGORITHM_FLAG_LIST
+#undef X
+    }
+    return "UNKNOWN";
+}
+
+inline std::optional<algorithm_flag> from_string(const std::string& s){
+#define X(name) if ( s == #name ) return algorithm_flag::name;
+    ALGORITHM_FLAG_LIST
+#undef X
+    return std::nullopt;
+}
 
 using SMdIt = Eigen::SparseMatrix<double>::InnerIterator;
 using SMiIt = Eigen::SparseMatrix<int>::InnerIterator;
@@ -40,12 +69,6 @@ public:
     [[nodiscard]] const char* what() const noexcept override {
         return message_.c_str();
     }
-};
-
-enum class algorithm_flag{
-    TIME_LIMIT_INFEASIBLE,
-    SUBOPTIMAL,
-    OPTIMAL
 };
 
 class algo_flag : public std::exception {
