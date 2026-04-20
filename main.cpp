@@ -67,7 +67,7 @@ int main(int argc, char* argv[]) {
 
     cppied_context ctx(configuration);
 
-    std::cout << "Available solvers: ";
+    std::cout << "Available solvers: \n";
     SolverFactory::instance().debug_print();
     auto solver = SolverFactory::instance().create(configuration.at("SOLVER"), ctx, instance);
     if (!solver)

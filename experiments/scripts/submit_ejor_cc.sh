@@ -61,9 +61,8 @@ if [[ -z "${LKH_EXE:-}" ]]; then
     exit 1
 fi
 if [[ -z "${SOLVER_ID:-}" ]]; then
-    echo "WARNING: Solver ID not set." \
-         "Using auto solver configuration." >$2
-    SOLVER_ID = "${SOLVER_ID:-auto}"
+    echo "WARNING: Solver ID not set. Using auto solver configuration." >&2
+    SOLVER_ID="auto"
 fi
 # ── Resolve paths ─────────────────────────────────────────────────────────────
 # SLURM copies the script to a spool directory, so BASH_SOURCE[0] points there.
