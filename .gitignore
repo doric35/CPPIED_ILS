@@ -6,5 +6,6 @@ external
 cmake
 CMakeLists.txt
 tests/*.txt
+tests/*.log
 tests/scratch/*
 *.pyc
