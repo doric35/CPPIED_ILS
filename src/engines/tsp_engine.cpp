@@ -5,6 +5,7 @@ std::vector<int> tsp_engine::lkh(Eigen::Ref<Eigen::MatrixXi> C,
     try {
         write_configuration(warm_start);
     } catch (timeout_error& e){
+        std::cout << "Returning from LKH after encountering a timeout error." << std::endl;
         return warm_start;
     }
     write_instance_file(C);
@@ -15,7 +16,8 @@ std::vector<int> tsp_engine::lkh(Eigen::Ref<Eigen::MatrixXi> C,
     std::filesystem::path config_path = ctx.config.at("WORKING_DIRECTORY");
     std::filesystem::path config_name = config_path / (ctx.config.at("NAME") + ".par");
 
-    //std::cout << "Running LKH for TSP neighborhood search" << std::endl;
+    std::cout << "Running LKH for TSP neighborhood search" << std::endl;
+
     std::string lkh_cmd = ctx.config.at("LKH_EXECUTABLE") + " " + config_name.string();
     std::string lkh_exec = lkh_cmd + " > /dev/null 2>&1";
     int result = std::system((lkh_exec).c_str());

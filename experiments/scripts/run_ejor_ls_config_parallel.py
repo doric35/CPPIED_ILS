@@ -287,18 +287,26 @@ def main():
     incumbent_config = [ils_configs[0], (float("inf"), float("inf"))]
 
     print(
+        f"ILS configurations   : {len(ils_configs)}\n"
         f"Listed instances     : {len(instances)}\n"
+        f"BKS loaded from      : {GLOBAL_RESULTS_FILE}\n"
         f"Workers              : {args.workers}\n"
         f"Scratch dir          : {scratch_dir}\n"
         f"Starting config      : {incumbent_config[0]}\n"
+        f"Results file         : {RESULTS_FILE}\n"
     )
 
     while not stopping_criteria(start_time, prev_incumbent, incumbent_config[0]):
         prev_incumbent = incumbent_config[0]
 
         # Neighborhood phase — flip 0-bits one at a time in positions 1-7
-        print(f"\n── Neighborhood phase  (incumbent: {incumbent_config[0]}) ──")
         cfgs = neighborhood_experiments_configs(incumbent_config[0])
+        print(
+            f"\n── Neighborhood phase  (incumbent: {incumbent_config[0]}) ──\n"
+            f"  Candidate configs : {len(cfgs)}\n"
+            f"  Instances         : {len(instances)}\n"
+            f"  Max new pairs     : {len(cfgs) * len(instances)}"
+        )
         results = run_and_save_configurations(
             cfgs, instances, existing, scratch_dir, solver,
             scratch_results, scratch_errors, args,
@@ -308,8 +316,13 @@ def main():
             incumbent_config = candidate
 
         # Perturbation phase — flip each bit in positions 8-10
-        print(f"\n── Perturbation phase  (incumbent: {incumbent_config[0]}) ──")
         cfgs = perturbation_experiments_configs(incumbent_config[0])
+        print(
+            f"\n── Perturbation phase  (incumbent: {incumbent_config[0]}) ──\n"
+            f"  Candidate configs : {len(cfgs)}\n"
+            f"  Instances         : {len(instances)}\n"
+            f"  Max new pairs     : {len(cfgs) * len(instances)}"
+        )
         results = run_and_save_configurations(
             cfgs, instances, existing, scratch_dir, solver,
             scratch_results, scratch_errors, args,
@@ -319,8 +332,13 @@ def main():
             incumbent_config = candidate
 
         # Restart phase — flip the last bit
-        print(f"\n── Restart phase       (incumbent: {incumbent_config[0]}) ──")
         cfgs = restart_experiments_configs(incumbent_config[0])
+        print(
+            f"\n── Restart phase       (incumbent: {incumbent_config[0]}) ──\n"
+            f"  Candidate configs : {len(cfgs)}\n"
+            f"  Instances         : {len(instances)}\n"
+            f"  Max new pairs     : {len(cfgs) * len(instances)}"
+        )
         results = run_and_save_configurations(
             cfgs, instances, existing, scratch_dir, solver,
             scratch_results, scratch_errors, args,

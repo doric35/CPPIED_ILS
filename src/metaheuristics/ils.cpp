@@ -52,6 +52,13 @@ void ils::d_solve(cppied_solution &pSolution) {
         callbacks.onSatisfy(pSolution, msg);
     }
 
+    CPPIEDCallbacks ls_callbacks{};
+    ls_callbacks.onSatisfy = callbacks.onSatisfy;
+    ls_callbacks.stopCriteria = [&](const cppied_solution& sol, const std::any& ctx){
+        return stopping_criterion();
+    };
+    ls.set_callbacks(ls_callbacks);
+
     local_search(pSolution);
     auto trial = pSolution;
     luby L;
@@ -60,13 +67,6 @@ void ils::d_solve(cppied_solution &pSolution) {
         std::string msg = "Before starting ils iterations.";
         callbacks.onSatisfy(pSolution, msg);
     }
-
-    CPPIEDCallbacks ls_callbacks{};
-    ls_callbacks.onSatisfy = callbacks.onSatisfy;
-    ls_callbacks.stopCriteria = [&](const cppied_solution& sol, const std::any& ctx){
-        return stopping_criterion();
-    };
-    ls.set_callbacks(ls_callbacks);
 
     while (!stopping_criterion()){
         int no_improvement_allowed = L(iterations++);
@@ -111,7 +111,7 @@ void ils::d_solve(cppied_solution &pSolution) {
             pSolution = trial;
         else
             trial = pSolution;
-        if (!R.empty()){
+        if (!R.empty() && !stopping_criterion()){
             auto starter = uniform_sample(R);
             starter->restart(trial);
             if (callbacks.onSatisfy) {
@@ -121,7 +121,8 @@ void ils::d_solve(cppied_solution &pSolution) {
         }
         geometry.complete(trial);
         coverage.reset(trial);
-        local_search(trial);
+        if (!stopping_criterion())
+            local_search(trial);
     }
     geometry.complete(pSolution);
     coverage.reset(pSolution);
