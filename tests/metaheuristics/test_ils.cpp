@@ -429,7 +429,8 @@ TEST_F(ils_local_search_fixture, LocalSearchSecondCallReturnsFalseAfterConvergen
     cov().reset(sol);
     sol.cost = geo().cost(sol);
     cost_t tmp = sol.cost;
-    EXPECT_EQ(algorithm->local_search(sol), sol.cost < tmp);
+    bool second_call_improved = algorithm->local_search(sol);
+    EXPECT_EQ(second_call_improved, sol.cost < tmp);
 }
 
 // At the local optimum the cost field must equal geometry.cost.

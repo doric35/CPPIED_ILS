@@ -27,7 +27,9 @@ bool neighborhood_gtsp::local_search(cppied_solution &pSol) {
     tsp_to_path(trial, tour, graph);
     trial.cost = geometry.cost(trial);
     if (trial.cost < pSol.cost) {
-        pSol = std::move(trial);
+        pSol.path = std::move(trial.path);
+        pSol.cost = trial.cost;
+        pSol.coverage = trial.coverage;
         return true;
     }
     return false;
