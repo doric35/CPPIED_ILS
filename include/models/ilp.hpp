@@ -49,6 +49,7 @@ public:
     void set_flow_sets(cppied_solution& pSolution);
 
     void retrieve_solution(cppied_solution& pSolution,
+                           std::list<int>& path_container,
                            const std::function<void()>& set_flow_variables);
     void find_source_to_target(cppied_solution& pSolution,
                                std::list<int>& path);
@@ -87,25 +88,27 @@ public:
 
 protected:
     cppied_solution dummy;
-    double M = 0.0;
+    double M = 1.0;
     void callback() override {
         try {
             if (where == GRB_CB_MIPSOL) {
                 //Found an integer solution, identify subtours;
-                M = std::max(M, getDoubleInfo(GRB_CB_MIPSOL_OBJ));
+                //M = std::max(M, getDoubleInfo(GRB_CB_MIPSOL_OBJ));
                 auto flow_setter = [&](){
                     for (int u=0; u<math_program.problem.vertex.size(); ++u){
                         for (int v =0; v<math_program.variables[u].outgoing_variables.size(); ++v){
                             math_program.variables[u].variables_flow[v] =
                                     getSolution(math_program.variables[u].outgoing_variables[v]);
+                            M = std::max(M, math_program.variables[u].variables_flow[v]+1.0);
                         }
                         math_program.targets_minus_flow[u] = getSolution(math_program.targets_minus[u]);
                         math_program.targets_plus_flow[u] = getSolution(math_program.targets_plus[u]);
                     }
                 };
-                //std::cout << "Before CB retrieve" << std::endl;
-                math_program.retrieve_solution(dummy, flow_setter);
-                //std::cout << "After CB retrieve" << std::endl;
+
+                std::list<int> path;
+                math_program.retrieve_solution(dummy, path, flow_setter);
+
                 std::pair<int, int> root_edge = subtour_root();
                 if (path_engine::is_node(root_edge.first)) {
                     bool minus;
@@ -119,6 +122,7 @@ protected:
                     std::list<int> subtour;
                     math_program.find_cycle(dummy, subtour,
                                             root_edge.first, minus);
+                    assert(subtour.back() == root_edge.first);
                     if (!subtour.empty())
                         add_subtour_elimination_constraint(root_edge.first, minus,
                                                            subtour);

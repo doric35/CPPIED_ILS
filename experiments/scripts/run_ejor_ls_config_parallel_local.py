@@ -277,6 +277,19 @@ def main():
         f"Results file         : {RESULTS_FILE}\n"
     )
 
+    cfgs = [incumbent_config[0]]
+    print(
+        f"\n── Initialisation phase  (incumbent: {incumbent_config[0]}) ──\n"
+        f"  Candidate configs : {len(cfgs)}\n"
+        f"  Instances         : {len(instances)}\n"
+        f"  Max new pairs     : {len(cfgs) * len(instances)}"
+        f"  Incumbent (c, rad): {incumbent_config}"
+    )
+    results = run_and_save_configurations(cfgs, instances, existing, solver, args)
+    candidate = incumbent_configuration(results, BKS) if results else None
+    if candidate:
+        incumbent_config = candidate
+
     while not stopping_criteria(start_time, prev_incumbent, incumbent_config[0]):
         prev_incumbent = incumbent_config[0]
 

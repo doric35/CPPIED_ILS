@@ -2,7 +2,7 @@
 
 bool vnd::search(cppied_solution &pSolution) {
     bool local_improved = true, improved = false;
-    std::cout << "Entering VND." << std::endl;
+    //std::cout << "Entering VND." << std::endl;
     cost_t i_c = pSolution.cost;
     cost_t c = i_c;
     auto cb_tmp = callbacks.onSatisfy;
@@ -40,14 +40,14 @@ bool vnd::search(cppied_solution &pSolution) {
     }
     while (local_improved){
         if (callbacks.stopCriteria && callbacks.stopCriteria(pSolution, nullptr)) {
-            std::cout << "Called stopCriteria stopped VND." << std::endl;
+            //std::cout << "Called stopCriteria stopped VND." << std::endl;
             break;
         }
 
         local_improved = false;
         for (const auto &i : N){
             if (callbacks.stopCriteria && callbacks.stopCriteria(pSolution, nullptr)) {
-                std::cout << "Called stopCriteria stopped VND." << std::endl;
+                //std::cout << "Called stopCriteria stopped VND." << std::endl;
                 break;
             }
             if (callbacks.onSatisfy)
@@ -79,7 +79,7 @@ bool vnd::search(cppied_solution &pSolution) {
         }
     }
     callbacks.onSatisfy = cb_tmp;
-    std::cout << "Leaving VND." << std::endl;
+    //std::cout << "Leaving VND." << std::endl;
     return pSolution.cost < i_c;
 }
 

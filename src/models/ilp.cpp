@@ -47,7 +47,9 @@ void ilp::d_solve(cppied_solution &pSolution) {
                 targets_plus_flow[u] = targets_plus[u].get(GRB_DoubleAttr_X);
             }
         };
-        retrieve_solution(pSolution, flow_setter);
+        std::list<int> path;
+        retrieve_solution(pSolution, path, flow_setter);
+        set_solution(pSolution, path);
         if (grb_status == GRB_OPTIMAL)
             status = algorithm_flag::OPTIMAL;
         else
@@ -202,14 +204,15 @@ void ilp::set_objectives(cppied_solution &pSolution,
 }
 
 void ilp::retrieve_solution(cppied_solution &pSolution,
+                            std::list<int>& path_container,
                             const std::function<void()>& set_flow_variables) {
     set_flow_variables();
-    std::list<int> path;
+    path_container.clear();
 
-    find_source_to_target(pSolution, path);
-    auto current = std::prev(path.end());
+    find_source_to_target(pSolution, path_container);
+    auto current = std::prev(path_container.end());
     bool curr_minus;
-    while (current != path.begin()){
+    while (current != path_container.begin()){
         std::list<int> subpath;
         if (std::find(minus_sets[*current].V.begin(), minus_sets[*current].V.end(),*std::prev(current))
             != minus_sets[*current].V.end()){
@@ -218,13 +221,12 @@ void ilp::retrieve_solution(cppied_solution &pSolution,
             curr_minus = false;
         find_cycle(pSolution, subpath, *current, curr_minus);
         if (!subpath.empty())
-            path.splice(std::next(current), subpath);
+            path_container.splice(std::next(current), subpath);
         --current;
     }
     std::list<int> subpath;
     find_cycle(pSolution, subpath, *current, starting_minus);
-    path.splice(std::next(current), subpath);
-    set_solution(pSolution, path);
+    path_container.splice(std::next(current), subpath);
 }
 
 void ilp::set_solution(cppied_solution &pSolution, std::list<int> &path) {
@@ -309,6 +311,7 @@ void ilp::find_cycle(cppied_solution &pSolution,
                      std::list<int> &path,
                      int current_node,
                      bool curr_minus) {
+    int starting_node = current_node;
     while (true){
         int next_node = -1;
 
@@ -341,6 +344,8 @@ void ilp::find_cycle(cppied_solution &pSolution,
     }
 
     if (path.empty()) return;
+
+    assert(path.back()==starting_node);
 
     auto node = path.begin();
     curr_minus = std::find(minus_sets[*node].V.begin(),

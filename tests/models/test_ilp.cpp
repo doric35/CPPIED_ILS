@@ -629,7 +629,9 @@ protected:
 TEST_F(ilp_solved_fixture, RetrieveSolutionProducesNonEmptyPath) {
     cppied_solution result = sol;
     result.coverage = Eigen::VectorXd::Zero(P.req.size());
-    m->retrieve_solution(result, flow_setter);
+    std::list<int> path;
+    m->retrieve_solution(result, path, flow_setter);
+    m->set_solution(result, path);
     EXPECT_GT(result.path.size(), 0u)
         << "retrieve_solution produced an empty path";
 }
@@ -638,7 +640,9 @@ TEST_F(ilp_solved_fixture, RetrieveSolutionProducesNonEmptyPath) {
 TEST_F(ilp_solved_fixture, RetrieveSolutionSatisfiesCoverage) {
     cppied_solution result = sol;
     result.coverage = Eigen::VectorXd::Zero(P.req.size());
-    m->retrieve_solution(result, flow_setter);
+    std::list<int> path;
+    m->retrieve_solution(result, path, flow_setter);
+    m->set_solution(result, path);
     m->coverage.reset(result);
     EXPECT_TRUE((result.coverage.array() >= P.req.array()).all())
         << "retrieved solution violates coverage requirements";
@@ -648,7 +652,9 @@ TEST_F(ilp_solved_fixture, RetrieveSolutionSatisfiesCoverage) {
 TEST_F(ilp_solved_fixture, RetrieveSolutionCostConsistent) {
     cppied_solution result = sol;
     result.coverage = Eigen::VectorXd::Zero(P.req.size());
-    m->retrieve_solution(result, flow_setter);
+    std::list<int> path;
+    m->retrieve_solution(result, path, flow_setter);
+    m->set_solution(result, path);
     EXPECT_EQ(m->geometry.cost(result), result.cost)
         << "result.cost is inconsistent with geometry.cost after retrieve_solution";
 }
@@ -660,7 +666,9 @@ TEST_F(ilp_solved_fixture, RetrieveSolutionCostConsistent) {
 TEST_F(ilp_solved_fixture, RetrieveSolutionConsumesVariablesFlow) {
     cppied_solution result = sol;
     result.coverage = Eigen::VectorXd::Zero(P.req.size());
-    m->retrieve_solution(result, flow_setter);
+    std::list<int> path;
+    m->retrieve_solution(result, path, flow_setter);
+    m->set_solution(result, path);
 
     for (int u = 0; u < (int)m->variables.size(); ++u)
         for (int f : m->variables[u].variables_flow)
@@ -916,7 +924,9 @@ protected:
 TEST_F(ilp_solved_large_fixture, RetrieveSolutionConsumesVariablesFlow) {
     cppied_solution result = sol;
     result.coverage = Eigen::VectorXd::Zero(P.req.size());
-    m->retrieve_solution(result, flow_setter);
+    std::list<int> path;
+    m->retrieve_solution(result, path, flow_setter);
+    m->set_solution(result, path);
 
     for (int u = 0; u < (int)m->variables.size(); ++u)
         for (int f : m->variables[u].variables_flow)
@@ -924,4 +934,138 @@ TEST_F(ilp_solved_large_fixture, RetrieveSolutionConsumesVariablesFlow) {
                                 << "variables_flow[" << u << "][*] is non-zero after retrieve_solution; "
                                                              "the method is destructive — it consumes the flow during path extraction. "
                                                              "A second call cannot reconstruct the path.";
+}
+
+class ilp_solved_very_large_fixture: public ::testing::Test{
+protected:
+    static std::optional<cppied_context>  ctx_vlf;
+    static std::optional<cppied_instance> P_vlf;
+
+    static std::unique_ptr<ilp_accessor> m_vlf;
+    static cppied_solution               sol_vlf;
+    static std::function<void()>         flow_setter_vlf;
+
+    static GRBEnv                    genv_vlf;
+    static std::unique_ptr<GRBModel> grb_model_vlf;
+
+    static std::unique_ptr<subtour_elimination> cb_vlf;
+
+    static void SetUpTestSuite() {
+        ctx_vlf.emplace(read_configuration(config_path));
+
+        P_vlf.emplace(
+                read_matrix<int>(seabed_path),
+                read_matrix<double>(pod_path),
+                read_matrix<double>(req_path)
+        );
+
+        // Initialize once
+        sol_vlf.path = {};
+        sol_vlf.cost     = {0, 0};
+        sol_vlf.coverage = Eigen::VectorXd::Zero(P_vlf->req.size());
+
+        ctx_vlf->start_time = std::chrono::high_resolution_clock::now();
+        ctx_vlf->max_time   = 600;
+
+        dp_sweeper dps(ctx_vlf.value(), P_vlf.value());
+        auto history_save = [](cppied_solution&){};
+        dps.construct(sol_vlf, history_save);
+
+        m_vlf = std::make_unique<ilp_accessor>(ctx_vlf.value(), P_vlf.value());
+        m_vlf->coverage.reset(sol_vlf);
+        sol_vlf.cost = m_vlf->geometry.cost(sol_vlf);
+
+        flow_setter_vlf = [](){
+            for (int u=0; u<m_vlf->problem.vertex.size(); ++u){
+                for (int v =0; v<m_vlf->variables[u].outgoing_variables.size(); ++v){
+                    m_vlf->variables[u].variables_flow[v] =
+                            m_vlf->variables[u].outgoing_variables[v].get(GRB_DoubleAttr_X);
+                }
+                m_vlf->targets_minus_flow[u] = m_vlf->targets_minus[u].get(GRB_DoubleAttr_X);
+                m_vlf->targets_plus_flow[u]  = m_vlf->targets_plus[u].get(GRB_DoubleAttr_X);
+            }
+        };
+
+        genv_vlf.set(GRB_IntParam_OutputFlag, 0);
+        genv_vlf.start();
+        grb_model_vlf = std::make_unique<GRBModel>(genv_vlf);
+        m_vlf->set_flow_sets(sol_vlf);
+        m_vlf->set_variables(sol_vlf, *grb_model_vlf);
+        grb_model_vlf->set(GRB_DoubleParam_TimeLimit, ctx_vlf->max_time);
+        grb_model_vlf->set(GRB_DoubleParam_NoRelHeurTime, 300);
+        grb_model_vlf->update();
+
+        m_vlf->set_constraints(sol_vlf, *grb_model_vlf);
+        cb_vlf = std::make_unique<subtour_elimination>(*m_vlf);
+        grb_model_vlf->set(GRB_IntParam_LazyConstraints, 1);
+        grb_model_vlf->setCallback(cb_vlf.get());
+        grb_model_vlf->update();
+
+        m_vlf->set_objectives(sol_vlf, *grb_model_vlf);
+        grb_model_vlf->update();
+
+        grb_model_vlf ->optimize();
+    }
+
+    static void TearDownTestSuite() {
+        // optional cleanup
+    }
+
+    void SetUp() override{
+        int status = grb_model_vlf->get(GRB_IntAttr_Status);
+        if (status != GRB_OPTIMAL && status != GRB_SUBOPTIMAL &&
+            !(status == GRB_TIME_LIMIT && grb_model_vlf->get(GRB_IntAttr_SolCount) > 0))
+            GTEST_SKIP() << "Gurobi did not find a feasible solution; skipping retrieve tests";
+    }
+
+    // Raw data files live in the source tree
+    static constexpr const char* seabed_path =
+                                       PROJECT_SOURCE_DIR "/tests/configurations/test_s6464_ir1_lrc033/cppied_problem.txt";
+    static constexpr const char* pod_path =
+                                       PROJECT_SOURCE_DIR "/tests/configurations/test_s6464_ir1_lrc033/cppied_pod.txt";
+    static constexpr const char* req_path =
+                                       PROJECT_SOURCE_DIR "/tests/configurations/test_s6464_ir1_lrc033/cppied_req.txt";
+    // Generated config files (with resolved paths) live in the build tree
+    static constexpr const char* config_path =
+                                       PROJECT_SOURCE_DIR "/tests/configurations/ilp_large_test_config.txt";
+};
+
+std::optional<cppied_context> ilp_solved_very_large_fixture::ctx_vlf;
+std::optional<cppied_instance> ilp_solved_very_large_fixture::P_vlf;
+
+std::unique_ptr<ilp_accessor> ilp_solved_very_large_fixture::m_vlf = nullptr;
+cppied_solution ilp_solved_very_large_fixture::sol_vlf;
+std::function<void()> ilp_solved_very_large_fixture::flow_setter_vlf;
+
+GRBEnv ilp_solved_very_large_fixture::genv_vlf{true};
+std::unique_ptr<GRBModel> ilp_solved_very_large_fixture::grb_model_vlf = nullptr;
+
+std::unique_ptr<subtour_elimination> ilp_solved_very_large_fixture::cb_vlf = nullptr;
+
+// Bug (documented behaviour): retrieve_solution consumes variables_flow by
+// decrementing arc flows to zero as it walks the graph.  After the call, all
+// flow values must be 0 — a second call would find no arcs to follow and
+// produce an incorrect or empty path.
+TEST_F(ilp_solved_very_large_fixture, RetrieveSolutionConsumesVariablesFlow) {
+    cppied_solution result = sol_vlf;
+    result.coverage = Eigen::VectorXd::Zero(P_vlf->req.size());
+    std::list<int> path;
+    m_vlf->retrieve_solution(result, path, flow_setter_vlf);
+    m_vlf->set_solution(result, path);
+
+    for (int u = 0; u < (int)m_vlf->variables.size(); ++u)
+        for (int f : m_vlf->variables[u].variables_flow)
+            EXPECT_EQ(f, 0)
+                                << "variables_flow[" << u << "][*] is non-zero after retrieve_solution; "
+                                                             "the method is destructive — it consumes the flow during path extraction. "
+                                                             "A second call cannot reconstruct the path.";
+}
+
+TEST_F(ilp_solved_very_large_fixture, RetrieveValidSolutionFromFlow){
+    cppied_solution result = sol_vlf;
+    result.coverage = Eigen::VectorXd::Zero(P_vlf->req.size());
+    std::list<int> path;
+    m_vlf->retrieve_solution(result, path, flow_setter_vlf);
+    m_vlf->set_solution(result, path);
+    EXPECT_NO_THROW(m_vlf->validate_solution(result));
 }
