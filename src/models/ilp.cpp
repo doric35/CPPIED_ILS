@@ -354,7 +354,8 @@ void ilp::find_cycle(cppied_solution &pSolution,
     while (true){
         std::list<int> subtour;
         find_cycle(pSolution, subtour, *node, curr_minus);
-        path.splice(std::next(node), subtour);
+        if (!subtour.empty())
+            path.splice(std::next(node), subtour);
         ++node;
 
         if (node == path.end()) return;

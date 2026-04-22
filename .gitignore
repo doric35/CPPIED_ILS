@@ -9,3 +9,6 @@ tests/**/*.txt
 tests/**/*.log
 tests/scratch/*
 **/*.pyc
+.idea/*
+experiments/results
+

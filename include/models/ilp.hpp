@@ -92,6 +92,7 @@ protected:
     void callback() override {
         try {
             if (where == GRB_CB_MIPSOL) {
+                //std::cout << "Entering subtour elimination routine." << std::endl;
                 //Found an integer solution, identify subtours;
                 //M = std::max(M, getDoubleInfo(GRB_CB_MIPSOL_OBJ));
                 auto flow_setter = [&](){
@@ -128,6 +129,7 @@ protected:
                                                            subtour);
                     else throw std::runtime_error("Entered subtour elimination routine but no subtour was extracted.\n");
                 }
+                //std::cout << "Exit subtour elimination routine." << std::endl;
             }
         }
         catch (GRBException& e) {
@@ -156,19 +158,27 @@ protected:
                                             std::list<int>& subtour){
         std::set<int> S(subtour.begin(), subtour.end());
         GRBLinExpr parity_outgoing_arcs_sum = 0.0;
+        GRBLinExpr parity_inward_arcs_sum = 0.0;
         std::vector<GRBVar*> candidate_constraints;
         candidate_constraints.reserve(S.size());
+
+//        std::cout << "subtour size = "
+//                  << subtour.size() << std::endl;
 
         auto process_node = [&](int from, bool curr_minus){
             const auto& exit_set = curr_minus ? math_program.plus_sets[from].V :
                                                                     math_program.minus_sets[from].V;
+//            std::cout << "candidate_constraints size = "
+//                      << candidate_constraints.size() << std::endl;
 
             for (int w : exit_set){
                 auto it = math_program.variables[from].vertex_to_arc.find(w);
                 if (it == math_program.variables[from].vertex_to_arc.end()) continue;
                 auto& var = math_program.variables[from].outgoing_variables[it->second];
-                if (S.contains(w))
-                    candidate_constraints.push_back(&var);
+                if (S.contains(w)) {
+                    //candidate_constraints.push_back(&var);
+                    parity_inward_arcs_sum += var;
+                }
                 else
                     parity_outgoing_arcs_sum += var;
             }
@@ -187,12 +197,17 @@ protected:
                        != math_program.minus_sets[node].V.end();
             prev = node;
         }
-        parity_outgoing_arcs_sum = M * parity_outgoing_arcs_sum;
-        auto add_constraint = [&](GRBVar* v){
-            addLazy(parity_outgoing_arcs_sum - *v >= 0);
-        };
-        std::for_each(candidate_constraints.begin(),
-                      candidate_constraints.end(),
-                      add_constraint);
+        parity_outgoing_arcs_sum = std::max(M, double(subtour.size()+1)) * parity_outgoing_arcs_sum;
+        addLazy(parity_outgoing_arcs_sum - parity_inward_arcs_sum >= 0);
+//        int count =0;
+//        auto add_constraint = [&](GRBVar* v){
+//            count += 1;
+//            addLazy(parity_outgoing_arcs_sum - *v >= 0);
+//        };
+//        std::cout << "candidate_constraints size = "
+//                  << candidate_constraints.size() << std::endl;
+//        std::for_each(candidate_constraints.begin(),
+//                      candidate_constraints.end(),
+//                      add_constraint);
     }
 };

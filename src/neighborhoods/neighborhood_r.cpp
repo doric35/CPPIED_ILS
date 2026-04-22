@@ -216,7 +216,7 @@ void neighborhood_r::select(cppied_solution &pSol,
     for(; i< pSol.path.size()-1; ++i, ++path_it)
         gains[i] = gain(pSol, path_it);
 
-    std::vector<int> candidates(pSol.path.size() - 1);
+    std::vector<int> candidates(pSol.path.size() - 2);
     std::iota(candidates.begin(), candidates.end(), 1);
 
     auto splitter = [&](int i){

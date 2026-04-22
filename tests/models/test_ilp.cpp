@@ -834,6 +834,10 @@ protected:
         cppied_context_large_fixture::SetUp();
         // 7-segment local optimum on the 6×6 test seabed (same path used
         // across neighbourhood tests to ensure coverage feasibility).
+
+        ctx.start_time = std::chrono::high_resolution_clock::now();
+        ctx.max_time   = 60;
+
         sol.path = {};
         sol.cost     = {0, 0};
         sol.coverage = Eigen::VectorXd::Zero(P.req.size());
@@ -847,8 +851,7 @@ protected:
         m = std::make_unique<ilp_accessor>(ctx, P);
         m->coverage.reset(sol);
         sol.cost = m->geometry.cost(sol);
-        ctx.start_time = std::chrono::high_resolution_clock::now();
-        ctx.max_time   = 60;
+
         flow_setter = [&](){
             for (int u=0; u<m->problem.vertex.size(); ++u){
                 for (int v =0; v<m->variables[u].outgoing_variables.size(); ++v){
@@ -909,6 +912,8 @@ class ilp_solved_large_fixture : public ilp_objectives_large_fixture {
 protected:
     void SetUp() override {
         ilp_objectives_large_fixture::SetUp();
+        grb_model->set(GRB_DoubleParam_NoRelHeurTime, 300);
+        grb_model->update();
         grb_model->optimize();
         int status = grb_model->get(GRB_IntAttr_Status);
         if (status != GRB_OPTIMAL && status != GRB_SUBOPTIMAL &&
@@ -1003,7 +1008,6 @@ protected:
 
         m_vlf->set_objectives(sol_vlf, *grb_model_vlf);
         grb_model_vlf->update();
-
         grb_model_vlf ->optimize();
     }
 
