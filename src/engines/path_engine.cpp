@@ -63,7 +63,6 @@ cost_t path_engine::dist(const segment &a,
     const int to = static_cast<int>(get_direction(b));
     const int v = is_node(a.target) ? a.target : a.source;
     const int u = b.source;
-    const int S = problem.vertex.size();
 
     const int W = 2*n_cols + 1, H = 2*n_rows + 1;
 
@@ -74,16 +73,16 @@ cost_t path_engine::dist(const segment &a,
     const int  bu  = exchange[block] ? v : u;   // source   role in the canonical block
     int sdx = vx[u] - vx[v];
     int sdy = vy[u] - vy[v];
-    if (!boundary_displacement[sec * S + bv] ||
-        !boundary_displacement[sec * S + bu] ||
+    if (!boundary_displacement[sec * n_vertex + bv] ||
+        !boundary_displacement[sec * n_vertex + bu] ||
         !is_true_boundary(sec, bv, bu,
                           (1 - (2*exchange[block]))*sdx,
                           (1 - (2*exchange[block]))*sdy)) [[likely]] {
         if (flip[block]) sdx = -sdx, sdy = -sdy;
         return displacement_table[(primary[block] * H * W) + ((sdy + n_rows) * W) + (sdx + n_cols)];
     }
-    int dx = std::abs(problem.vertex[bv].x - problem.vertex[bu].x);
-    int dy = std::abs(problem.vertex[bv].y - problem.vertex[bu].y);
+    int dx = static_cast<int>(std::abs(problem.vertex[bv].x - problem.vertex[bu].x));
+    int dy = static_cast<int>(std::abs(problem.vertex[bv].y - problem.vertex[bu].y));
     return dist_boundary(sec, dx, dy);
 }
 

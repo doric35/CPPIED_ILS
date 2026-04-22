@@ -9,6 +9,7 @@ public:
         n_rows = static_cast<int>(problem.seabed.rows());
         n_cols = static_cast<int>(problem.seabed.cols());
         horizontal_bound = (n_rows + 1) * n_cols;
+        n_vertex = static_cast<int>(problem.vertex.size());
 
         set_int_coordinates();
         set_boundaries();
@@ -70,6 +71,7 @@ public:
 
     int n_rows;
     int n_cols;
+    int n_vertex;
     int horizontal_bound;
 protected:
     const cppied_instance& problem;

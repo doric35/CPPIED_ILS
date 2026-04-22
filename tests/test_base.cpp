@@ -669,5 +669,120 @@ TEST_F(cppied_method_fixture, ValidCoverageExtraction){
     ASSERT_TRUE(sol.coverage.isZero(1e-12));
 }
 
+// ── SetCover tests ────────────────────────────────────────────────────────────
 
+struct cppied_set_cover_fixture : public ::testing::Test {
+protected:
+    struct testable_instance : public cppied_instance_base{
+        using cppied_instance_base::cppied_instance_base;
+        using cppied_instance_base::set_cover;
+        using cppied_instance_base::transform_log1p;
+        using cppied_instance_base::initialize_cells;
+        using cppied_instance_base::initialize_vertices;
+        using cppied_instance_base::initialize_sparse_pod;
+    };
+    cppied_set_cover_fixture() : P(
+        read_matrix<int>(PROJECT_SOURCE_DIR "/tests/configurations/test_seabed.txt"),
+        read_matrix<double>(PROJECT_SOURCE_DIR "/tests/configurations/test_pod.txt"),
+        read_matrix<double>(PROJECT_SOURCE_DIR "/tests/configurations/test_req.txt")
+    ) {}
+    void SetUp() override{
+        P.transform_log1p();
+        P.max_range = int(P.pod.cols());
+        P.initial_position = static_cast<int>(P.seabed.cols() * P.max_range);
+        P.initialize_cells();
+        P.initialize_vertices();
+    }
+    testable_instance P;
+};
+
+// Horizontal vertex 0: (0.5, 0.0) — top boundary, clamps to row 0 only.
+TEST_F(cppied_set_cover_fixture, HorizontalTopBoundary) {
+    std::vector<int> C;
+    P.set_cover(0, C, true);
+    ASSERT_EQ(C.size(), 1u);
+    EXPECT_EQ(C[0], 0);  // row0*6+col0
+}
+
+// Horizontal vertex 6: (0.5, 1.0) — interior, covers rows 0 and 1 in col 0.
+TEST_F(cppied_set_cover_fixture, HorizontalInterior) {
+    std::vector<int> C;
+    P.set_cover(6, C, true);
+    ASSERT_EQ(C.size(), 2u);
+    EXPECT_EQ(C[0], 0);   // row0*6+col0
+    EXPECT_EQ(C[1], 6);   // row1*6+col0
+}
+
+// Horizontal vertex 36: (0.5, 6.0) — bottom boundary, clamps to row 5 only.
+TEST_F(cppied_set_cover_fixture, HorizontalBottomBoundary) {
+    std::vector<int> C;
+    P.set_cover(36, C, true);
+    ASSERT_EQ(C.size(), 1u);
+    EXPECT_EQ(C[0], 30);  // row5*6+col0
+}
+
+// Horizontal vertex 9: (3.5, 1.0) — interior, column 3, rows 0 and 1.
+TEST_F(cppied_set_cover_fixture, HorizontalOffsetColumn) {
+    std::vector<int> C;
+    P.set_cover(9, C, true);
+    ASSERT_EQ(C.size(), 2u);
+    EXPECT_EQ(C[0], 3);   // row0*6+col3
+    EXPECT_EQ(C[1], 9);   // row1*6+col3
+}
+
+// Horizontal vertex 21: (3.5, 3.0) — interior, column 3, rows 2 and 3.
+TEST_F(cppied_set_cover_fixture, HorizontalMiddle) {
+    std::vector<int> C;
+    P.set_cover(21, C, true);
+    ASSERT_EQ(C.size(), 2u);
+    EXPECT_EQ(C[0], 15);  // row2*6+col3
+    EXPECT_EQ(C[1], 21);  // row3*6+col3
+}
+
+// Vertical vertex 42: (0.0, 0.5) — left boundary, clamps to col 0 only.
+TEST_F(cppied_set_cover_fixture, VerticalLeftBoundary) {
+    std::vector<int> C;
+    P.set_cover(42, C, false);
+    ASSERT_EQ(C.size(), 1u);
+    EXPECT_EQ(C[0], 0);   // col0*6+row0
+}
+
+// Vertical vertex 48: (1.0, 0.5) — interior, row 0, cols 0 and 1.
+TEST_F(cppied_set_cover_fixture, VerticalInterior) {
+    std::vector<int> C;
+    P.set_cover(48, C, false);
+    ASSERT_EQ(C.size(), 2u);
+    EXPECT_EQ(C[0], 0);   // col0*6+row0
+    EXPECT_EQ(C[1], 1);
+}
+
+// Vertical vertex 78: (6.0, 0.5) — right boundary, clamps to col 5 only.
+TEST_F(cppied_set_cover_fixture, VerticalRightBoundary) {
+    std::vector<int> C;
+    P.set_cover(78, C, false);
+    ASSERT_EQ(C.size(), 1u);
+    EXPECT_EQ(C[0], 5);  // col5*6+row0
+}
+
+// Vertical vertex 51: (1.0, 3.5) — interior, row 3, cols 0 and 1.
+TEST_F(cppied_set_cover_fixture, VerticalOffsetRow) {
+    std::vector<int> C;
+    P.set_cover(51, C, false);
+    ASSERT_EQ(C.size(), 2u);
+    EXPECT_EQ(C[0], 18);   // col0*6+row3
+    EXPECT_EQ(C[1], 19);   // col1*6+row3
+}
+
+// Vertical vertex 60: (3.0, 0.5) — interior, row 0, cols 2 and 3.
+TEST_F(cppied_set_cover_fixture, VerticalMiddleColumn) {
+    std::vector<int> C;
+    P.set_cover(60, C, false);
+    ASSERT_EQ(C.size(), 2u);
+    EXPECT_EQ(C[0], 2);  // col2*6+row0
+    EXPECT_EQ(C[1], 3);  // col3*6+row0
+}
+
+TEST_F(cppied_set_cover_fixture, ConstructSparsePodNoThrow){
+    EXPECT_NO_THROW(P.initialize_sparse_pod());
+}
 
