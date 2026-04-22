@@ -38,13 +38,16 @@ with open(RESULTS_CSV, newline="") as fh:
         # e.g.  s1616_ir0_lrc031_c11111111111
         parts    = row["name"].split("_")
         instance = "_".join(parts[:3])   # s1616_ir0_lrc031
-        config   = parts[3]              # c11111111111
-        rows.append({
-            "instance": instance,
-            "config":   config,
-            "length":   int(row["length"]),
-            "turns":    int(row["turns"]),
-        })
+        config   = parts[3]  # c11111111111
+        size = parts[0]  # s1616, s6464, s128128
+        if len(config) == 12:
+            rows.append({
+                "instance": instance,
+                "size":     size,
+                "config":   config,
+                "length":   int(row["length"]),
+                "turns":    int(row["turns"]),
+            })
 
 
 def compute_config_rads(rows, metric):
@@ -67,7 +70,7 @@ def compute_config_rads(rows, metric):
     return config_rads
 
 
-def make_boxplot(config_rads, metric_label, output_png):
+def make_boxplot(config_rads, metric_label, output_pdf):
     configs_sorted = sorted(
         config_rads.keys(),
         key=lambda c: statistics.mean(config_rads[c]),
@@ -78,7 +81,7 @@ def make_boxplot(config_rads, metric_label, output_png):
     means  = [statistics.mean(d) for d in data]
 
     n = len(configs_sorted)
-    fig_height = max(6, n * 0.55 + 1.5)
+    fig_height = max(6, n * 0.25 + 1.5)
     fig, ax = plt.subplots(figsize=(10, fig_height))
 
     ax.boxplot(
@@ -86,7 +89,7 @@ def make_boxplot(config_rads, metric_label, output_png):
         vert=False,
         patch_artist=True,
         positions=range(n),
-        widths=0.55,
+        widths=0.25,
         boxprops=dict(facecolor="#d6e4f0", color="#2c5f8a"),
         medianprops=dict(color="#e05c2a", linewidth=2),
         whiskerprops=dict(color="#2c5f8a"),
@@ -99,7 +102,7 @@ def make_boxplot(config_rads, metric_label, output_png):
         range(n),
         marker="D",
         color="#1a6fb5",
-        s=55,
+        s=25,
         zorder=5,
     )
 
@@ -115,21 +118,23 @@ def make_boxplot(config_rads, metric_label, output_png):
     ], loc="lower right", fontsize=9)
 
     plt.tight_layout()
-    fig.savefig(output_png, dpi=150)
+    fig.savefig(output_pdf, dpi=150, format='pdf')
     plt.close(fig)
-    print(f"Saved: {output_png}")
+    print(f"Saved: {output_pdf}")
 
 
-# ── Length plot ───────────────────────────────────────────────────────────────
-make_boxplot(
-    compute_config_rads(rows, "length"),
-    metric_label="Path Length",
-    output_png=RESULTS_DIR / "ejor_rad_boxplot_length.png",
-)
+SIZES = sorted({r["size"] for r in rows})
 
-# ── Turns plot ────────────────────────────────────────────────────────────────
-make_boxplot(
-    compute_config_rads(rows, "turns"),
-    metric_label="Turns",
-    output_png=RESULTS_DIR / "ejor_rad_boxplot_turns.png",
-)
+METRICS = [
+    ("length", "Path Length"),
+    ("turns",  "Turns"),
+]
+
+for metric, metric_label in METRICS:
+    for size in SIZES:
+        size_rows = [r for r in rows if r["size"] == size]
+        make_boxplot(
+            compute_config_rads(size_rows, metric),
+            metric_label=f"{metric_label} — {size}",
+            output_pdf=RESULTS_DIR / f"ejor_rad_boxplot_{metric}_{size}.pdf",
+        )

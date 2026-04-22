@@ -1,4 +1,0 @@
-# Best ILS configuration found by local search
-config          = c00100001001
-mean_rad_length = inf
-mean_rad_turns  = inf
