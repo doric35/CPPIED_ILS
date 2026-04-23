@@ -24,7 +24,8 @@ public:
     n21::trial replace(cppied_solution&, sVecIt seg);
     n21::trial explore_replacements(cppied_solution& pSol,
                                     const segment& ref,
-                                    cost_t extraction_gain);
+                                    cost_t extraction_gain,
+                                    int position);
     n21::trial select_best_trial(cppied_solution&,
                                  std::vector<int>& candidates,
                                  std::vector<int>& global_unsat);

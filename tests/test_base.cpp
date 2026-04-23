@@ -786,3 +786,146 @@ TEST_F(cppied_set_cover_fixture, ConstructSparsePodNoThrow){
     EXPECT_NO_THROW(P.initialize_sparse_pod());
 }
 
+// ── SetAdjacencyVec tests ─────────────────────────────────────────────────────
+// Same 6×6 grid, 84 vertices.
+//
+// The candidate list (before filter) is always:
+//   {v-1, v+1, offset, offset+1, offset+step, offset+step+1}
+// After erase_if the surviving elements keep their relative order.
+//
+// Horizontal vertex v = i*6+j at (j+0.5, i):
+//   offset = 42 + 6*j + (i-1),  step = 7
+// Vertical vertex v = 42+j*6+i at (j, i+0.5):
+//   offset = 6*i + (j-1),        step = 7
+
+struct cppied_adj_vec_fixture : public ::testing::Test {
+protected:
+    struct testable_instance : public cppied_instance_base {
+        using cppied_instance_base::cppied_instance_base;
+        using cppied_instance_base::set_adjacency_vec;
+        using cppied_instance_base::transform_log1p;
+        using cppied_instance_base::initialize_vertices;
+    };
+    cppied_adj_vec_fixture() : P(
+        read_matrix<int>(PROJECT_SOURCE_DIR "/tests/configurations/test_seabed.txt"),
+        read_matrix<double>(PROJECT_SOURCE_DIR "/tests/configurations/test_pod.txt"),
+        read_matrix<double>(PROJECT_SOURCE_DIR "/tests/configurations/test_req.txt")
+    ) {}
+    void SetUp() override {
+        P.transform_log1p();
+        P.max_range = int(P.pod.cols());
+        P.initialize_vertices();
+    }
+    testable_instance P;
+};
+
+// Horizontal vertex 0: (0.5, 0.0) — top-left corner.
+TEST_F(cppied_adj_vec_fixture, HorizontalTopLeftCorner) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(0, adj, true);
+    ASSERT_EQ(adj.size(), 3u);
+    EXPECT_EQ(adj[0], 1);
+    EXPECT_EQ(adj[1], 42);
+    EXPECT_EQ(adj[2], 48);
+}
+
+// Horizontal vertex 5: (5.5, 0.0) — top-right corner.
+TEST_F(cppied_adj_vec_fixture, HorizontalTopRightCorner) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(5, adj, true);
+    ASSERT_EQ(adj.size(), 3u);
+    EXPECT_EQ(adj[0], 4);
+    EXPECT_EQ(adj[1], 72);
+    EXPECT_EQ(adj[2], 78);
+}
+
+// Horizontal vertex 36: (0.5, 6.0) — bottom-left corner.
+TEST_F(cppied_adj_vec_fixture, HorizontalBottomLeftCorner) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(36, adj, true);
+    ASSERT_EQ(adj.size(), 3u);
+    EXPECT_EQ(adj[0], 37);
+    EXPECT_EQ(adj[1], 47);
+    EXPECT_EQ(adj[2], 53);
+}
+
+// Horizontal vertex 7: (1.5, 1.0) — interior.
+TEST_F(cppied_adj_vec_fixture, HorizontalInterior) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(7, adj, true);
+    ASSERT_EQ(adj.size(), 6u);
+    EXPECT_EQ(adj[0], 6);
+    EXPECT_EQ(adj[1], 8);
+    EXPECT_EQ(adj[2], 48);
+    EXPECT_EQ(adj[3], 49);
+    EXPECT_EQ(adj[4], 54);
+    EXPECT_EQ(adj[5], 55);
+}
+
+// Vertical vertex 42: (0.0, 0.5) — top-left corner.
+TEST_F(cppied_adj_vec_fixture, VerticalTopLeftCorner) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(42, adj, false);
+    ASSERT_EQ(adj.size(), 3u);
+    EXPECT_EQ(adj[0], 43);
+    EXPECT_EQ(adj[1], 0);
+    EXPECT_EQ(adj[2], 6);
+}
+
+// Vertical vertex 78: (6.0, 0.5) — top-right corner.
+TEST_F(cppied_adj_vec_fixture, VerticalTopRightCorner) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(78, adj, false);
+    ASSERT_EQ(adj.size(), 3u);
+    EXPECT_EQ(adj[0], 79);
+    EXPECT_EQ(adj[1], 5);
+    EXPECT_EQ(adj[2], 11);
+}
+
+// Vertical vertex 83: (6.0, 5.5) — bottom-right corner.
+TEST_F(cppied_adj_vec_fixture, VerticalBottomRightCorner) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(83, adj, false);
+    ASSERT_EQ(adj.size(), 3u);
+    EXPECT_EQ(adj[0], 82);
+    EXPECT_EQ(adj[1], 35);
+    EXPECT_EQ(adj[2], 41);
+}
+
+// Vertical vertex 48: (1.0, 0.5) — interior, top row.
+TEST_F(cppied_adj_vec_fixture, VerticalInteriorTopRow) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(48, adj, false);
+    ASSERT_EQ(adj.size(), 5u);
+    EXPECT_EQ(adj[0], 49);
+    EXPECT_EQ(adj[1], 0);
+    EXPECT_EQ(adj[2], 1);
+    EXPECT_EQ(adj[3], 6);
+    EXPECT_EQ(adj[4], 7);
+}
+
+// Vertical vertex 51: (1.0, 3.5) — interior, mid-grid.
+TEST_F(cppied_adj_vec_fixture, VerticalInteriorMid) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(51, adj, false);
+    ASSERT_EQ(adj.size(), 6u);
+    EXPECT_EQ(adj[0], 50);
+    EXPECT_EQ(adj[1], 52);
+    EXPECT_EQ(adj[2], 18);
+    EXPECT_EQ(adj[3], 19);
+    EXPECT_EQ(adj[4], 24);
+    EXPECT_EQ(adj[5], 25);
+}
+
+// Vertical vertex 60: (3.0, 0.5) — interior, top row, mid column.
+TEST_F(cppied_adj_vec_fixture, VerticalInteriorMidColumn) {
+    std::vector<int> adj;
+    P.set_adjacency_vec(60, adj, false);
+    ASSERT_EQ(adj.size(), 5u);
+    EXPECT_EQ(adj[0], 61);
+    EXPECT_EQ(adj[1], 2);
+    EXPECT_EQ(adj[2], 3);
+    EXPECT_EQ(adj[3], 8);
+    EXPECT_EQ(adj[4], 9);
+}
+

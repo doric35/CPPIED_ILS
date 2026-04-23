@@ -114,7 +114,7 @@ protected:
 // ===========================================================================
 
 TEST_F(ils_minimal_fixture, InitializeLsNeighborhoodCountMinimalConfig) {
-    EXPECT_EQ(algorithm->ls.neighborhoods_count(), 2u);
+    EXPECT_EQ(algorithm->ls.neighborhoods_count(), 3u);
 }
 
 TEST_F(ils_minimal_fixture, InitializePerturbationCountMinimalConfig) {
@@ -131,7 +131,7 @@ TEST_F(ils_minimal_fixture, InitializeRestartCountMinimalConfig) {
 
 TEST_F(ils_full_fixture, InitializeLsNeighborhoodCountFullConfig) {
     // config[1..7] = '1'  →  all nieghborhoods
-    EXPECT_EQ(algorithm->ls.neighborhoods_count(), 9u);
+    EXPECT_EQ(algorithm->ls.neighborhoods_count(), 10u);
 }
 
 TEST_F(ils_full_fixture, InitializePerturbationCountFullConfig) {
@@ -349,7 +349,7 @@ protected:
 // ---------------------------------------------------------------------------
 
 TEST_F(ils_local_search_fixture, LocalSearchLsNeighborhoodCountIs9) {
-    EXPECT_EQ(algorithm->ls.neighborhoods_count(), 9u);
+    EXPECT_EQ(algorithm->ls.neighborhoods_count(), 10u);
 }
 
 TEST_F(ils_local_search_fixture, LocalSearchPerturbationCountIsZero) {

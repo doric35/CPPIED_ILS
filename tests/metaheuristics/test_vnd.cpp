@@ -1,7 +1,9 @@
 #include "../test_fixture.hpp"
 #include "../../include/metaheuristics/vnd.hpp"
 #include "../../include/neighborhoods/neighborhood_cut.hpp"
+#include "../../include/neighborhoods/neighborhood_reduce.hpp"
 #include "../../include/neighborhoods/neighborhood_trim.hpp"
+#include "../../include/neighborhoods/neighborhood_n1.hpp"
 #include "../../include/neighborhoods/neighborhood_n12.hpp"
 #include "../../include/neighborhoods/neighborhood_n21.hpp"
 #include "../../include/neighborhoods/neighborhood_nested.hpp"
@@ -10,16 +12,30 @@
 #include "../../include/neighborhoods/neighborhood_r.hpp"
 
 // ---------------------------------------------------------------------------
-// Accessor: exposes the protected N vector for white-box inspection.
+// Accessor: exposes the four protected neighborhood vectors for white-box
+// inspection.
 // ---------------------------------------------------------------------------
 struct vnd_accessor : public vnd {
 public:
     using vnd::vnd;
-    using vnd::N;
+    using vnd::N_setup;
+    using vnd::N_simple;
+    using vnd::N_nested;
+    using vnd::N_large;
 
     using vnd::geometry;
     using vnd::coverage;
     using vnd::problem;
+
+    // Convenience: iterate all neighborhoods in search order.
+    std::vector<neighborhood*> all_neighborhoods() const {
+        std::vector<neighborhood*> all;
+        for (const auto& n : N_setup)  all.push_back(n.get());
+        for (const auto& n : N_simple) all.push_back(n.get());
+        for (const auto& n : N_nested) all.push_back(n.get());
+        for (const auto& n : N_large)  all.push_back(n.get());
+        return all;
+    }
 };
 
 class vnd_minimal_fixture : public cppied_context_fixture {
@@ -41,28 +57,30 @@ protected:
                     {62, 63}};
         sol.cost     = {0, 0};
         sol.coverage = Eigen::VectorXd::Zero(P.req.size());
-        // Establish a consistent, coverage-feasible, complete starting state.
         v->geometry.complete(sol);
         v->coverage.reset(sol);
         sol.cost = v->geometry.cost(sol);
     }
 
-    // Expose engines for assertion helpers.
-    path_engine&     geo()      { return v->geometry; }
-    coverage_engine& cov()      { return v->coverage; }
+    path_engine&     geo() { return v->geometry; }
+    coverage_engine& cov() { return v->coverage; }
 };
 
 // ---------------------------------------------------------------------------
 // Full fixture — uses vnd_test_config.
 //   ALGORITHM_CONFIG = -c11111110000  (12 chars)
-//   config[1] = '1'         →  n1 added
-//   config[2] = '1'         →  n12 added
-//   config[3] = '1'         →  n21 added
-//   config[4] = '1'         →  nested added
-//   config[5] = '1'         →  tsp added
-//   config[6] = '1'         →  gtsp added
-//   config[7] = '1'         →  r added
-//   Result: cut + trim + n1 + n12 + n21 + nested + tsp + gtsp + r = 9 neighborhoods
+//   config[1] = '1'         →  n1 added    (N_simple)
+//   config[2] = '1'         →  n12 added   (N_simple)
+//   config[3] = '1'         →  n21 added   (N_simple)
+//   config[4] = '1'         →  nested added (N_nested)
+//   config[5] = '1'         →  tsp added   (N_large)
+//   config[6] = '1'         →  gtsp added  (N_large)
+//   config[7] = '1'         →  r added     (N_large)
+//   N_setup (always):  reduce + trim + cut = 3
+//   N_simple:          n1 + n12 + n21      = 3
+//   N_nested:          nested              = 1
+//   N_large:           tsp + gtsp + r      = 3
+//   Total neighborhoods_count()            = 10
 // ---------------------------------------------------------------------------
 class vnd_full_fixture : public ::testing::Test {
 protected:
@@ -89,7 +107,6 @@ protected:
     void SetUp() override {
         v = std::make_unique<vnd_accessor>(ctx, P);
         v->initialize();
-        // Anchor start_time — required by TSP/GTSP/R neighborhoods for LKH.
         ctx.start_time = std::chrono::high_resolution_clock::now();
 
         sol.path = {{6, 11},
@@ -112,29 +129,45 @@ protected:
 
 // ===========================================================================
 // Initialize tests — minimal config
+// N_setup always contains: reduce (0), trim (1), cut (2).
+// N_simple / N_nested / N_large are empty in the minimal config.
 // ===========================================================================
 
 TEST_F(vnd_minimal_fixture, InitializeNeighborhoodCountMinimalConfig) {
-    EXPECT_EQ(v->neighborhoods_count(), 2u);
+    EXPECT_EQ(v->neighborhoods_count(), 3u);
 }
 
-TEST_F(vnd_minimal_fixture, InitializeCutIsFirstNeighborhood) {
-    ASSERT_GE(v->N.size(), 1u);
-    EXPECT_NE(dynamic_cast<neighborhood_cut*>(v->N[0].get()), nullptr);
+TEST_F(vnd_minimal_fixture, InitializeReduceIsFirstSetupNeighborhood) {
+    ASSERT_GE(v->N_setup.size(), 1u);
+    EXPECT_NE(dynamic_cast<neighborhood_reduce*>(v->N_setup[0].get()), nullptr);
 }
 
-TEST_F(vnd_minimal_fixture, InitializeTrimIsSecondNeighborhood) {
-    ASSERT_GE(v->N.size(), 2u);
-    EXPECT_NE(dynamic_cast<neighborhood_trim*>(v->N[1].get()), nullptr);
+TEST_F(vnd_minimal_fixture, InitializeTrimIsSecondSetupNeighborhood) {
+    ASSERT_GE(v->N_setup.size(), 3u);
+    EXPECT_NE(dynamic_cast<neighborhood_trim*>(v->N_setup[1].get()), nullptr);
+}
+
+TEST_F(vnd_minimal_fixture, InitializeCutIsThirdSetupNeighborhood) {
+    ASSERT_GE(v->N_setup.size(), 3u);
+    EXPECT_NE(dynamic_cast<neighborhood_cut*>(v->N_setup[2].get()), nullptr);
+}
+
+TEST_F(vnd_minimal_fixture, InitializeSimpleNeighborhoodsEmptyInMinimalConfig) {
+    EXPECT_EQ(v->N_simple.size(), 0u);
+}
+
+TEST_F(vnd_minimal_fixture, InitializeNestedNeighborhoodsEmptyInMinimalConfig) {
+    EXPECT_EQ(v->N_nested.size(), 0u);
+}
+
+TEST_F(vnd_minimal_fixture, InitializeLargeNeighborhoodsEmptyInMinimalConfig) {
+    EXPECT_EQ(v->N_large.size(), 0u);
 }
 
 // Calling initialize() a second time without a clear guard appends duplicates.
-// This test documents the current behaviour (not a requirement that it should
-// duplicate — it documents what it does so that a future N.clear() fix is
-// detectable).
 TEST_F(vnd_minimal_fixture, InitializeDoubleCallAppendsDuplicates) {
     v->initialize();
-    EXPECT_EQ(v->neighborhoods_count(), 4u);
+    EXPECT_EQ(v->neighborhoods_count(), 6u);
 }
 
 // ===========================================================================
@@ -142,82 +175,93 @@ TEST_F(vnd_minimal_fixture, InitializeDoubleCallAppendsDuplicates) {
 // ===========================================================================
 
 TEST_F(vnd_full_fixture, InitializeNeighborhoodCountFullConfig) {
-    EXPECT_EQ(v->neighborhoods_count(), 9u);
+    EXPECT_EQ(v->neighborhoods_count(), 10u);
 }
 
-TEST_F(vnd_full_fixture, InitializeCutIsFirstNeighborhoodFullConfig) {
-    ASSERT_GE(v->N.size(), 1u);
-    EXPECT_NE(dynamic_cast<neighborhood_cut*>(v->N[0].get()), nullptr);
+TEST_F(vnd_full_fixture, InitializeSetupHasThreeNeighborhoodsFullConfig) {
+    EXPECT_EQ(v->N_setup.size(), 3u);
 }
 
-TEST_F(vnd_full_fixture, InitializeTrimIsSecondNeighborhoodFullConfig) {
-    ASSERT_GE(v->N.size(), 2u);
-    EXPECT_NE(dynamic_cast<neighborhood_trim*>(v->N[1].get()), nullptr);
+TEST_F(vnd_full_fixture, InitializeReduceIsFirstSetupNeighborhoodFullConfig) {
+    ASSERT_GE(v->N_setup.size(), 1u);
+    EXPECT_NE(dynamic_cast<neighborhood_reduce*>(v->N_setup[0].get()), nullptr);
 }
 
-TEST_F(vnd_full_fixture, InitializeN12IsPresentInFullConfig) {
+TEST_F(vnd_full_fixture, InitializeTrimIsSecondSetupNeighborhoodFullConfig) {
+    ASSERT_GE(v->N_setup.size(), 3u);
+    EXPECT_NE(dynamic_cast<neighborhood_trim*>(v->N_setup[1].get()), nullptr);
+}
+
+TEST_F(vnd_full_fixture, InitializeCutIsThirdSetupNeighborhoodFullConfig) {
+    ASSERT_GE(v->N_setup.size(), 3u);
+    EXPECT_NE(dynamic_cast<neighborhood_cut*>(v->N_setup[2].get()), nullptr);
+}
+
+TEST_F(vnd_full_fixture, InitializeN1IsPresentInSimpleFullConfig) {
     bool found = false;
-    for (auto& n : v->N)
+    for (auto& n : v->N_simple)
+        if (dynamic_cast<neighborhood_n1*>(n.get())) { found = true; break; }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(vnd_full_fixture, InitializeN12IsPresentInSimpleFullConfig) {
+    bool found = false;
+    for (auto& n : v->N_simple)
         if (dynamic_cast<neighborhood_n12*>(n.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
 
-TEST_F(vnd_full_fixture, InitializeN21IsPresentInFullConfig) {
+TEST_F(vnd_full_fixture, InitializeN21IsPresentInSimpleFullConfig) {
     bool found = false;
-    for (auto& n : v->N)
+    for (auto& n : v->N_simple)
         if (dynamic_cast<neighborhood_n21*>(n.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
 
-TEST_F(vnd_full_fixture, InitializeNestedIsPresentInFullConfig) {
+TEST_F(vnd_full_fixture, InitializeNestedIsPresentInNestedFullConfig) {
     bool found = false;
-    for (auto& n : v->N)
+    for (auto& n : v->N_nested)
         if (dynamic_cast<neighborhood_nested*>(n.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
 
-TEST_F(vnd_full_fixture, InitializeTspIsPresentInFullConfig) {
+TEST_F(vnd_full_fixture, InitializeTspIsPresentInLargeFullConfig) {
     bool found = false;
-    for (auto& n : v->N)
+    for (auto& n : v->N_large)
         if (dynamic_cast<neighborhood_tsp*>(n.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
 
-TEST_F(vnd_full_fixture, InitializeGtspIsPresentInFullConfig) {
+TEST_F(vnd_full_fixture, InitializeGtspIsPresentInLargeFullConfig) {
     bool found = false;
-    for (auto& n : v->N)
+    for (auto& n : v->N_large)
         if (dynamic_cast<neighborhood_gtsp*>(n.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
 
-TEST_F(vnd_full_fixture, InitializeRIsPresentInFullConfig) {
+TEST_F(vnd_full_fixture, InitializeRIsPresentInLargeFullConfig) {
     bool found = false;
-    for (auto& n : v->N)
+    for (auto& n : v->N_large)
         if (dynamic_cast<neighborhood_r*>(n.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
 
 // ===========================================================================
-// search() tests — minimal config (cut + trim only, fast, no LKH)
+// search() tests — minimal config (N_setup only: reduce + trim + cut)
 // ===========================================================================
 
 TEST_F(vnd_minimal_fixture, SearchDoesNotThrowOnValidSolution) {
     EXPECT_NO_THROW(v->search(sol));
 }
 
-// A solution that is already at the local optimum for cut+trim must make
-// search() return false (no improvement found).
 TEST_F(vnd_minimal_fixture, SearchReturnsFalseAtLocalOptimum) {
-    // Drive to local optimum first.
     while (v->search(sol)) {
         v->coverage.reset(sol);
         sol.cost = v->geometry.cost(sol);
     }
-    // Now search must return false immediately.
     EXPECT_FALSE(v->search(sol));
 }
 
-// After convergence the path must be non-empty.
 TEST_F(vnd_minimal_fixture, SearchPathNonEmptyAfterConvergence) {
     while (v->search(sol)) {
         v->coverage.reset(sol);
@@ -226,23 +270,17 @@ TEST_F(vnd_minimal_fixture, SearchPathNonEmptyAfterConvergence) {
     EXPECT_GT(sol.path.size(), 0u);
 }
 
-// When search() returns true the reported cost must be strictly less than the
-// pre-call incumbent.
 TEST_F(vnd_minimal_fixture, SearchCostDecreasedWhenReturnTrue) {
     cost_t before = sol.cost;
     if (v->search(sol))
         EXPECT_LT(sol.cost, before);
 }
 
-// When search() returns true the stored cost must be consistent with
-// geometry.cost().
 TEST_F(vnd_minimal_fixture, SearchCostConsistentAfterSearchReturnTrue) {
     if (v->search(sol))
         EXPECT_EQ(geo().cost(sol), sol.cost);
 }
 
-// When search() returns true the coverage vector must be consistent with a
-// fresh reset.
 TEST_F(vnd_minimal_fixture, SearchCoverageConsistentAfterSearchReturnTrue) {
     if (v->search(sol)) {
         Eigen::VectorXd saved = sol.coverage;
@@ -251,7 +289,6 @@ TEST_F(vnd_minimal_fixture, SearchCoverageConsistentAfterSearchReturnTrue) {
     }
 }
 
-// When search() returns true the coverage constraint must still be satisfied.
 TEST_F(vnd_minimal_fixture, SearchCoverageConstraintSatisfiedAfterSearchReturnTrue) {
     if (v->search(sol)) {
         cov().reset(sol);
@@ -259,12 +296,8 @@ TEST_F(vnd_minimal_fixture, SearchCoverageConstraintSatisfiedAfterSearchReturnTr
     }
 }
 
-// After search() completes (returns true or false) a second call must return
-// false: search() already runs all neighborhoods in a while-loop until no
-// improvement, so the solution is already at the local optimum on exit.
 TEST_F(vnd_minimal_fixture, SearchSecondCallReturnsFalseAfterConvergence) {
     v->search(sol);
-    // Re-establish a consistent state before the second call.
     cov().reset(sol);
     sol.cost = geo().cost(sol);
     cost_t curr_c = sol.cost;
@@ -273,7 +306,7 @@ TEST_F(vnd_minimal_fixture, SearchSecondCallReturnsFalseAfterConvergence) {
 }
 
 // After search() converges, calling each neighborhood individually must not
-// find further improvement — this verifies that search() fully exhausted all
+// find further improvement — verifies that search() fully exhausted all
 // neighborhoods before returning.
 TEST_F(vnd_minimal_fixture, SearchLocalOptimumVerifiedForAllNeighborhoods) {
     while (v->search(sol)) {
@@ -283,17 +316,17 @@ TEST_F(vnd_minimal_fixture, SearchLocalOptimumVerifiedForAllNeighborhoods) {
     cov().reset(sol);
     sol.cost = geo().cost(sol);
 
-    for (std::size_t i = 0; i < v->N.size(); ++i) {
+    auto all = v->all_neighborhoods();
+    for (std::size_t i = 0; i < all.size(); ++i) {
         cppied_solution copy = sol;
         cost_t copy_c = copy.cost;
-        v->N[i]->local_search(copy);
+        all[i]->local_search(copy);
         EXPECT_FALSE(copy_c > copy.cost)
             << "Neighborhood " << i
             << " still finds improvement after VND convergence.";
     }
 }
 
-// The return value must accurately reflect whether cost actually decreased.
 TEST_F(vnd_minimal_fixture, SearchReturnValueReflectsActualImprovement) {
     cost_t before = sol.cost;
     bool improved = v->search(sol);
@@ -303,7 +336,6 @@ TEST_F(vnd_minimal_fixture, SearchReturnValueReflectsActualImprovement) {
         EXPECT_EQ(sol.cost, before);
 }
 
-// After convergence the coverage constraint must be satisfied.
 TEST_F(vnd_minimal_fixture, SearchCoverageConstraintSatisfiedAfterConvergence) {
     while (v->search(sol)) {
         cov().reset(sol);
@@ -313,7 +345,6 @@ TEST_F(vnd_minimal_fixture, SearchCoverageConstraintSatisfiedAfterConvergence) {
     EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all());
 }
 
-// After convergence the cost must equal geometry.cost (full consistency).
 TEST_F(vnd_minimal_fixture, SearchCostConsistentAfterConvergence) {
     while (v->search(sol)) {
         cov().reset(sol);
@@ -323,11 +354,10 @@ TEST_F(vnd_minimal_fixture, SearchCostConsistentAfterConvergence) {
 }
 
 // ===========================================================================
-// E2E tests — full config (all 8 neighborhoods, requires LKH binary)
+// E2E tests — full config (all neighborhoods, requires LKH binary)
 // ===========================================================================
 
 TEST_F(vnd_full_fixture, FullConfigInitializeDoesNotThrow) {
-    // initialize() was already called in SetUp; a fresh instance must not throw.
     EXPECT_NO_THROW({
         vnd_accessor v2(ctx, P);
         v2.initialize();

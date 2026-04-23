@@ -8,6 +8,8 @@ bool neighborhood_n21::local_search(cppied_solution& pSol) {
         auto path_it = std::next(pSol.path.begin(),i);
         trials[i] = replace(pSol, path_it);
     }
+    trials[0].gain = cost_t{0,0};
+    trials.back().gain = cost_t{0,0};
 
     auto cmp = [&](const n21::trial& a, const n21::trial& b){
         return a.gain < b.gain;
@@ -218,7 +220,7 @@ n21::trial neighborhood_n21::replace(cppied_solution &pSol,
 
     coverage.remove(pSol, *seg);
     pSol.path.erase(seg);
-    n21::trial best = explore_replacements(pSol, seg_save, g);
+    n21::trial best = explore_replacements(pSol, seg_save, g, position);
 
     if (best.other >= position)    best.other++;
     if (best.position >= position) best.position++;
@@ -232,11 +234,18 @@ n21::trial neighborhood_n21::replace(cppied_solution &pSol,
 
 n21::trial neighborhood_n21::explore_replacements(cppied_solution &pSol,
                                                   const segment &ref,
-                                                  cost_t extraction_gain) {
+                                                  cost_t extraction_gain,
+                                                  int position) {
     std::vector<int> unsat;
     std::vector<int> other_candidates;
-    other_candidates.resize(pSol.path.size()-2);
-    std::iota(other_candidates.begin(), other_candidates.end(), 1);
+    other_candidates.resize(pSol.path.size()-(position+1));
+    if (other_candidates.empty())
+    {
+        n21::trial t = {{path_engine::NULL_NODE, path_engine::NULL_NODE},
+                        -1, -1, cost_t{0,0}};
+        return t;
+    }
+    std::iota(other_candidates.begin(), other_candidates.end(), position);
 
     coverage.unsatisfied_cells(pSol, ref, unsat);
     iRectangle box = {

@@ -1,19 +1,19 @@
 #include "../../include/neighborhoods/neighborhood_tsp.hpp"
 
 bool neighborhood_tsp::local_search(cppied_solution &pSol) {
-    split(pSol);
+    cppied_solution trial = pSol;
+    split(trial);
 
-    int tsp_dimensions = static_cast<int>(pSol.path.size()) * 3 + 3;
+    int tsp_dimensions = static_cast<int>(trial.path.size()) * 3 + 3;
     Eigen::MatrixXi C(tsp_dimensions, tsp_dimensions);
-    C.setConstant(pSol.cost.length);
-    path_to_tsp(pSol, C);
+    C.setConstant(trial.cost.length);
+    path_to_tsp(trial, C);
     assert(C.isApprox(C.transpose()));
 
     std::vector<int> tsp_solution(tsp_dimensions, 0);
     std::iota(tsp_solution.begin(), tsp_solution.end(), 1);
 
     tsp_solution = std::move(tspEngine.lkh(C,tsp_solution));
-    cppied_solution trial = pSol;
     tsp_to_path(trial, tsp_solution);
     trial.cost = geometry.cost(trial);
     if (trial.cost < pSol.cost) {

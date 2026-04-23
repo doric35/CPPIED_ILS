@@ -33,7 +33,12 @@ public:
     [[nodiscard]] segment turn(const segment& source,
                  const segment& target) const;
     void link(std::vector<segment>& path, segment& target) const;
-    [[nodiscard]] direction get_direction(const segment&) const;
+    [[nodiscard]] inline direction get_direction(const segment& s) const{
+        return static_cast<direction>(
+                ((s.source >= horizontal_bound) << 1) |
+                ((s.target != NULL_NODE) & (s.target < s.source))
+        );
+    }
     bool is_in_rectangle(const segment& s, iRectangle& box) const;
     [[nodiscard]] int get_row(const segment&) const;
     [[nodiscard]] int get_column(const segment&) const;
@@ -93,24 +98,22 @@ protected:
     //                              WE  WW  WS  WN
     //                              SE  SW  SS  SN
     //                              NE  NW  NS  NN
-    static constexpr int  primary[16] = {0, 1, 2, 3,
+    static constexpr int primary[16] = {0, 1, 2, 3,
                                          1, 0, 4, 5,
                                          5, 3, 6, 7,
                                          4, 2, 7, 6};
-    static constexpr bool flip[16]    = {0, 0, 0, 0,
-                                         1, 1, 0, 0,
-                                         1, 1, 0, 0,
-                                         1, 1, 1, 1};
+    //static constexpr std::bitset<16> flip = 0b0000110011001111;
+    //static constexpr std::bitset<16> flip = 0b1111001100110000;
 
     static constexpr int secondary[16] = {0, 1, 2, 3,
                                           4, 0, 5, 6,
                                           6, 3, 7, 8,
                                           5, 2, 9, 7};  // NE: 6→5 (WS), NW: 3→2 (ES)
 
-    static constexpr bool exchange[16] = {0, 0, 0, 0,
-                                          0, 1, 0, 0,   // WW: 0→1
-                                          1, 1, 0, 0,
-                                          1, 1, 0, 0};  // NN: 0→1
+    //static constexpr std::bitset<16> exchange = 0b0000010011001100;  // NN: 0→1
+    //static constexpr std::bitset<16> exchange = 0b0011001100100000;
+    static constexpr uint16_t exchange = 0b0011001100100000;
+    static constexpr uint16_t flip     = 0b1111001100110000;
 
     void set_boundaries();
     void build_dist_table();

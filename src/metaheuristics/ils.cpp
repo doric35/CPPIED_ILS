@@ -16,7 +16,6 @@ void ils::d_solve(cppied_solution &pSolution) {
     int iterations = 1;
     geometry.complete(pSolution);
     coverage.reset(pSolution);
-    //std::cout << "Initial cost: " << pSolution.cost << std::endl;
 
     auto cb_tmp = callbacks.onSatisfy;
 
@@ -42,7 +41,7 @@ void ils::d_solve(cppied_solution &pSolution) {
         callbacks.onSatisfy = sat_check;
     }
 
-    if (R.empty() && P.empty() && ls.neighborhoods_count() <=2) {
+    if (R.empty() && P.empty() && ls.neighborhoods_count() <=3) {
         status =algorithm_flag::SUBOPTIMAL;
         return;
     }

@@ -1,85 +1,50 @@
 #include "../../include/metaheuristics/vnd.hpp"
 
 bool vnd::search(cppied_solution &pSolution) {
-    bool local_improved = true, improved = false;
-    //std::cout << "Entering VND." << std::endl;
-    cost_t i_c = pSolution.cost;
-    cost_t c = i_c;
-    auto cb_tmp = callbacks.onSatisfy;
-    std::vector<segment> tmp;
-    if (callbacks.onSatisfy){
-        auto sat_check =
-                [&](const cppied_solution& sol, const std::any& ctx) {
-        auto* n = std::any_cast<neighborhood*>(ctx);
-        if (n != N[0].get() && improved && sol.cost >= c) {
-            std::cerr << "Improvement miscalculated: " << typeid(*n).name() << std::endl;
-            for (auto &e: tmp)
-                std::cerr << e << std::endl;
-            assert(false);
-        }
-        if (!(sol.coverage.array() >= problem.req.array()).all()) {
-            std::cerr << "Coverage unsat: " << typeid(*n).name() << std::endl;
-            for (auto &e: tmp)
-                std::cerr << e << std::endl;
-            assert(false);
-        }
-        if (sol.cost != geometry.cost(sol)) {
-            std::cerr << "Solution cost miscalculated: " << typeid(*n).name() << std::endl;
-            for (auto &e: tmp)
-                std::cerr << e << std::endl;
-            assert(false);
-        }
-        if (sol.cost > c) {
-            std::cerr << "Solution cost increased in a local search: " << typeid(*n).name() << std::endl;
-            for (auto &e: tmp)
-                std::cerr << e << std::endl;
-            assert(false);
-        }
-        };
-        callbacks.onSatisfy = sat_check;
-    }
-    while (local_improved){
-        if (callbacks.stopCriteria && callbacks.stopCriteria(pSolution, nullptr)) {
-            //std::cout << "Called stopCriteria stopped VND." << std::endl;
-            break;
-        }
+    cost_t c = pSolution.cost;
+    cost_t i_c = c;
+    cost_t c_local{};
 
-        local_improved = false;
-        for (const auto &i : N){
-            if (callbacks.stopCriteria && callbacks.stopCriteria(pSolution, nullptr)) {
-                //std::cout << "Called stopCriteria stopped VND." << std::endl;
+    do {
+        c = pSolution.cost;
+        if (callbacks.stopCriteria && callbacks.stopCriteria(pSolution, nullptr))
+            break;
+
+        for (const auto& i : N_setup)
+            find_local_optima(pSolution, i);
+
+        do {
+            c_local = pSolution.cost;
+            if (callbacks.stopCriteria && callbacks.stopCriteria(pSolution, nullptr))
                 break;
-            }
-            if (callbacks.onSatisfy)
-                tmp = pSolution.path;
-            improved = false;
-            try {
-                improved = i->local_search(pSolution);
-            } catch (std::runtime_error& e){
-                auto& r = *i.get();
-                std::string err_msg = std::string("Runtime error from neighborhood: ") + typeid(r).name();
-                std::cerr << err_msg << std::endl;
-                std::cerr << e.what() << std::endl;
-                for (auto &seg: pSolution.path)
-                    std::cerr << seg << std::endl;
-                throw e;
-            }
-            if (callbacks.onSatisfy)
-                callbacks.onSatisfy(pSolution, i.get());
-            local_improved = local_improved || improved;
+            for (const auto &i : N_simple)
+                find_local_optima(pSolution, i);
+        } while (pSolution.cost < c_local);
+
+        bool nest_improved = false;
+        for (const auto &i : N_nested) {
+            if (callbacks.stopCriteria && callbacks.stopCriteria(pSolution, nullptr))
+                break;
+            bool improved = i->local_search(pSolution);
+            nest_improved = improved || nest_improved;
         }
-        if (!local_improved && pSolution.cost < c){
-            c = pSolution.cost;
-            geometry.complete(pSolution);
-            coverage.reset(pSolution);
-            local_improved = true;
-        } else if (local_improved){
-            assert(pSolution.cost <= c); //Cost should not get worst during search.
-            c = pSolution.cost;
+        if (nest_improved) continue;
+
+        for (const auto& i : N_large) {
+            if (callbacks.stopCriteria && callbacks.stopCriteria(pSolution, nullptr))
+                break;
+            i->local_search(pSolution);
         }
-    }
-    callbacks.onSatisfy = cb_tmp;
-    //std::cout << "Leaving VND." << std::endl;
+    } while (pSolution.cost < c);
     return pSolution.cost < i_c;
+}
+
+void vnd::find_local_optima(cppied_solution &pSol, const std::unique_ptr<neighborhood> &N) {
+    bool improved = true;
+    while (improved) {
+        if (callbacks.stopCriteria && callbacks.stopCriteria(pSol, nullptr))
+            break;
+        improved = N->local_search(pSol);
+    }
 }
 

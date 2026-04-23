@@ -23,6 +23,7 @@
 #include <any>
 #include <opencv2/opencv.hpp>
 #include <optional>
+#include <bitset>
 
 #define ALGORITHM_FLAG_LIST \
     X(NONE)                 \

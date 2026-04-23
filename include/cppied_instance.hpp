@@ -42,6 +42,7 @@ protected:
     void validate_parameters();
 
     void set_cover(int v, std::vector<int>& C, bool horizontal);
+    void set_adjacency_vec(int v, std::vector<int>& adj_vec, bool horizontal);
 };
 
 class cppied_instance : public cppied_instance_base{

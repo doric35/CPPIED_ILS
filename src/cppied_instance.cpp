@@ -32,14 +32,19 @@ void cppied_instance_base::initialize_sparse_adj() {
     const int V = static_cast<int>(((seabed.rows() + 1) * seabed.cols())
                   + (seabed.rows() * (seabed.cols() + 1)));
     adjacency_list.reserve(6 * V);
-    for (int v1=0; v1<vertex.size(); v1++){
-        for (int v2=v1+1; v2<vertex.size(); v2++){
-            if (Point2F::L1(vertex[v1], vertex[v2]) <= 1.0 + 1e-5
-                && adjacent(vertex[v1], vertex[v2])) {
-                adjacency_list.emplace_back(v1, v2, 1);
-                adjacency_list.emplace_back(v2, v1, 1);
-            }
-        }
+    for (int v=0; v<vertex.size(); v++){
+        std::vector<int> adj_vec;
+        bool horizontal = v < (seabed.rows()+1)*seabed.cols();
+        set_adjacency_vec(v, adj_vec, horizontal);
+        for(int u : adj_vec)
+            adjacency_list.emplace_back(v,u, 1);
+//        for (int v2=v1+1; v2<vertex.size(); v2++){
+//            if (Point2F::L1(vertex[v1], vertex[v2]) <= 1.0 + 1e-5
+//                && adjacent(vertex[v1], vertex[v2])) {
+//                adjacency_list.emplace_back(v1, v2, 1);
+//                adjacency_list.emplace_back(v2, v1, 1);
+//            }
+//        }
     }
     adj.resize(
             int(vertex.size()),
@@ -73,10 +78,6 @@ void cppied_instance_base::initialize_sparse_pod() {
     for (int i =0; i<=seabed.rows(); i++) {
         const int offset = static_cast<int>(i * seabed.cols());
         for (int j = 0; j < seabed.cols(); j++) {
-//            Eigen::ArrayXf dx = cells.row(0).array() - vertex[offset + j].x;          // row(0) = x coordinates
-//            Eigen::ArrayXf dy = cells.row(1).array() - vertex[offset + j].y;
-//            Eigen::Array<bool, Eigen::Dynamic, 1> mask = (dx.abs() < 1e-6f) &&
-//                                                         (dy.abs() < float(pod.cols()));
             int idx = offset + j;
             std::vector<int> C;
             set_cover(idx, C, true);
@@ -94,10 +95,6 @@ void cppied_instance_base::initialize_sparse_pod() {
     for (int j=0; j<=seabed.cols(); j++) {
         const int offset = static_cast<int>((seabed.rows() + 1) * seabed.cols() + (j*seabed.rows()));
         for (int i=0; i<seabed.rows(); i++){
-//            Eigen::ArrayXf dx = cells.row(0).array() - vertex[offset + i].x;          // row(0) = x coordinates
-//            Eigen::ArrayXf dy = cells.row(1).array() - vertex[offset + i].y;
-//            Eigen::Array<bool, Eigen::Dynamic, 1> mask = (dy.abs() < 1e-6f) &&
-//                                                         (dx.abs() < float(pod.cols()));
             int idx = offset + i;
             std::vector<int> C;
             set_cover(idx, C, false);
@@ -182,3 +179,25 @@ void cppied_instance_base::set_cover(int v, std::vector<int> &C, bool horizontal
         C.push_back(c);
 }
 
+void cppied_instance_base::set_adjacency_vec(int v, std::vector<int> &adj_vec, bool horizontal) {
+    int offset;
+    int step;
+    if (horizontal) {
+        offset = static_cast<int>(((seabed.rows() + 1) * seabed.cols())
+                                  + (seabed.rows() * std::floor(vertex[v].x))
+                                  + (vertex[v].y - 1));
+        step   = static_cast<int>(seabed.rows());
+    } else {
+        offset = static_cast<int>(
+                (seabed.cols()*std::floor(vertex[v].y)) + (vertex[v].x -1)
+                );
+        step = static_cast<int>(seabed.cols());
+    }
+    adj_vec = {v-1, v+1, offset, offset + 1, offset + step, offset + step + 1};
+    auto filter = [&](int u){
+        if ((u <0) || (u>=vertex.size()))
+            return true;
+        return Point2F::L1(vertex[v], vertex[u]) > 1.0 + 1e-5 || !adjacent(vertex[v], vertex[u]);
+    };
+    std::erase_if(adj_vec, filter);
+}
