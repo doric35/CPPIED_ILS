@@ -52,6 +52,8 @@ BEST_CONFIG_FILE    = RESULTS_DIR / "ejor_best_config.txt"
 
 GLOBAL_RESULTS_FILE = RESULTS_DIR / "ejor_results.csv"
 
+INSTANCES_FILE      = DATA_DIR / "ejor_tests" / "config_instances.txt"
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def neighborhood_experiments_configs(source_config: str) -> list[str]:
@@ -85,6 +87,19 @@ def stopping_criteria(start: float, prev_incumbent: str, incumbent: str) -> bool
     return time.time() - start >= 86400 or prev_incumbent == incumbent
 
 
+def read_global_rows(path: Path) -> dict[str, list[dict]]:
+    """Return {exp_name: [rows]} from the global results CSV."""
+    if not path.exists():
+        return {}
+    rows_by_name: dict[str, list[dict]] = defaultdict(list)
+    with open(path, newline="") as fh:
+        for row in csv.DictReader(fh):
+            rows_by_name[row["name"]].append(
+                {col: row.get(col, "") for col in RESULTS_COLS}
+            )
+    return dict(rows_by_name)
+
+
 def run_and_save_configurations(
         cfgs: list[str],
         instances,
@@ -94,26 +109,35 @@ def run_and_save_configurations(
         scratch_results: Path,
         scratch_errors: Path,
         args,
+        global_rows: dict[str, list[dict]],
 ) -> list[dict]:
     """Run all (cfg × instance) pairs that are not yet in *existing*.
 
+    Pairs already present in *global_rows* are fetched from there without
+    re-running.  New results are flushed to both RESULTS_FILE and
+    GLOBAL_RESULTS_FILE at the end of the phase.
     Returns the accumulated result rows (may be empty).
     """
-    pending = []
-    for instance_dir in instances:
-        for algorithm_config in cfgs:
-            exp_name = f"{instance_dir.name}_{algorithm_config}"
-            if exp_name not in existing:
-                pending.append((exp_name, str(instance_dir), algorithm_config, solver))
-                existing.add(exp_name)
-
-    if not pending:
-        print("Nothing to do.")
-        return []
-
     # In-memory accumulators — flushed to permanent storage once at the end
     accumulated_results: list[dict] = []
     accumulated_errors:  list[dict] = []
+    pending = []
+
+    for instance_dir in instances:
+        for algorithm_config in cfgs:
+            exp_name = f"{instance_dir.name}_{algorithm_config}"
+            if exp_name in existing:
+                continue
+            existing.add(exp_name)
+            if exp_name in global_rows:
+                accumulated_results.extend(global_rows[exp_name])
+                print(f"  [CACHED]  {exp_name}")
+            else:
+                pending.append((exp_name, str(instance_dir), algorithm_config, solver))
+
+    if not pending:
+        print("Nothing to run (all pairs cached or already done).")
+        return accumulated_results
 
     done   = 0
     errors = 0
@@ -141,6 +165,7 @@ def run_and_save_configurations(
             done += 1
             if result["success"]:
                 accumulated_results.extend(result["rows"])
+                global_rows[exp_name] = result["rows"]
                 append_csv_rows(scratch_results, RESULTS_COLS, result["rows"])
                 print(f"  [{done:{width}}/{len(pending)}] OK    {exp_name}")
             else:
@@ -151,10 +176,15 @@ def run_and_save_configurations(
                 print(f"  [{done:{width}}/{len(pending)}] ERROR {exp_name}  (rc={rc})")
 
     # ── Flush to permanent storage ─────────────────────────────────────────────
+    # Only newly computed rows (not cached ones) need to be written to permanent files.
     print("\nFlushing results to permanent storage…")
-    if accumulated_results:
-        append_csv_rows(RESULTS_FILE, RESULTS_COLS, accumulated_results)
-        print(f"  Written {len(accumulated_results)} result rows → {RESULTS_FILE}")
+    pending_names = {exp_name for exp_name, *_ in pending}
+    new_rows = [r for r in accumulated_results if r["name"] in pending_names]
+    if new_rows:
+        append_csv_rows(RESULTS_FILE, RESULTS_COLS, new_rows)
+        append_csv_rows(GLOBAL_RESULTS_FILE, RESULTS_COLS, new_rows)
+        print(f"  Written {len(new_rows)} result rows → {RESULTS_FILE}")
+        print(f"  Written {len(new_rows)} result rows → {GLOBAL_RESULTS_FILE}")
     if accumulated_errors:
         append_csv_rows(ERRORS_FILE, ERRORS_COLS, accumulated_errors)
         print(f"  Written {len(accumulated_errors)} error rows  → {ERRORS_FILE}")
@@ -279,11 +309,12 @@ def main():
     if not instances:
         sys.exit("No instances found – check the ejor_tests directory.")
 
-    existing = read_existing_names(RESULTS_FILE)
+    existing    = read_existing_names(RESULTS_FILE)
+    global_rows = read_global_rows(GLOBAL_RESULTS_FILE)
 
-    solver         = "ILS"
-    start_time     = time.time()
-    prev_incumbent = ""
+    solver           = "ILS"
+    start_time       = time.time()
+    prev_incumbent   = ""
     incumbent_config = [ils_configs[0], (float("inf"), float("inf"))]
 
     print(
@@ -296,6 +327,22 @@ def main():
         f"Results file         : {RESULTS_FILE}\n"
     )
 
+    cfgs = [incumbent_config[0]]
+    print(
+        f"\n── Initialisation phase  (incumbent: {incumbent_config[0]}) ──\n"
+        f"  Candidate configs : {len(cfgs)}\n"
+        f"  Instances         : {len(instances)}\n"
+        f"  Max new pairs     : {len(cfgs) * len(instances)}\n"
+        f"  Incumbent (c, rad): {incumbent_config}\n"
+    )
+    results = run_and_save_configurations(
+        cfgs, instances, existing, scratch_dir, solver,
+        scratch_results, scratch_errors, args, global_rows,
+    )
+    candidate = incumbent_configuration(results, BKS) if results else None
+    if candidate:
+        incumbent_config = candidate
+
     while not stopping_criteria(start_time, prev_incumbent, incumbent_config[0]):
         prev_incumbent = incumbent_config[0]
 
@@ -305,11 +352,12 @@ def main():
             f"\n── Neighborhood phase  (incumbent: {incumbent_config[0]}) ──\n"
             f"  Candidate configs : {len(cfgs)}\n"
             f"  Instances         : {len(instances)}\n"
-            f"  Max new pairs     : {len(cfgs) * len(instances)}"
+            f"  Max new pairs     : {len(cfgs) * len(instances)}\n"
+            f"  Incumbent (c, rad): {incumbent_config}\n"
         )
         results = run_and_save_configurations(
             cfgs, instances, existing, scratch_dir, solver,
-            scratch_results, scratch_errors, args,
+            scratch_results, scratch_errors, args, global_rows,
         )
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
@@ -321,11 +369,12 @@ def main():
             f"\n── Perturbation phase  (incumbent: {incumbent_config[0]}) ──\n"
             f"  Candidate configs : {len(cfgs)}\n"
             f"  Instances         : {len(instances)}\n"
-            f"  Max new pairs     : {len(cfgs) * len(instances)}"
+            f"  Max new pairs     : {len(cfgs) * len(instances)}\n"
+            f"  Incumbent (c, rad): {incumbent_config}\n"
         )
         results = run_and_save_configurations(
             cfgs, instances, existing, scratch_dir, solver,
-            scratch_results, scratch_errors, args,
+            scratch_results, scratch_errors, args, global_rows,
         )
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
@@ -337,11 +386,12 @@ def main():
             f"\n── Restart phase       (incumbent: {incumbent_config[0]}) ──\n"
             f"  Candidate configs : {len(cfgs)}\n"
             f"  Instances         : {len(instances)}\n"
-            f"  Max new pairs     : {len(cfgs) * len(instances)}"
+            f"  Max new pairs     : {len(cfgs) * len(instances)}\n"
+            f"  Incumbent (c, rad): {incumbent_config}\n"
         )
         results = run_and_save_configurations(
             cfgs, instances, existing, scratch_dir, solver,
-            scratch_results, scratch_errors, args,
+            scratch_results, scratch_errors, args, global_rows,
         )
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
