@@ -15,11 +15,13 @@ std::vector<int> tsp_engine::lkh(Eigen::Ref<Eigen::MatrixXi> C,
 
     std::filesystem::path config_path = ctx.config.at("WORKING_DIRECTORY");
     std::filesystem::path config_name = config_path / (ctx.config.at("NAME") + ".par");
+    std::filesystem::path sol_path = config_path / (ctx.config.at("NAME") + ".sol");
+    std::filesystem::remove(sol_path);          // prevent stale-read
 
     std::string lkh_cmd = ctx.config.at("LKH_EXECUTABLE") + " " + config_name.string();
     std::string lkh_exec = lkh_cmd + " > /dev/null 2>&1";
     int result = std::system((lkh_exec).c_str());
-    if (result != 0)
+    if (result != 0 || !std::filesystem::exists(sol_path))
         return warm_start;
     std::vector<int> tour;
     read_solution(tour);
@@ -40,7 +42,12 @@ void tsp_engine::write_configuration(std::vector<int> &warm_start) {
     config_stream << "OUTPUT_TOUR_FILE = " << sol_name.string() << "\n";
     std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock ::now();
     int elapsed_time = int(std::chrono::duration_cast<std::chrono::seconds>(now - ctx.start_time).count());
-    config_stream << "TIME_LIMIT = " << ctx.max_time - elapsed_time << "\n";
+    config_stream << "TIME_LIMIT = 10" << "\n";//<< ctx.max_time - elapsed_time << "\n";
+    config_stream << "MAX_CANDIDATES = 6" << "\n";
+    config_stream << "EXCESS = 1.0" << "\n";
+    config_stream << "RECOMBINATION = CLARIST" << "\n";
+    config_stream << "RESTRICTED_SEARCH = NO" << "\n";
+    config_stream << "INITIAL_PERIOD = 100" << "\n";
     config_stream << "RUNS = 1\n";
     if ((ctx.max_time - elapsed_time) <= 0){
         config_stream.close();
