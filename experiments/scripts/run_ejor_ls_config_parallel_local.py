@@ -100,13 +100,15 @@ def run_and_save_configurations(
         solver: str,
         args,
         global_rows: dict[str, list[dict]],
+        results_rows: dict[str, list[dict]],
 ) -> list[dict]:
     """Run all (cfg × instance) pairs not yet in *existing*.
 
-    Pairs already present in *global_rows* are fetched from there and
-    written to RESULTS_FILE without re-running.  New results are written
-    to both RESULTS_FILE and GLOBAL_RESULTS_FILE immediately as each
-    future completes.  Returns the accumulated result rows (may be empty).
+    Priority for retrieving rows without re-running:
+      1. Already in *existing* (RESULTS_FILE)  → fetch from *results_rows*.
+      2. In *global_rows* (GLOBAL_RESULTS_FILE) → copy into RESULTS_FILE.
+    New results are written to both files immediately as each future completes.
+    Returns the accumulated result rows (may be empty).
     """
     accumulated_results: list[dict] = []
     pending = []
@@ -115,12 +117,16 @@ def run_and_save_configurations(
         for algorithm_config in cfgs:
             exp_name = f"{instance_dir.name}_{algorithm_config}"
             if exp_name in existing:
+                if exp_name in results_rows:
+                    accumulated_results.extend(results_rows[exp_name])
+                    print(f"  [RESULTS] {exp_name}")
                 continue
             existing.add(exp_name)
             if exp_name in global_rows:
                 rows = global_rows[exp_name]
                 accumulated_results.extend(rows)
                 append_csv_rows(RESULTS_FILE, RESULTS_COLS, rows)
+                results_rows[exp_name] = rows
                 print(f"  [CACHED]  {exp_name}")
             else:
                 pending.append((exp_name, str(instance_dir), algorithm_config, solver))
@@ -158,7 +164,8 @@ def run_and_save_configurations(
                 # Write immediately so progress survives interruption
                 append_csv_rows(RESULTS_FILE, RESULTS_COLS, result["rows"])
                 append_csv_rows(GLOBAL_RESULTS_FILE, RESULTS_COLS, result["rows"])
-                global_rows[exp_name] = result["rows"]
+                global_rows[exp_name]  = result["rows"]
+                results_rows[exp_name] = result["rows"]
                 print(f"  [{done:{width}}/{len(pending)}] OK    {exp_name}")
             else:
                 append_csv_rows(ERRORS_FILE, ERRORS_COLS, [result["error"]])
@@ -285,8 +292,9 @@ def main():
     if not instances:
         sys.exit("No instances found – check the ejor_tests directory.")
 
-    existing    = read_existing_names(RESULTS_FILE)
-    global_rows = read_global_rows(GLOBAL_RESULTS_FILE)
+    existing     = read_existing_names(RESULTS_FILE)
+    results_rows = read_global_rows(RESULTS_FILE)
+    global_rows  = read_global_rows(GLOBAL_RESULTS_FILE)
 
     solver           = "ILS"
     start_time       = time.time()
@@ -311,10 +319,10 @@ def main():
         f"  Max new pairs     : {len(cfgs) * len(instances)}\n"
         f"  Incumbent (c, rad): {incumbent_config}\n"
     )
-    results = run_and_save_configurations(cfgs, instances, existing, solver, args, global_rows)
+    results = run_and_save_configurations(cfgs, instances, existing, solver, args, global_rows, results_rows)
     candidate = incumbent_configuration(results, BKS) if results else None
     if candidate:
-        incumbent_config = candidate
+        incumbent_config = best_lexico(incumbent_config, candidate)
 
     while not stopping_criteria(start_time, prev_incumbent, incumbent_config[0]):
         prev_incumbent = incumbent_config[0]
@@ -328,10 +336,10 @@ def main():
             f"  Max new pairs     : {len(cfgs) * len(instances)}\n"
             f"  Incumbent (c, rad): {incumbent_config}\n"
         )
-        results = run_and_save_configurations(cfgs, instances, existing, solver, args, global_rows)
+        results = run_and_save_configurations(cfgs, instances, existing, solver, args, global_rows, results_rows)
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
-            incumbent_config = candidate
+            incumbent_config = best_lexico(incumbent_config, candidate)
 
         # Perturbation phase — flip each bit in positions 8-10
         cfgs = perturbation_experiments_configs(incumbent_config[0])
@@ -342,10 +350,10 @@ def main():
             f"  Max new pairs     : {len(cfgs) * len(instances)}\n"
             f"  Incumbent (c, rad): {incumbent_config}\n"
         )
-        results = run_and_save_configurations(cfgs, instances, existing, solver, args, global_rows)
+        results = run_and_save_configurations(cfgs, instances, existing, solver, args, global_rows, results_rows)
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
-            incumbent_config = candidate
+            incumbent_config = best_lexico(incumbent_config, candidate)
 
         # Restart phase — flip the last bit
         cfgs = restart_experiments_configs(incumbent_config[0])
@@ -356,10 +364,10 @@ def main():
             f"  Max new pairs     : {len(cfgs) * len(instances)}\n"
             f"  Incumbent (c, rad): {incumbent_config}\n"
         )
-        results = run_and_save_configurations(cfgs, instances, existing, solver, args, global_rows)
+        results = run_and_save_configurations(cfgs, instances, existing, solver, args, global_rows, results_rows)
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
-            incumbent_config = candidate
+            incumbent_config = best_lexico(incumbent_config, candidate)
 
         print(
             f"\nEnd of iteration.  Incumbent: {incumbent_config[0]}  "

@@ -341,7 +341,7 @@ def main():
     )
     candidate = incumbent_configuration(results, BKS) if results else None
     if candidate:
-        incumbent_config = candidate
+        incumbent_config = best_lexico(incumbent_config, candidate)
 
     while not stopping_criteria(start_time, prev_incumbent, incumbent_config[0]):
         prev_incumbent = incumbent_config[0]
@@ -361,7 +361,7 @@ def main():
         )
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
-            incumbent_config = candidate
+            incumbent_config = best_lexico(incumbent_config, candidate)
 
         # Perturbation phase — flip each bit in positions 8-10
         cfgs = perturbation_experiments_configs(incumbent_config[0])
@@ -378,7 +378,7 @@ def main():
         )
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
-            incumbent_config = candidate
+            incumbent_config = best_lexico(incumbent_config, candidate)
 
         # Restart phase — flip the last bit
         cfgs = restart_experiments_configs(incumbent_config[0])
@@ -395,7 +395,7 @@ def main():
         )
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
-            incumbent_config = candidate
+            incumbent_config = best_lexico(incumbent_config, candidate)
 
         print(
             f"\nEnd of iteration.  Incumbent: {incumbent_config[0]}  "
