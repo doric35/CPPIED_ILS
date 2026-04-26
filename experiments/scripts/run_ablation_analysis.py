@@ -80,8 +80,7 @@ from ejor_experiments_helpers import (
     read_existing_names,
     resolve_scratch_dir,
     run_experiment,
-    run_statistics,
-    resolve_solver,
+    run_statistics
 )
 
 
@@ -186,8 +185,7 @@ def run_configs_for_instances(
     pending = []
 
     for instance_dir in instances:
-        prefix = instance_dir.name.split("_")[0] + "_"
-        solver = resolve_solver(prefix, "auto")
+        solver = "ILS"
         for cfg in cfgs:
             exp_name = f"{instance_dir.name}_{cfg}"
             if exp_name in existing:
@@ -356,7 +354,11 @@ def main():
 
     # ── Greedy ablation iterations ────────────────────────────────────────────
     for iteration in range(1, N_ITERATIONS + 1):
-        candidates = candidate_flips(current_config, target_config)
+        if iteration == 1:
+            first_target = target_config[:8] + "0000"
+            candidates = candidate_flips(current_config, first_target)
+        else:
+            candidates = candidate_flips(current_config, target_config)
         if not candidates:
             print(f"Iteration {iteration}: no bits left to flip.  Stopping early.")
             break
