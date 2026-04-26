@@ -110,6 +110,7 @@ def run_and_save_configurations(
         scratch_errors: Path,
         args,
         global_rows: dict[str, list[dict]],
+        results_rows: dict[str, list[dict]],
 ) -> list[dict]:
     """Run all (cfg × instance) pairs that are not yet in *existing*.
 
@@ -127,10 +128,16 @@ def run_and_save_configurations(
         for algorithm_config in cfgs:
             exp_name = f"{instance_dir.name}_{algorithm_config}"
             if exp_name in existing:
+                if exp_name in results_rows:
+                    accumulated_results.extend(results_rows[exp_name])
+                    print(f"  [RESULTS] {exp_name}")
                 continue
             existing.add(exp_name)
             if exp_name in global_rows:
-                accumulated_results.extend(global_rows[exp_name])
+                rows = global_rows[exp_name]
+                accumulated_results.extend(rows)
+                append_csv_rows(RESULTS_FILE, RESULTS_COLS, rows)
+                results_rows[exp_name] = rows
                 print(f"  [CACHED]  {exp_name}")
             else:
                 pending.append((exp_name, str(instance_dir), algorithm_config, solver))
@@ -166,6 +173,7 @@ def run_and_save_configurations(
             if result["success"]:
                 accumulated_results.extend(result["rows"])
                 global_rows[exp_name] = result["rows"]
+                results_rows[exp_name] = result["rows"]
                 append_csv_rows(scratch_results, RESULTS_COLS, result["rows"])
                 print(f"  [{done:{width}}/{len(pending)}] OK    {exp_name}")
             else:
@@ -309,7 +317,8 @@ def main():
     if not instances:
         sys.exit("No instances found – check the ejor_tests directory.")
 
-    existing    = read_existing_names(RESULTS_FILE)
+    existing    = read_existing_names(scratch_results)
+    results_rows = read_global_rows(scratch_results)
     global_rows = read_global_rows(GLOBAL_RESULTS_FILE)
 
     solver           = "ILS"
@@ -337,7 +346,7 @@ def main():
     )
     results = run_and_save_configurations(
         cfgs, instances, existing, scratch_dir, solver,
-        scratch_results, scratch_errors, args, global_rows,
+        scratch_results, scratch_errors, args, global_rows, results_rows,
     )
     candidate = incumbent_configuration(results, BKS) if results else None
     if candidate:
@@ -357,7 +366,7 @@ def main():
         )
         results = run_and_save_configurations(
             cfgs, instances, existing, scratch_dir, solver,
-            scratch_results, scratch_errors, args, global_rows,
+            scratch_results, scratch_errors, args, global_rows, results_rows
         )
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
@@ -374,7 +383,7 @@ def main():
         )
         results = run_and_save_configurations(
             cfgs, instances, existing, scratch_dir, solver,
-            scratch_results, scratch_errors, args, global_rows,
+            scratch_results, scratch_errors, args, global_rows, results_rows
         )
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:
@@ -391,7 +400,8 @@ def main():
         )
         results = run_and_save_configurations(
             cfgs, instances, existing, scratch_dir, solver,
-            scratch_results, scratch_errors, args, global_rows,
+            scratch_results, scratch_errors, args, global_rows, results_rows
+
         )
         candidate = incumbent_configuration(results, BKS) if results else None
         if candidate:

@@ -98,6 +98,23 @@ def main():
 
     existing = read_existing_names(RESULTS_FILE)
 
+    # Load scratch buffer rows from a previous (possibly cancelled) run so that
+    # already-computed pairs are not re-run and are included in the final flush.
+    scratch_rows: dict[str, list[dict]] = {}
+    if scratch_results.exists():
+        with open(scratch_results, newline="") as fh:
+            for row in csv.DictReader(fh):
+                name = row["name"]
+                if name not in existing:
+                    scratch_rows.setdefault(name, []).append(
+                        {col: row.get(col, "") for col in RESULTS_COLS}
+                    )
+
+    # In-memory accumulators — flushed to permanent storage once at the end.
+    # Pre-populate with scratch hits so they are included in the final flush.
+    accumulated_results: list[dict] = []
+    accumulated_errors:  list[dict] = []
+
     # Build the pending work list.
     # Both ILS and GUROBI iterate over their respective config lists.
     # ILS   entry: (instance × ils_config)    — exp_name = <instance>_<config>
@@ -105,6 +122,7 @@ def main():
     # pending items: (exp_name, instance_dir_str, algorithm_config, solver)
     pending: list[tuple[str, str, str, str]] = []
     total_ils_all = total_gurobi_all = 0
+    n_cached = 0
 
     for instance_dir in instances:
         prefix = instance_dir.name.split("_")[0] + "_"
@@ -118,11 +136,17 @@ def main():
 
         for algorithm_config in cfgs:
             exp_name = f"{instance_dir.name}_{algorithm_config}"
-            if exp_name not in existing:
+            if exp_name in existing:
+                continue
+            if exp_name in scratch_rows:
+                accumulated_results.extend(scratch_rows[exp_name])
+                existing.add(exp_name)
+                n_cached += 1
+            else:
                 pending.append((exp_name, str(instance_dir), algorithm_config, solver))
 
-    total_all   = total_ils_all + total_gurobi_all
-    total_skip  = total_all - len(pending)
+    total_all    = total_ils_all + total_gurobi_all
+    total_skip   = total_all - len(pending) - n_cached
     total_missed = len(run_instances) - len(instances)
     n_ils_inst    = total_ils_all    // max(len(ils_configs),    1)
     n_gurobi_inst = total_gurobi_all // max(len(gurobi_configs), 1)
@@ -134,19 +158,16 @@ def main():
         f"Not found instances  : {total_missed}\n"
         f"Total pairs          : {total_all}\n"
         f"Already done         : {total_skip}\n"
+        f"Recovered from scratch: {n_cached}\n"
         f"To run               : {len(pending)}\n"
         f"Workers              : {args.workers}\n"
         f"Scratch dir          : {scratch_dir}\n"
         f"Solver selection     : {args.solver}\n"
     )
 
-    if not pending:
+    if not pending and not accumulated_results:
         print("Nothing to do.")
         return
-
-    # In-memory accumulators — flushed to permanent storage once at the end
-    accumulated_results: list[dict] = []
-    accumulated_errors:  list[dict] = []
 
     done   = 0
     errors = 0

@@ -99,6 +99,17 @@ def ensure_local_csv(path: Path):
         pd.DataFrame(columns=RESULTS_COLS).to_csv(path, index=False)
 
 
+def read_scratch_rows(exp_name: str) -> "pd.DataFrame | None":
+    """Return the K scratch rows for *exp_name* if already computed, else None."""
+    local_csv = SCRATCH_DIR / exp_name / "results.csv"
+    if not local_csv.exists():
+        return None
+    df = pd.read_csv(local_csv)
+    if len(df) >= K:
+        return df.tail(K)
+    return None
+
+
 def run_experiment(
     exp_name: str,
     instance_dir: Path,
@@ -180,10 +191,17 @@ def main():
             exp_name = f"{instance_dir.name}_{algorithm_config}"
 
             if exp_name in existing:
-                print(f"[{counter:>{len(str(total))}}/{total}] SKIP  {exp_name}")
+                print(f"[{counter:>{len(str(total))}}/{total}] SKIP   {exp_name}")
                 continue
 
-            print(f"[{counter:>{len(str(total))}}/{total}] RUN   {exp_name} ...", end=" ", flush=True)
+            scratch_df = read_scratch_rows(exp_name)
+            if scratch_df is not None:
+                print(f"[{counter:>{len(str(total))}}/{total}] CACHED {exp_name}")
+                append_to_csv(RESULTS_FILE, scratch_df, RESULTS_COLS)
+                existing.add(exp_name)
+                continue
+
+            print(f"[{counter:>{len(str(total))}}/{total}] RUN    {exp_name} ...", end=" ", flush=True)
 
             new_df, proc = run_experiment(
                 exp_name,
