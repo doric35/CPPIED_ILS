@@ -9,6 +9,9 @@ tests/**/*.txt
 tests/**/*.log
 tests/scratch/*
 **/*.pyc
+**/*.ipynb
 .idea/*
 experiments/results
+*.DS_Store
+**/.DS_Store
 
