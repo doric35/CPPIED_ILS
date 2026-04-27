@@ -323,8 +323,11 @@ def main():
             "Continuing anyway.\n"
         )
 
-    existing     = read_existing_names(RESULTS_FILE)
-    results_rows = read_global_rows(RESULTS_FILE)
+    # Load existing from scratch buffer first so that results streamed during a
+    # previous cancelled run are recovered without re-running.
+    existing     = read_existing_names(scratch_results_buf) | read_existing_names(RESULTS_FILE)
+    results_rows = read_global_rows(scratch_results_buf)
+    results_rows.update(read_global_rows(RESULTS_FILE))
     global_rows  = read_global_rows(GLOBAL_RESULTS_FILE)
 
     # Accumulators — flushed once at the end
