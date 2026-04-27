@@ -21,6 +21,17 @@ void ilp::d_solve(cppied_solution &pSolution) {
     set_constraints(pSolution, model);
     set_objectives(pSolution, model);
 
+    if (warm_start){
+        dp_sweeper dps(ctx, problem);
+        auto saver = [](const cppied_solution& pSol){
+            ;
+        };
+        dps.construct(pSolution, saver);
+        std::vector<int> position_sequence;
+        segments_to_positions_sequence(pSolution, position_sequence);
+        set_warm_start(position_sequence);
+    }
+
     int t = remaining_time();
     model.set(GRB_DoubleParam_TimeLimit, t + 1.0);
     if (no_rel)
@@ -364,4 +375,44 @@ void ilp::find_cycle(cppied_solution &pSolution,
                                minus_sets[*node].V.end(), *std::prev(node))
                      != minus_sets[*node].V.end();
     }
+}
+
+void ilp::segments_to_positions_sequence(cppied_solution &pSolution,
+                                         std::vector<int> &p_sequence) {
+    p_sequence.clear();
+    p_sequence.reserve(pSolution.cost.length+1);
+    for (auto& s : pSolution.path){
+        p_sequence.push_back(s.source);
+        if (path_engine::is_node(s.target)){
+            int orientation = (s.target - s.source) / std::abs(s.target - s.source);
+            for (int v = s.source; v<= s.target; v+=orientation)
+                p_sequence.push_back(v);
+        }
+    }
+}
+
+void ilp::set_warm_start(std::vector<int> &p_sequence) {
+    source.outgoing_variables[0].set(GRB_DoubleAttr_Start, 1.0);
+    for (int i = 0; i + 1 < static_cast<int>(p_sequence.size()); i++){
+        int arc_idx =  variables[p_sequence[i]].vertex_to_arc[p_sequence[i+1]];
+        variables[p_sequence[i]].variables_flow[arc_idx] += 1.0;
+    }
+    for (auto & variable : variables){
+        for (int u = 0; u < variable.outgoing_variables.size(); u++) {
+            variable.outgoing_variables[u].set(GRB_DoubleAttr_Start, variable.variables_flow[u]);
+        }
+    }
+    bool back_minus = std::find(minus_sets[p_sequence.back()].V.begin(),
+                                minus_sets[p_sequence.back()].V.end(),
+                                *std::prev(p_sequence.end(),2))
+                     != minus_sets[p_sequence.back()].V.end();
+    if (back_minus)
+        targets_plus_flow[p_sequence.back()] = 1.0;
+    else
+        targets_minus_flow[p_sequence.back()] = 1.0;
+    for(int v=0; v< targets_minus.size(); v++)
+        targets_minus[v].set(GRB_DoubleAttr_Start, targets_minus_flow[v]);
+    for(int v=0; v<targets_plus.size(); v++)
+        targets_plus[v].set(GRB_DoubleAttr_Start, targets_plus_flow[v]);
+
 }

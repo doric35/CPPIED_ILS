@@ -3,6 +3,7 @@
 #include "gurobi_c++.h"
 #include "../cppied_method_base.hpp"
 #include "../metaheuristics/ils.hpp"
+#include "../construction/dp_sweeper.hpp"
 
 namespace lp {
     struct node{
@@ -24,7 +25,7 @@ namespace lp {
 class ilp : public cppied_method_base {
 public:
     ilp(cppied_context& c, cppied_instance& i) :
-        cppied_method_base(c, i), no_rel(false), starting_minus(false){};
+        cppied_method_base(c, i), no_rel(false), starting_minus(false), warm_start(false){};
 
     friend class subtour_elimination;
 
@@ -33,9 +34,11 @@ public:
         if (config_item == ctx.config.end())
             throw std::runtime_error("Did not identify ilp solver configuration with c0 or c1.\n");
         std::string configuration = config_item->second;
-        assert(configuration.size() == 2);
+        assert(configuration.size() == 3);
         if (configuration[1] == '1')
             no_rel = true;
+        if (configuration[2] == '1')
+            warm_start = true;
     }
 
     void terminate() override {
@@ -58,6 +61,8 @@ public:
                     int current_node,
                     bool curr_minus);
     void set_solution(cppied_solution& pSolution, std::list<int>& path);
+    void segments_to_positions_sequence(cppied_solution& pSolution, std::vector<int>& p_sequence);
+    void set_warm_start(std::vector<int>& p_sequence);
 
 protected:
     std::vector<lp::node> variables;
@@ -71,6 +76,7 @@ protected:
 
     bool no_rel;
     bool starting_minus;
+    bool warm_start;
 
     GRBLinExpr Z1=0;
     GRBLinExpr Z2=0;

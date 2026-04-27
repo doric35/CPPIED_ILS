@@ -54,11 +54,11 @@ def read_results(results_csv : Path):
             parts    = row["name"].split("_")
             instance = "_".join(parts[:3])   # s1616_ir0_lrc031
             config   = parts[3]  # c11111111111
-            size = parts[0]  # s1616, s6464, s128128
+            loc_size = parts[0]  # s1616, s6464, s128128
             if config in configurations:
                 loc_rows.append({
                     "instance": instance,
-                    "size":     size,
+                    "size":     loc_size,
                     "config":   config,
                     "length":   int(row["length"]),
                     "turns":    int(row["turns"]),
@@ -72,7 +72,7 @@ global_rows = read_results(GLOBAL_RESULTS_CSV)
 global_rows = [r for r in global_rows if r["instance"] in unique_instances]
 
 def config_label_map(c : str):
-    if len(c) == 2:
+    if len(c) == 3:
         return "Gurobi"
     return c
 
@@ -103,7 +103,7 @@ def get_ylim(config_rads):
     return max_ils_rad
 
 
-def make_boxplot(config_rads, metric_label, output_pdf):
+def make_boxplot(config_rads, loc_metric_label, output_pdf):
     ils_ylim = get_ylim(config_rads)
 
     configs_sorted = sorted(
@@ -121,6 +121,7 @@ def make_boxplot(config_rads, metric_label, output_pdf):
 
     ax.boxplot(
         data,
+        whis = (5, 95),
         vert=False,
         patch_artist=True,
         positions=range(n),
@@ -174,7 +175,6 @@ METRICS = [
 ]
 
 rows = rows + global_rows
-
 
 def compute_config_table_stats(loc_rows, loc_metric):
     """Return {config_label: stat_dict} for all configs present in loc_rows.
@@ -235,14 +235,14 @@ def _fmt(val, decimals=2):
     return "---" if val != val else f"{val:.{decimals}f}"
 
 
-def make_latex_table(all_rows, sizes, metric, metric_label, output_tex):
+def make_latex_table(all_rows, sizes, loc_metric, loc_metric_label, output_tex):
     N_COLS = 10  # label + AvgD StD MedianD MaxD MinD #Best #<5% #Worst #NA
 
     lines = [
         r"\begin{table}",
         r"    \setlength{\tabcolsep}{1pt}",
         r"    \centering",
-        rf"    \caption{{Empirical performance analysis — {metric_label}}}",
+        rf"    \caption{{Empirical performance analysis — {loc_metric_label}}}",
         r"    \label{tab:empirical}",
         r"    \begin{tabular}{ldddddrrrr}",
         r"    \toprule",
@@ -250,13 +250,13 @@ def make_latex_table(all_rows, sizes, metric, metric_label, output_tex):
         r"    \midrule",
     ]
 
-    for i, size in enumerate(sizes):
-        size_label = SIZE_LABELS.get(size, size)
+    for i, loc_size in enumerate(sizes):
+        size_label = SIZE_LABELS.get(loc_size, loc_size)
         lines.append(
             rf"    \multicolumn{{{N_COLS}}}{{l}}{{\textit{{{size_label}}}}} \\"
         )
-        size_rows = [r for r in all_rows if r["size"] == size]
-        stats = compute_config_table_stats(size_rows, metric)
+        loc_size_rows = [r for r in all_rows if r["size"] == loc_size]
+        stats = compute_config_table_stats(loc_size_rows, loc_metric)
         for label in sorted(stats, key=lambda c: stats[c]["avgd"]):
             s = stats[label]
             lines.append(
@@ -284,7 +284,7 @@ for metric, metric_label in METRICS:
         size_rows = [r for r in rows if r["size"] == size]
         make_boxplot(
             compute_config_rads(size_rows, metric),
-            metric_label=f"{metric_label} — {size}",
+            loc_metric_label=f"{metric_label} — {size}",
             output_pdf=RESULTS_DIR / f"ejor_rad_boxplot_{metric}_{size}.pdf",
         )
     make_latex_table(
