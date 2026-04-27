@@ -14,7 +14,7 @@ public:
     void cluster_selection(cppied_solution&,
                            std::vector<int>& selection,
                            std::vector<std::vector<segment>>& replacements);
-
+    void split(cppied_solution &pSol);
     void build_clusters(const cppied_solution& pSol,
                         tsp::GTSPGraph& target,
                         std::vector<std::vector<segment>>& replacements,

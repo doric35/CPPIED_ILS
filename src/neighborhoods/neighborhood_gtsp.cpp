@@ -1,14 +1,16 @@
 #include "../../include/neighborhoods/neighborhood_gtsp.hpp"
 
 bool neighborhood_gtsp::local_search(cppied_solution &pSol) {
+    cppied_solution trial = pSol;
+    split(trial);
     std::vector<int> selection;
     std::vector<int> warm_start;
     std::vector<std::vector<segment>> replacements;
-    cluster_selection(pSol, selection, replacements);
-    warm_start.reserve(pSol.path.size()*3 + 3);
+    cluster_selection(trial, selection, replacements);
+    warm_start.reserve(trial.path.size()*3 + 3);
 
     tsp::GTSPGraph graph;
-    build_clusters(pSol,
+    build_clusters(trial,
                    graph,
                    replacements,
                    selection,
@@ -16,14 +18,13 @@ bool neighborhood_gtsp::local_search(cppied_solution &pSol) {
 
     assert(warm_start.size() == graph.nodes.size());
     graph.cost.resize(int(graph.nodes.size()),int(graph.nodes.size()));
-    graph.cost.setConstant(pSol.cost.length);
-    graph.penalty = pSol.cost.length + 1;
+    graph.cost.setConstant(trial.cost.length);
+    graph.penalty = trial.cost.length + 1;
 
     set_gtsp_costs(graph);
     tspEngine.gtsp_to_atsp(graph);
 
     std::vector<int> tour = std::move(tspEngine.lkh(graph.cost, warm_start));
-    cppied_solution trial = pSol;
     tsp_to_path(trial, tour, graph);
     trial.cost = geometry.cost(trial);
     if (trial.cost < pSol.cost) {
@@ -33,6 +34,84 @@ bool neighborhood_gtsp::local_search(cppied_solution &pSol) {
         return true;
     }
     return false;
+}
+
+void neighborhood_gtsp::split(cppied_solution &pSol) {
+    int max_split = int(std::sqrt(static_cast<double>(pSol.path.size())));
+    std::vector<segment> new_sol;
+    new_sol.reserve(pSol.path.size() + max_split);
+
+    std::vector<int> selection(pSol.path.size());
+    std::iota(selection.begin(), selection.end(), 0);
+
+    auto cmp = [&](int i, int j){
+        return geometry.cost(pSol.path[i]) > geometry.cost(pSol.path[j]);
+    };
+    std::partial_sort(selection.begin(),
+                      std::next(selection.begin(), max_split),
+                      selection.end(), cmp);
+
+    std::vector<int> split_selection(selection.begin(),
+                                     std::next(selection.begin(), max_split));
+    std::sort(split_selection.begin(), split_selection.end());
+
+    int i=0, j=0;
+    for(;i<pSol.path.size();i++){
+        if (j< split_selection.size() && i==split_selection[j]){
+            if (geometry.cost(pSol.path[i]) <= cost_t{0,0}){
+                new_sol.push_back(pSol.path[i]);
+            } else if (geometry.cost(pSol.path[i]) == cost_t{1,0}){
+                direction dir = geometry.get_direction(pSol.path[i]);
+                segment s1 = {pSol.path[i].source, path_engine::NULL_NODE};
+                segment s2 = {pSol.path[i].target, path_engine::NULL_NODE};
+                geometry.correct_segment_direction(s1, dir);
+                geometry.correct_segment_direction(s2,dir);
+                new_sol.push_back(s1);
+                new_sol.push_back(s2);
+            } else if (geometry.cost(pSol.path[i]) == cost_t{2,0}){
+                int mid = (pSol.path[i].target - pSol.path[i].source) / 2;
+                mid += pSol.path[i].source;
+                direction dir = geometry.get_direction(pSol.path[i]);
+                segment s1 = {pSol.path[i].source, path_engine::NULL_NODE};
+                geometry.correct_segment_direction(s1, dir);
+                segment s2 = {mid, pSol.path[i].target};
+                new_sol.push_back(s1);
+                new_sol.push_back(s2);
+            } else {
+                int first = std::min(pSol.path[i].source, pSol.path[i].target);
+                int last = std::max(pSol.path[i].source, pSol.path[i].target);
+                std::uniform_int_distribution<> d(first,last);
+                int split_point = d(rng);
+
+                segment s1{}, s2{};
+                if (split_point == first) {
+                    s1 = {first, path_engine::NULL_NODE};
+                    s2 = {first + 1, last};
+                } else if (split_point == last){
+                    s1 = {first, last-1};
+                    s2 = {last, path_engine::NULL_NODE};
+                } else {
+                    s1 = {first, split_point};
+                    s2 = {split_point+1, last};
+                    if (s2.source == last)
+                        s2.target = path_engine::NULL_NODE;
+                }
+                direction ref_dir = geometry.get_direction(pSol.path[i]);
+                geometry.correct_segment_direction(s1, ref_dir);
+                geometry.correct_segment_direction(s2, ref_dir);
+                if (s1.source == pSol.path[i].source){
+                    new_sol.push_back(s1);
+                    new_sol.push_back(s2);
+                } else {
+                    new_sol.push_back(s2);
+                    new_sol.push_back(s1);
+                }
+            }
+            j++;
+        } else
+            new_sol.push_back(pSol.path[i]);
+    }
+    pSol.path.swap(new_sol);
 }
 
 void neighborhood_gtsp::cluster_selection(cppied_solution &pSol,
@@ -122,8 +201,11 @@ void neighborhood_gtsp::set_gtsp_costs(tsp::GTSPGraph &graph) {
     for (int i=6; i<graph.nodes.size(); i+=3){
         segment sf1 = geometry.flip_segment(graph.nodes[i].s);
         segment sf2 = geometry.flip_segment(graph.nodes[i+2].s);
-        graph.cost(i, i+1) = 0;
-        graph.cost(i+1, i+2) = 0;
+        segment s = {sf1.source, sf2.source};
+        if (s.source == s.target) s.target = path_engine::NULL_NODE;
+        double s_cost = static_cast<double>(geometry.cost(s).length);
+        graph.cost(i, i+1) = static_cast<int>(std::floor(s_cost / 2.0));
+        graph.cost(i+1, i+2) = static_cast<int>(std::ceil(s_cost / 2.0));
         for (int j=i+3; j<graph.nodes.size(); j+=3){
             if (graph.nodes[i].cluster_id / 3 != graph.nodes[j].cluster_id / 3){
                 graph.cost(i, j) =
