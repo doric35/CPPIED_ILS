@@ -10,8 +10,8 @@ void ilp::d_solve(cppied_solution &pSolution) {
         modeling_env.set("LogFile", log_path);
     } else
         modeling_env.set("LogFile", "modeling.log");
-    modeling_env.set(GRB_IntParam_OutputFlag, 1);
-    modeling_env.set(GRB_IntParam_LogToConsole, 1);
+    modeling_env.set(GRB_IntParam_OutputFlag, 0);
+    modeling_env.set(GRB_IntParam_LogToConsole, 0);
     modeling_env.set(GRB_IntParam_ThreadLimit, 1);
     modeling_env.start();
     GRBModel model = GRBModel(modeling_env);
