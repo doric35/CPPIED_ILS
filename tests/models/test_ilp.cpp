@@ -28,6 +28,8 @@ struct ilp_accessor : public ilp {
     using ilp::no_rel;
     using ilp::targets_minus_flow;
     using ilp::targets_plus_flow;
+    using ilp::segments_to_positions_sequence;
+    using ilp::set_warm_start;
 
 };
 
@@ -487,6 +489,199 @@ TEST_F(ilp_find_cycle_fixture, FindCycleTotalFlowDecreasedByOneCycle) {
     m->find_cycle(dummy, path, 0, true);
     EXPECT_EQ(total_flow(), before - (int)path.size())
         << "total flow must decrease by exactly path.size() (one unit per arc consumed)";
+}
+
+// ============================================================================
+// segments_to_positions_sequence + set_warm_start — white-box tests
+// ============================================================================
+//
+// Bugs the tests are designed to catch:
+//   (1) segments_to_positions_sequence: backward segments are silently dropped
+//       because the loop condition "v <= s.target" terminates immediately when
+//       s.target < s.source (orientation == -1).  Fix: negate the condition
+//       for negative orientation (e.g. use "v != s.target + orientation").
+//   (2) set_warm_start: back_minus detection compared the found iterator
+//       against p_sequence.end() (a different container) instead of
+//       minus_sets[p_sequence.back()].V.end(), always evaluating to true
+//       and forcing the wrong target variable to be set.
+//
+// Grid topology: same 6×6 seabed as the find_cycle tests (84 vertices):
+//   Horizontal h(i,j) = i*6+j   at (j+0.5, i),  i=0..6, j=0..5
+//   Vertical   v(j,i) = 42+j*6+i at (j, i+0.5), j=0..6, i=0..5
+//
+// The sequence and warm-start tests use a feasible dp_sweeper solution so
+// that all consecutive pairs in the sequence correspond to real ILP arcs.
+
+// ── Fixture for pure sequence tests (no Gurobi required) ─────────────────────
+// segments_to_positions_sequence operates only on path segment data and does
+// not touch any Gurobi variable.  These tests therefore run without a license.
+
+class ilp_positions_sequence_fixture : public ilp_fixture {
+protected:
+    std::vector<int> sequence_of(std::vector<segment> segs) {
+        cppied_solution tmp;
+        tmp.path     = std::move(segs);
+        tmp.cost     = {0, 0};
+        tmp.coverage = Eigen::VectorXd::Zero(P.req.size());
+        std::vector<int> s;
+        m->segments_to_positions_sequence(tmp, s);
+        return s;
+    }
+};
+
+// A forward segment {6,11} on the 6×6 grid must expand to exactly
+// [6,7,8,9,10,11] — no duplicate source, no missing tail.
+TEST_F(ilp_positions_sequence_fixture, PositionSequenceForwardSegmentNoDuplicate) {
+    auto s = sequence_of({{6, 11}});
+    const std::vector<int> expected = {6, 7, 8, 9, 10, 11};
+    EXPECT_EQ(s, expected)
+        << "forward segment {6,11} must expand to [6,7,8,9,10,11] without "
+           "leading duplication of the source vertex";
+}
+
+// A backward segment {23,18} must expand to [23,22,21,20,19,18].
+// Bug: the loop "for (v = src+orientation; v <= tgt; ...)" exits immediately
+// when tgt < src (orientation == -1), so only the source vertex is pushed.
+TEST_F(ilp_positions_sequence_fixture, PositionSequenceBackwardSegmentComplete) {
+    auto s = sequence_of({{23, 18}});
+    const std::vector<int> expected = {23, 22, 21, 20, 19, 18};
+    EXPECT_EQ(s, expected)
+        << "backward segment {23,18} must expand to all 6 vertices; "
+           "bug: 'v <= s.target' exits immediately for negative orientation";
+}
+
+// ── Fixture for warm-start tests (requires Gurobi) ────────────────────────────
+// set_warm_start calls GRBVar::set(GRB_DoubleAttr_Start, ...) on all arc
+// variables, so a valid Gurobi environment is needed.
+
+class ilp_warm_start_fixture : public ilp_variables_fixture {
+protected:
+    cppied_solution warm_sol;  // feasible dp_sweeper solution
+    std::vector<int> seq;      // position sequence from warm_sol
+
+    void SetUp() override {
+        ilp_variables_fixture::SetUp();
+
+        warm_sol.path     = {};
+        warm_sol.cost     = {0, 0};
+        warm_sol.coverage = Eigen::VectorXd::Zero(P.req.size());
+
+        dp_sweeper dps(ctx, P);
+        auto saver = [](const cppied_solution&) {};
+        dps.construct(warm_sol, saver);
+        m->geometry.complete(warm_sol);
+        m->coverage.reset(warm_sol);
+        warm_sol.cost = m->geometry.cost(warm_sol);
+
+        m->segments_to_positions_sequence(warm_sol, seq);
+        m->set_warm_start(seq);
+    }
+};
+
+// The first element of the position sequence must be the problem's initial
+// position vertex (that is where the source arc originates).
+TEST_F(ilp_warm_start_fixture, PositionSequenceStartsAtInitialPosition) {
+    ASSERT_FALSE(seq.empty());
+    EXPECT_EQ(seq.front(), P.initial_position)
+        << "position sequence must start at initial_position="
+        << P.initial_position << "; got " << seq.front();
+}
+
+// No two consecutive positions in the sequence may be identical (self-arcs
+// do not exist in the ILP graph and would corrupt set_warm_start).
+TEST_F(ilp_warm_start_fixture, PositionSequenceNoConsecutiveDuplicates) {
+    ASSERT_GE((int)seq.size(), 2)
+        << "dp_sweeper must produce a sequence with at least two vertices";
+    for (int i = 0; i + 1 < (int)seq.size(); ++i)
+        EXPECT_NE(seq[i], seq[i + 1])
+            << "self-arc at position " << i << ": seq[" << i << "]=seq["
+            << i + 1 << "]=" << seq[i];
+}
+
+// Every consecutive pair (seq[i], seq[i+1]) must correspond to an existing
+// arc in the ILP graph, i.e. vertex_to_arc[seq[i]] must contain seq[i+1].
+// A missing arc indicates that segments_to_positions_sequence skipped
+// vertices (backward-segment bug) and the resulting jump is not a valid edge.
+TEST_F(ilp_warm_start_fixture, PositionSequenceAllConsecutivePairsAreValidArcs) {
+    for (int i = 0; i + 1 < (int)seq.size(); ++i) {
+        int u = seq[i], v = seq[i + 1];
+        auto it = m->variables[u].vertex_to_arc.find(v);
+        EXPECT_NE(it, m->variables[u].vertex_to_arc.end())
+            << "seq[" << i << "]=" << u << " → seq[" << i + 1 << "]=" << v
+            << " is not a valid ILP arc; vertex_to_arc[" << u
+            << "] has no entry for " << v;
+    }
+}
+
+// set_warm_start must set variables_flow[u][arc(u→v)] to the number of times
+// the arc u→v appears as a consecutive pair in the position sequence.
+TEST_F(ilp_warm_start_fixture, WarmStartFlowMatchesSequenceTraversal) {
+    std::map<std::pair<int, int>, int> expected_flow;
+    for (int i = 0; i + 1 < (int)seq.size(); ++i)
+        expected_flow[{seq[i], seq[i + 1]}]++;
+
+    for (auto& [uv, count] : expected_flow) {
+        int u   = uv.first;
+        int v   = uv.second;
+        auto it = m->variables[u].vertex_to_arc.find(v);
+        if (it == m->variables[u].vertex_to_arc.end()) {
+            ADD_FAILURE() << "arc " << u << "→" << v
+                          << " not in vertex_to_arc; cannot verify flow";
+            continue;
+        }
+        double flow = m->variables[u].variables_flow[it->second];
+        EXPECT_NEAR(flow, (double)count, 1e-6)
+            << "variables_flow[" << u << "][arc→" << v << "]=" << flow
+            << "; expected " << count << " traversal(s)";
+    }
+}
+
+// Exactly one target variable (targets_minus_flow or targets_plus_flow) must
+// be set to 1 across all vertices — the path has a unique endpoint.
+TEST_F(ilp_warm_start_fixture, WarmStartExactlyOneTargetVariableSet) {
+    int n = (int)m->targets_minus_flow.size();
+    int total_set = 0;
+    for (int v = 0; v < n; ++v) {
+        if (m->targets_minus_flow[v] > 0.5) ++total_set;
+        if (m->targets_plus_flow[v]  > 0.5) ++total_set;
+    }
+    EXPECT_EQ(total_set, 1)
+        << "exactly one target variable must be set to 1; got " << total_set
+        << " (bug: back_minus detection uses wrong end iterator, always sets "
+           "the same type and leaves the other unset or double-sets)";
+}
+
+// The flow set by set_warm_start must satisfy every coverage constraint:
+//   s_pod(c, initial_pos) + Σ_{u→v} variables_flow[u][arc] * s_pod(c,v) ≥ req(c)
+//
+// This directly models the Gurobi violation:
+//   "User MIP start violates constraint R0 by 2.197224577"
+// Root cause: backward segments were not expanded, so arcs covering certain
+// cells were missing from the warm-start flow.
+TEST_F(ilp_warm_start_fixture, WarmStartSatisfiesCoverageConstraints) {
+    ASSERT_TRUE((warm_sol.coverage.array() >= P.req.array()).all());
+    int n_cells = (int)P.req.size();
+    for (int c = 0; c < n_cells; ++c) {
+        if (P.req(c) < 1e-9) continue;
+
+        // Source arc contribution: the source arc always covers initial_position.
+        double cov = P.s_pod.coeff(c, P.initial_position);
+
+        // Contribution from every arc with non-zero flow.
+        for (int u = 0; u < (int)m->variables.size(); ++u) {
+            for (int arc = 0;
+                 arc < (int)m->variables[u].outgoing_arcs_V1.size(); ++arc) {
+                double flow = m->variables[u].variables_flow[arc];
+                if (flow < 1e-9) continue;
+                int dest = m->variables[u].outgoing_arcs_V1[arc];
+                cov += flow * P.s_pod.coeff(c, dest);
+            }
+        }
+
+        EXPECT_GE(cov, P.req(c) - 1e-6)
+            << "coverage constraint violated for cell " << c
+            << ": coverage=" << cov << " < req=" << P.req(c);
+    }
 }
 
 // ============================================================================

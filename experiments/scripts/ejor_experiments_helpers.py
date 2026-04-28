@@ -113,7 +113,7 @@ def write_config_file(
     ALGORITHM_CONFIG is always written with *algorithm_config*, whose
     format depends on the solver:
       ILS    — multi-bit string from random_configurations.txt
-      GUROBI — single-bit string from gurobi_configurations.txt (e.g. "c0", "c1")
+      GUROBI — double-bit string from gurobi_configurations.txt (e.g. "c00", "c11")
     """
     local_csv   = exp_dir / "results.csv"
     config_path = exp_dir / "config.txt"

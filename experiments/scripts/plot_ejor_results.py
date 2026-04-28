@@ -72,8 +72,10 @@ global_rows = read_results(GLOBAL_RESULTS_CSV)
 global_rows = [r for r in global_rows if r["instance"] in unique_instances]
 
 def config_label_map(c : str):
-    if len(c) == 3:
+    if c == "c10":
         return "Gurobi"
+    if c == "c11":
+        return "Gurobi(DpS)"
     return c
 
 def compute_config_rads(loc_rows, loc_metric):

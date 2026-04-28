@@ -10,8 +10,8 @@ void ilp::d_solve(cppied_solution &pSolution) {
         modeling_env.set("LogFile", log_path);
     } else
         modeling_env.set("LogFile", "modeling.log");
-    modeling_env.set(GRB_IntParam_OutputFlag, 0);
-    modeling_env.set(GRB_IntParam_LogToConsole, 0);
+    modeling_env.set(GRB_IntParam_OutputFlag, 1);
+    modeling_env.set(GRB_IntParam_LogToConsole, 1);
     modeling_env.set(GRB_IntParam_ThreadLimit, 1);
     modeling_env.start();
     GRBModel model = GRBModel(modeling_env);
@@ -27,6 +27,8 @@ void ilp::d_solve(cppied_solution &pSolution) {
             ;
         };
         dps.construct(pSolution, saver);
+        geometry.complete(pSolution);
+        coverage.reset(pSolution);
         std::vector<int> position_sequence;
         segments_to_positions_sequence(pSolution, position_sequence);
         set_warm_start(position_sequence);
@@ -120,10 +122,10 @@ void ilp::set_constraints(cppied_solution &pSolution,
         for (SMdIt c(problem.s_pod, source.outgoing_arcs_V1[0]); c; ++c)
             coverage_constraints[c.index()] += source.outgoing_variables[0] * c.value();
 
-        for (int u = 0; u < variables.size(); u++) {
-            for (int v = 0; v < variables[u].outgoing_arcs_V1.size(); ++v) {
-                for (SMdIt c(problem.s_pod, variables[u].outgoing_arcs_V1[v]); c; ++c)
-                    coverage_constraints[c.index()] += variables[u].outgoing_variables[v] * c.value();
+        for (auto & variable : variables) {
+            for (int v = 0; v < variable.outgoing_arcs_V1.size(); ++v) {
+                for (SMdIt c(problem.s_pod, variable.outgoing_arcs_V1[v]); c; ++c)
+                    coverage_constraints[c.index()] += variable.outgoing_variables[v] * c.value();
             }
         }
 
@@ -384,9 +386,13 @@ void ilp::segments_to_positions_sequence(cppied_solution &pSolution,
     for (auto& s : pSolution.path){
         p_sequence.push_back(s.source);
         if (path_engine::is_node(s.target)){
-            int orientation = (s.target - s.source) / std::abs(s.target - s.source);
-            for (int v = s.source; v<= s.target; v+=orientation)
-                p_sequence.push_back(v);
+            if (s.target > s.source) {
+                for (int v = s.source + 1; v <= s.target; v += 1)
+                    p_sequence.push_back(v);
+            } else {
+                for (int v = s.source - 1; v >= s.target; v -= 1)
+                    p_sequence.push_back(v);
+            }
         }
     }
 }
