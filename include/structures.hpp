@@ -232,9 +232,80 @@ inline void draw_path(const std::vector<segment>& path,
 }
 
 template <typename T>
+inline cv::Mat draw_final_frame(const std::vector<segment>& path,
+                                const Eigen::Ref<const Eigen::VectorXd>& coverage,
+                                T& helper,
+                                int height, int width,
+                                int time, double scale){
+    double min_req = 1 - std::exp(-helper.problem.req.minCoeff());
+    double spread = 1.0 - min_req;
+    cv::Mat coverage_img(helper.geometry.n_rows, helper.geometry.n_cols, CV_8UC1);
+    for (int y = 0; y < helper.geometry.n_rows; ++y) {
+        for (int x = 0; x < helper.geometry.n_cols; ++x) {
+            double norm = std::clamp(
+                (coverage((y * helper.geometry.n_cols) + x) - min_req) / spread,
+                0.0, 1.0);
+            coverage_img.at<uchar>(y,x) = static_cast<uchar>(255.0 * norm);
+        }
+    }
+    cv::Mat frame(height, width, CV_8UC3, cv::Scalar(255,255,255));
+
+    cv::Mat resized;
+    cv::Mat colored;
+    cv::resize(coverage_img, resized,
+               cv::Size(width, height),
+               0, 0,
+               cv::INTER_NEAREST);
+    cv::applyColorMap(resized, colored, cv::COLORMAP_JET);
+
+    colored.copyTo(frame(cv::Rect(0,0,width, height)));
+    draw_path(path, helper, frame, time, scale);
+    return frame;
+}
+
+inline void draw_colorbar(const std::string& file_name,
+                          double min_val, double max_val,
+                          int height, int width) {
+    const int bar_width = width / 3;
+
+    // Vertical gradient: top row = max (255 = red in JET), bottom row = min (0 = blue)
+    cv::Mat bar(height, bar_width, CV_8UC1);
+    for (int y = 0; y < height; ++y) {
+        auto val = static_cast<uchar>(255.0 * (1.0 - double(y) / double(height - 1)));
+        for (int x = 0; x < bar_width; ++x)
+            bar.at<uchar>(y, x) = val;
+    }
+    cv::Mat colored;
+    cv::applyColorMap(bar, colored, cv::COLORMAP_JET);
+
+    cv::Mat img(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+    colored.copyTo(img(cv::Rect(0, 0, bar_width, height)));
+
+    // Tick marks and labels at evenly spaced values
+    constexpr int n_ticks = 5;
+    for (int i = 0; i <= n_ticks; ++i) {
+        double t = double(i) / double(n_ticks);
+        double val = min_val + t * (max_val - min_val);
+        int y = height - 1 - static_cast<int>(std::round(t * double(height - 1)));
+
+        cv::line(img, {bar_width, y}, {bar_width + 6, y}, cv::Scalar(0, 0, 0), 1);
+
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(2) << val;
+        cv::putText(img, oss.str(),
+                    {bar_width + 9, y + 5},
+                    cv::FONT_HERSHEY_SIMPLEX, 0.4,
+                    cv::Scalar(0, 0, 0), 1, cv::LINE_AA);
+    }
+
+    cv::imwrite(file_name, img);
+}
+
+template <typename T>
 inline void write_visulization(
         const std::string& file_name,
         const std::string& img_file,
+        const std::string& sol_frame_fn,
         cppied_solution& s,
         T& helper,
         int max_time){
@@ -280,16 +351,33 @@ inline void write_visulization(
         writer.write(frame);
     }
     writer.release();
+    frame = draw_final_frame(sol_cp.path, exp_coverage, helper,
+                             height, width, s.path.size()-1, scale);
+    cv::imwrite(sol_frame_fn, frame);
+    std::string png_to_pdf = "magick ";
+    std::string inst_name = sol_frame_fn.substr(
+            0,
+            sol_frame_fn.find('.')
+    );
+    {
+        double min_req = 1.0 - std::exp(-helper.problem.req.minCoeff());
+        draw_colorbar(inst_name + "_colorbar.png", min_req, 1.0, height, 200);
+    }
+    png_to_pdf += sol_frame_fn + " " + inst_name + ".pdf";
+    int r_flag = std::system(png_to_pdf.c_str());
+    if (r_flag){
+        std::cerr << "[WARNING] Non 0 return when writing image png to pdf : flag " << r_flag << std::endl;
+    }
+
     frame = seabed_to_frame(helper.problem.seabed,
                             height, width);
     cv::imwrite(img_file, frame);
-    std::string png_to_pdf = "magick ";
-    std::string inst_name = img_file.substr(
+    inst_name = img_file.substr(
             0,
             img_file.find('.')
             );
     png_to_pdf += img_file + " " + inst_name + ".pdf";
-    int r_flag = std::system(png_to_pdf.c_str());
+    r_flag = std::system(png_to_pdf.c_str());
     if (r_flag){
         std::cerr << "[WARNING] Non 0 return when writing image png to pdf : flag " << r_flag << std::endl;
     }

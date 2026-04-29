@@ -16,6 +16,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy import stats as scipy_stats
+import re
+
+_TYPE_RE = re.compile(r"^i([a-zA-Z]+)\d+$")
 
 #Get result filename as input
 
@@ -32,6 +35,18 @@ parser.add_argument("--results", type=Path, default=DEFAULT_RESULTS_FILE,
                     help="Results list file (default: run_instances.txt).")
 parser.add_argument("--configs", type=Path, default=DEFAULT_CONFIGS_FILE,
                     help="Results list file (default: run_instances.txt).")
+parser.add_argument(
+    "--group",
+    choices=["none", "size", "type", "both"],
+    default="size",
+    help=(
+        "Grouping strategy for box plots: "
+        "'none' — one plot for all instances; "
+        "'size' — one plot per instance size (default); "
+        "'type' — one plot per instance type (the letter(s) between 'i' and the number, e.g. 'r', 's'); "
+        "'both' — one plot per (size, type) combination."
+    ),
+)
 args = parser.parse_args()
 
 RESULTS_CSV = RESULTS_DIR / args.results
@@ -60,6 +75,7 @@ def read_results(results_csv : Path):
                 loc_rows.append({
                     "instance": instance,
                     "size":     loc_size,
+                    "type":     _TYPE_RE.match(parts[1]).group(1),  # e.g. "r" from "ir0", "s" from "is1"
                     "config":   config,
                     "length":   int(row["length"]),
                     "turns":    int(row["turns"]),
@@ -98,33 +114,23 @@ def compute_config_rads(loc_rows, loc_metric):
 
     return config_rads
 
-def get_ylim(config_rads):
-    max_ils_rad = 0.0
-    for k, v in config_rads.items():
-        if config_label_map(k) != "Gurobi":
-            max_ils_rad = max(max_ils_rad, max(v))
-    return max_ils_rad
-
-
-def make_boxplot(config_rads, loc_metric_label, output_pdf):
-    ils_ylim = get_ylim(config_rads)
-
-    configs_sorted = sorted(
-        config_rads.keys(),
-        key=lambda c: statistics.mean(config_rads[c]),
+def _non_gurobi_xlim(config_rads):
+    """Return the max RAD value across all non-Gurobi configs."""
+    return max(
+        (max(v) for c, v in config_rads.items() if c != "Gurobi"),
+        default=0.0,
     )
 
-    data   = [config_rads[c] for c in configs_sorted]
-    labels = configs_sorted
-    means  = [statistics.mean(d) for d in data]
 
-    n = len(configs_sorted)
-    fig_height = max(6, n * 0.25 + 1.5)
-    fig, ax = plt.subplots(figsize=(10, fig_height))
+def _draw_panel(ax, config_rads, configs_sorted, metric_label):
+    """Draw one boxplot panel onto *ax* using the pre-sorted config order."""
+    data  = [config_rads[c] for c in configs_sorted]
+    means = [statistics.mean(d) for d in data]
+    n     = len(configs_sorted)
 
     ax.boxplot(
         data,
-        whis = (5, 95),
+        whis=(5, 95),
         vert=False,
         patch_artist=True,
         positions=range(n),
@@ -135,33 +141,80 @@ def make_boxplot(config_rads, loc_metric_label, output_pdf):
         capprops=dict(color="#2c5f8a"),
         flierprops=dict(marker="o", color="#2c5f8a", markersize=4, alpha=0.6),
     )
-
-    ax.scatter(
-        means,
-        range(n),
-        marker="D",
-        color="#1a6fb5",
-        s=25,
-        zorder=5,
-    )
-
-    plt.xlim(0, ils_ylim + 5)
-
-    ax.set_yticks(range(n))
-    ax.set_yticklabels(labels, fontsize=9)
-    ax.set_xlabel("Average Deviation (%)", fontsize=11)
-    #ax.set_title(f"RAD per Configuration — {metric_label} (sorted by mean)", fontsize=13, pad=12)
+    ax.scatter(means, range(n), marker="D", color="#1a6fb5", s=25, zorder=5)
+    ax.set_xlim(0, _non_gurobi_xlim(config_rads) + 5)
+    ax.set_xlabel("Average Deviation (\%)", fontsize=18)
+    ax.set_title(metric_label, fontsize=18)
     ax.axvline(0, color="grey", linewidth=0.8, linestyle="--", alpha=0.6)
     ax.grid(axis="x", linestyle=":", alpha=0.5)
-    ax.legend(handles=[
-        plt.Line2D([0], [0], marker="D", color="w", markerfacecolor="#1a6fb5",
-                   markersize=8, label="Mean AvgD"),
-    ], loc="lower right", fontsize=9)
+
+
+def make_combined_boxplot(length_rads, turns_rads, output_pdf):
+    """Side-by-side box plots: path length (left) and turns (right).
+
+    Config order is determined by ascending mean length RAD and applied
+    identically to both panels so the rows are directly comparable.
+    Only configs present in both metric dicts are shown.
+    """
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",  # Use serif fonts to match LaTeX defaults
+        "font.serif": ["Computer Modern"], # Specify Computer Modern
+        "font.size": 18,
+    })
+    configs_sorted = sorted(
+        (c for c in length_rads if c in turns_rads),
+        key=lambda c: statistics.mean(length_rads[c]),
+    )
+
+    n          = len(configs_sorted)
+    fig_height = 4
+    fig, axes  = plt.subplots(1, 2, figsize=(18, fig_height), sharey=True)
+
+    _draw_panel(axes[0], length_rads, configs_sorted, "Path Length")
+    _draw_panel(axes[1], turns_rads,  configs_sorted, "Turns")
+
+    # Y-tick labels only on the left panel (sharey handles the right panel).
+    axes[0].set_yticks(range(n))
+    axes[0].set_yticklabels(configs_sorted, fontsize=18)
+
+    axes[1].legend(
+        handles=[plt.Line2D([0], [0], marker="D", color="w",
+                            markerfacecolor="#1a6fb5", markersize=8,
+                            label="Mean AvgD")],
+        loc="lower right",
+        fontsize=9,
+    )
 
     plt.tight_layout()
-    fig.savefig(output_pdf, dpi=150, format='pdf')
+    fig.savefig(output_pdf, dpi=150, format="pdf")
     plt.close(fig)
     print(f"Saved: {output_pdf}")
+
+
+def get_groups(all_rows, group_mode):
+    """Return [(group_key, group_rows), ...] according to *group_mode*.
+
+    group_mode values:
+        'none' — single group containing all rows
+        'size' — one group per instance size  (s1616, s6464, s128128)
+        'type' — one group per instance type  (ir0, ir1, …)
+        'both' — one group per (size, type) combination
+    """
+    if group_mode == "none":
+        return [("all", all_rows)]
+    if group_mode == "size":
+        keys = sorted({r["size"] for r in all_rows})
+        return [(k, [r for r in all_rows if r["size"] == k]) for k in keys]
+    if group_mode == "type":
+        keys = sorted({r["type"] for r in all_rows})
+        return [(k, [r for r in all_rows if r["type"] == k]) for k in keys]
+    # both
+    combos = sorted({(r["size"], r["type"]) for r in all_rows})
+    return [
+        (f"{s}_{t}", [r for r in all_rows if r["size"] == s and r["type"] == t])
+        for s, t in combos
+    ]
 
 
 SIZES = sorted({r["size"] for r in rows})
@@ -488,23 +541,27 @@ def write_statistics_report(all_rows, sizes, loc_metric, loc_metric_label, outpu
         f" {'n':>4}  {'W stat':>9} {'p-value':>9} {'sig':>4}  Better"
     )
 
-    for loc_size in sizes:
-        size_label = SIZE_LABELS.get(loc_size, loc_size)
-        lines.append(f"\n{size_label}")
+    def _append_wilcoxon_block(label, subset_rows):
+        pairs = compute_pairwise_wilcoxon(subset_rows, loc_metric)
+        lines.append(f"\n{label}")
         lines.append("-" * 72)
         lines.append(header)
         lines.append("-" * len(header))
-
-        size_rows = [r for r in all_rows if r["size"] == loc_size]
-        pairs = compute_pairwise_wilcoxon(size_rows, loc_metric)
-
         for p in pairs:
-            w_s = f"{p['w_stat']:9.2f}" if p["w_stat"] is not None else f"{'N/A':>9}"
+            w_s  = f"{p['w_stat']:9.2f}"  if p["w_stat"]  is not None else f"{'N/A':>9}"
             pv_s = f"{p['p_value']:9.4f}" if p["p_value"] is not None else f"{'N/A':>9}"
             lines.append(
                 f"{p['config_a']:<{col_a}} {p['config_b']:<{col_b}}"
                 f" {p['n_common']:>4}  {w_s} {pv_s} {p['stars']:>4}  {p['better']}"
             )
+
+    for loc_size in sizes:
+        _append_wilcoxon_block(
+            SIZE_LABELS.get(loc_size, loc_size),
+            [r for r in all_rows if r["size"] == loc_size],
+        )
+
+    _append_wilcoxon_block("All sizes combined", all_rows)
 
     lines.append("")
     with open(output_path, "w") as f:
@@ -512,14 +569,16 @@ def write_statistics_report(all_rows, sizes, loc_metric, loc_metric_label, outpu
     print(f"Saved: {output_path}")
 
 
+# ── Box plots (side-by-side, grouped) ────────────────────────────────────────
+for group_key, group_rows in get_groups(rows, args.group):
+    make_combined_boxplot(
+        length_rads=compute_config_rads(group_rows, "length"),
+        turns_rads =compute_config_rads(group_rows, "turns"),
+        output_pdf =RESULTS_DIR / f"ejor_rad_boxplot_{group_key}.pdf",
+    )
+
+# ── LaTeX tables and statistics reports (always per size) ────────────────────
 for metric, metric_label in METRICS:
-    for size in SIZES:
-        size_rows = [r for r in rows if r["size"] == size]
-        make_boxplot(
-            compute_config_rads(size_rows, metric),
-            loc_metric_label=f"{metric_label} — {size}",
-            output_pdf=RESULTS_DIR / f"ejor_rad_boxplot_{metric}_{size}.pdf",
-        )
     make_latex_table(
         rows, SIZES, metric, metric_label,
         output_tex=RESULTS_DIR / f"ejor_table_{metric}.tex",

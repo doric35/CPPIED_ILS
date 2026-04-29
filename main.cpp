@@ -101,9 +101,10 @@ int main(int argc, char* argv[]) {
                 0,
                viz_file.find('.')
         );
+        std::string sol_frame_fn = png_file + "_sol" + ".png";
         png_file += ".png";
         write_visulization(configuration.at("VIZ_FILE"),
-                           png_file, solution,
+                           png_file, sol_frame_fn, solution,
                            h, 10);
     }
     return 0;

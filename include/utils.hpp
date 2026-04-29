@@ -24,6 +24,8 @@
 #include <opencv2/opencv.hpp>
 #include <optional>
 #include <bitset>
+#include <sstream>
+#include <iomanip>
 
 #define ALGORITHM_FLAG_LIST \
     X(NONE)                 \
