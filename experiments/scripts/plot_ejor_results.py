@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from scipy import stats as scipy_stats
 
 #Get result filename as input
 
@@ -211,7 +212,8 @@ def compute_config_table_stats(loc_rows, loc_metric):
             avg_val = pair_avg[(config, instance)]
             rad = (avg_val - bks[instance]) / bks[instance] * 100.0
             rads.append(rad)
-            if rad == 0.0:
+            # Count the instance if at least one individual run matched the BKS.
+            if min(pair_values[(config, instance)]) <= bks[instance]:
                 n_best += 1
             if rad < 5.0:
                 n_lt5 += 1
@@ -281,6 +283,235 @@ def make_latex_table(all_rows, sizes, loc_metric, loc_metric_label, output_tex):
     print(f"Saved: {output_tex}")
 
 
+ALPHA = 0.05  # significance level for normality tests
+
+
+def normality_tests(values):
+    """Run Shapiro-Wilk and D'Agostino-Pearson tests on *values*.
+
+    Returns a dict with keys sw_stat, sw_p, sw_normal, dp_stat, dp_p, dp_normal.
+    D'Agostino-Pearson requires at least 8 observations; if fewer are available
+    its fields are set to None.
+    """
+    n = len(values)
+    sw_stat, sw_p = scipy_stats.shapiro(values)
+    result = {
+        "n":         n,
+        "sw_stat":   sw_stat,
+        "sw_p":      sw_p,
+        "sw_normal": sw_p >= ALPHA,
+    }
+    if n >= 8:
+        dp_stat, dp_p = scipy_stats.normaltest(values)
+        result.update({
+            "dp_stat":   dp_stat,
+            "dp_p":      dp_p,
+            "dp_normal": dp_p >= ALPHA,
+        })
+    else:
+        result.update({"dp_stat": None, "dp_p": None, "dp_normal": None})
+    return result
+
+
+def _sig_stars(p):
+    """Return significance stars for a p-value (or 'N/A' if None)."""
+    if p is None:
+        return "N/A"
+    if p < 0.001:
+        return "***"
+    if p < 0.01:
+        return "**"
+    if p < ALPHA:
+        return "*"
+    return "ns"
+
+
+# ── Pairwise Wilcoxon signed-rank test ────────────────────────────────────────
+
+def compute_pairwise_wilcoxon(size_rows, loc_metric):
+    """Return a list of pairwise Wilcoxon results for all config pairs.
+
+    Each observation fed to Wilcoxon is the per-instance mean RAD so that
+    paired comparisons share the same instance ordering between any two configs.
+    Only instances present in *both* configs are used (intersection).
+
+    Each entry in the returned list is a dict with:
+        config_a, config_b  — compared labels (sorted by mean RAD)
+        n_common            — number of matched instances
+        w_stat, p_value     — Wilcoxon W and two-sided p-value (None if untestable)
+        stars               — significance stars
+        better              — label of the config with lower mean RAD when significant,
+                              "tie" when all differences are zero, or "ns" otherwise
+    """
+    # ── build BKS over this size slice ───────────────────────────────────────
+    bks: dict[str, float] = defaultdict(lambda: float("inf"))
+    for r in size_rows:
+        if r[loc_metric] < bks[r["instance"]]:
+            bks[r["instance"]] = r[loc_metric]
+
+    # ── per-(config_label, instance) mean RAD ────────────────────────────────
+    pair_values: dict[tuple, list] = defaultdict(list)
+    for r in size_rows:
+        pair_values[(r["config"], r["instance"])].append(r[loc_metric])
+
+    # config_label → instance → mean_rad
+    config_instance_rad: dict[str, dict[str, float]] = defaultdict(dict)
+    for (config, instance), values in pair_values.items():
+        avg_val = statistics.mean(values)
+        rad = (avg_val - bks[instance]) / bks[instance] * 100.0
+        config_instance_rad[config_label_map(config)][instance] = rad
+
+    # sort configs by their overall mean RAD (ascending)
+    configs = sorted(
+        config_instance_rad.keys(),
+        key=lambda c: statistics.mean(config_instance_rad[c].values()),
+    )
+
+    results = []
+    for i, ca in enumerate(configs):
+        for cb in configs[i + 1:]:
+            common = sorted(
+                set(config_instance_rad[ca]) & set(config_instance_rad[cb])
+            )
+            n_common = len(common)
+
+            if n_common < 2:
+                results.append({
+                    "config_a": ca, "config_b": cb,
+                    "n_common": n_common,
+                    "w_stat": None, "p_value": None,
+                    "stars": "N/A", "better": "N/A",
+                })
+                continue
+
+            x = [config_instance_rad[ca][inst] for inst in common]
+            y = [config_instance_rad[cb][inst] for inst in common]
+
+            diffs = [xi - yi for xi, yi in zip(x, y)]
+            if all(d == 0.0 for d in diffs):
+                results.append({
+                    "config_a": ca, "config_b": cb,
+                    "n_common": n_common,
+                    "w_stat": 0.0, "p_value": 1.0,
+                    "stars": "ns", "better": "tie",
+                })
+                continue
+
+            try:
+                w_stat, p_value = scipy_stats.wilcoxon(x, y, alternative="two-sided")
+                stars = _sig_stars(p_value)
+                if p_value < ALPHA:
+                    better = ca if statistics.mean(x) < statistics.mean(y) else cb
+                else:
+                    better = "ns"
+                results.append({
+                    "config_a": ca, "config_b": cb,
+                    "n_common": n_common,
+                    "w_stat": w_stat, "p_value": p_value,
+                    "stars": stars, "better": better,
+                })
+            except Exception as exc:
+                results.append({
+                    "config_a": ca, "config_b": cb,
+                    "n_common": n_common,
+                    "w_stat": None, "p_value": None,
+                    "stars": "ERR", "better": str(exc),
+                })
+
+    return results
+
+
+# ── Combined statistics report (normality + pairwise Wilcoxon) ───────────────
+
+def write_statistics_report(all_rows, sizes, loc_metric, loc_metric_label, output_path):
+    """Write normality tests then pairwise Wilcoxon results to *output_path*."""
+
+    # ════════════════════════════════════════════════════════════════════════
+    # Section 1 — Normality tests
+    # ════════════════════════════════════════════════════════════════════════
+    lines = [
+        f"Normality analysis — {loc_metric_label}",
+        f"Significance level α = {ALPHA}",
+        f"Tests: Shapiro-Wilk (SW) | D'Agostino-Pearson K² (DP, requires n≥8)",
+        "=" * 72,
+    ]
+
+    for loc_size in sizes:
+        size_label = SIZE_LABELS.get(loc_size, loc_size)
+        lines.append(f"\n{size_label}")
+        lines.append("-" * 72)
+
+        size_rows = [r for r in all_rows if r["size"] == loc_size]
+        config_rads = compute_config_rads(size_rows, loc_metric)
+
+        header = (
+            f"{'Config':<30} {'n':>4}  "
+            f"{'SW stat':>9} {'SW p':>9} {'SW normal?':>10}  "
+            f"{'DP stat':>9} {'DP p':>9} {'DP normal?':>10}"
+        )
+        lines.append(header)
+        lines.append("  " + "-" * (len(header) - 2))
+
+        for cfg_label in sorted(config_rads, key=lambda c: statistics.mean(config_rads[c])):
+            values = config_rads[cfg_label]
+            r = normality_tests(values)
+
+            dp_stat_s = f"{r['dp_stat']:9.4f}" if r["dp_stat"] is not None else f"{'N/A':>9}"
+            dp_p_s    = f"{r['dp_p']:9.4f}"    if r["dp_p"]    is not None else f"{'N/A':>9}"
+            dp_norm_s = (
+                ("Yes" if r["dp_normal"] else "No") if r["dp_normal"] is not None else "N/A"
+            )
+
+            lines.append(
+                f"{cfg_label:<30} {r['n']:>4}  "
+                f"{r['sw_stat']:9.4f} {r['sw_p']:9.4f} {'Yes' if r['sw_normal'] else 'No':>10}  "
+                f"{dp_stat_s} {dp_p_s} {dp_norm_s:>10}"
+            )
+
+    # ════════════════════════════════════════════════════════════════════════
+    # Section 2 — Pairwise Wilcoxon signed-rank tests
+    # ════════════════════════════════════════════════════════════════════════
+    lines += [
+        "",
+        "",
+        f"Pairwise Wilcoxon Signed-Rank Test — {loc_metric_label}",
+        f"Significance level α = {ALPHA}  |  ns: p≥α  *: p<0.05  **: p<0.01  ***: p<0.001",
+        "Observation = per-instance mean RAD; only instances present in both configs used.",
+        "Configs ordered by ascending mean RAD within each size group.",
+        "=" * 72,
+    ]
+
+    col_a  = 30
+    col_b  = 30
+    header = (
+        f"{'Config A':<{col_a}} {'Config B':<{col_b}}"
+        f" {'n':>4}  {'W stat':>9} {'p-value':>9} {'sig':>4}  Better"
+    )
+
+    for loc_size in sizes:
+        size_label = SIZE_LABELS.get(loc_size, loc_size)
+        lines.append(f"\n{size_label}")
+        lines.append("-" * 72)
+        lines.append(header)
+        lines.append("-" * len(header))
+
+        size_rows = [r for r in all_rows if r["size"] == loc_size]
+        pairs = compute_pairwise_wilcoxon(size_rows, loc_metric)
+
+        for p in pairs:
+            w_s = f"{p['w_stat']:9.2f}" if p["w_stat"] is not None else f"{'N/A':>9}"
+            pv_s = f"{p['p_value']:9.4f}" if p["p_value"] is not None else f"{'N/A':>9}"
+            lines.append(
+                f"{p['config_a']:<{col_a}} {p['config_b']:<{col_b}}"
+                f" {p['n_common']:>4}  {w_s} {pv_s} {p['stars']:>4}  {p['better']}"
+            )
+
+    lines.append("")
+    with open(output_path, "w") as f:
+        f.write("\n".join(lines))
+    print(f"Saved: {output_path}")
+
+
 for metric, metric_label in METRICS:
     for size in SIZES:
         size_rows = [r for r in rows if r["size"] == size]
@@ -292,4 +523,8 @@ for metric, metric_label in METRICS:
     make_latex_table(
         rows, SIZES, metric, metric_label,
         output_tex=RESULTS_DIR / f"ejor_table_{metric}.tex",
+    )
+    write_statistics_report(
+        rows, SIZES, metric, metric_label,
+        output_path=RESULTS_DIR / f"{metric}_statistics.txt",
     )
