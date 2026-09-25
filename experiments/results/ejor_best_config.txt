@@ -1,0 +1,4 @@
+# Best ILS configuration found by local search
+config          = c11001000110
+mean_rad_length = 3.864296
+mean_rad_turns  = 52.899080
