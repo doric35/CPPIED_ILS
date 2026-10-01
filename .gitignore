@@ -3,15 +3,13 @@ cmake-build-debug
 experiments/data
 experiments/scratch
 external/LKH**/*
-cmake
-CMakeLists.txt
 tests/**/*.txt
 tests/**/*.log
 tests/scratch/*
 **/*.pyc
 **/*.ipynb
 .idea/*
-experiments/results
 *.DS_Store
 **/.DS_Store
+.claude
 

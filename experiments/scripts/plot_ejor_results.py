@@ -36,6 +36,15 @@ parser.add_argument("--results", type=Path, default=DEFAULT_RESULTS_FILE,
 parser.add_argument("--configs", type=Path, default=DEFAULT_CONFIGS_FILE,
                     help="Results list file (default: run_instances.txt).")
 parser.add_argument(
+    "--sort",
+    choices=["rad", "file"],
+    default="rad",
+    help=(
+        "Box ordering: 'rad' — ascending mean RAD (default); "
+        "'file' — preserve the order configs appear in the configs file."
+    ),
+)
+parser.add_argument(
     "--group",
     choices=["none", "size", "type", "both"],
     default="size",
@@ -134,56 +143,62 @@ def _draw_panel(ax, config_rads, configs_sorted, metric_label):
         vert=False,
         patch_artist=True,
         positions=range(n),
-        widths=0.25,
+        widths=0.4,
         boxprops=dict(facecolor="#d6e4f0", color="#2c5f8a"),
-        medianprops=dict(color="#e05c2a", linewidth=2),
+        medianprops=dict(color="#e05c2a", linewidth=7),
         whiskerprops=dict(color="#2c5f8a"),
         capprops=dict(color="#2c5f8a"),
-        flierprops=dict(marker="o", color="#2c5f8a", markersize=4, alpha=0.6),
+        flierprops=dict(marker="o", color="#2c5f8a", markersize=6, alpha=0.6),
     )
-    ax.scatter(means, range(n), marker="D", color="#1a6fb5", s=25, zorder=5)
+    ax.scatter(means, range(n), marker="D", color="#1a6fb5", s=50, zorder=5)
     ax.set_xlim(0, _non_gurobi_xlim(config_rads) + 5)
-    ax.set_xlabel("Average Deviation (\%)", fontsize=18)
-    ax.set_title(metric_label, fontsize=18)
+    ax.set_xlabel("Average Deviation (\%)", fontsize=40)
+    ax.set_title(metric_label, fontsize=40)
     ax.axvline(0, color="grey", linewidth=0.8, linestyle="--", alpha=0.6)
     ax.grid(axis="x", linestyle=":", alpha=0.5)
 
 
-def make_combined_boxplot(length_rads, turns_rads, output_pdf):
+def make_combined_boxplot(length_rads, turns_rads, output_pdf, sort_by="rad", file_order=None):
     """Side-by-side box plots: path length (left) and turns (right).
 
-    Config order is determined by ascending mean length RAD and applied
-    identically to both panels so the rows are directly comparable.
+    Config order is determined by *sort_by*:
+      'rad'  — ascending mean length RAD (default)
+      'file' — order configs appear in the configs file (*file_order* required)
     Only configs present in both metric dicts are shown.
     """
     plt.rcParams.update({
         "text.usetex": True,
         "font.family": "serif",  # Use serif fonts to match LaTeX defaults
         "font.serif": ["Computer Modern"], # Specify Computer Modern
-        "font.size": 18,
+        "font.size": 40,
     })
-    configs_sorted = sorted(
-        (c for c in length_rads if c in turns_rads),
-        key=lambda c: statistics.mean(length_rads[c]),
-    )
+    both = {c for c in length_rads if c in turns_rads}
+    if sort_by == "file" and file_order is not None:
+        configs_sorted = [config_label_map(c) for c in file_order
+                          if config_label_map(c) in both]
+        configs_sorted = configs_sorted[::-1]
+        # append any labelled configs not covered by the file order
+        configs_sorted += sorted(c for c in both if c not in configs_sorted)
+    else:
+        configs_sorted = sorted(both, key=lambda c: statistics.mean(length_rads[c]))
 
     n          = len(configs_sorted)
-    fig_height = 4
-    fig, axes  = plt.subplots(1, 2, figsize=(18, fig_height), sharey=True)
+    fig_height = 3.9
+    fig, axes  = plt.subplots(1, 2, figsize=(30, fig_height), sharey=True)
 
     _draw_panel(axes[0], length_rads, configs_sorted, "Path Length")
     _draw_panel(axes[1], turns_rads,  configs_sorted, "Turns")
 
     # Y-tick labels only on the left panel (sharey handles the right panel).
     axes[0].set_yticks(range(n))
-    axes[0].set_yticklabels(configs_sorted, fontsize=18)
+    axes[0].set_yticklabels(configs_sorted, fontsize=40)
 
     axes[1].legend(
         handles=[plt.Line2D([0], [0], marker="D", color="w",
                             markerfacecolor="#1a6fb5", markersize=8,
-                            label="Mean AvgD")],
+                            label="AvgD")],
         loc="lower right",
-        fontsize=9,
+        fontsize=30,
     )
 
     plt.tight_layout()
@@ -575,6 +590,8 @@ for group_key, group_rows in get_groups(rows, args.group):
         length_rads=compute_config_rads(group_rows, "length"),
         turns_rads =compute_config_rads(group_rows, "turns"),
         output_pdf =RESULTS_DIR / f"ejor_rad_boxplot_{group_key}.pdf",
+        sort_by    =args.sort,
+        file_order =configurations,
     )
 
 # ── LaTeX tables and statistics reports (always per size) ────────────────────

@@ -266,9 +266,18 @@ inline cv::Mat draw_final_frame(const std::vector<segment>& path,
 inline void draw_colorbar(const std::string& file_name,
                           double min_val, double max_val,
                           int height, int width) {
-    const int bar_width = width / 3;
+    const int bar_width = width / 10;
+    const int padding = 15;
+    const int img_height = height + 2 * padding;
 
-    // Vertical gradient: top row = max (255 = red in JET), bottom row = min (0 = blue)
+    // Measure label text once to compute the tightest possible right margin
+    constexpr double font_scale = 0.8;
+    constexpr int    font_face  = cv::FONT_HERSHEY_COMPLEX;
+    int baseline = 0;
+    cv::Size label_size = cv::getTextSize("0.00", font_face, font_scale, 1, &baseline);
+    const int img_width = bar_width + 6 + 9 + label_size.width + 3;  // bar + tick + gap + text + buffer
+
+    // Vertical gradient: top = max (255 = red in JET), bottom = min (0 = blue)
     cv::Mat bar(height, bar_width, CV_8UC1);
     for (int y = 0; y < height; ++y) {
         auto val = static_cast<uchar>(255.0 * (1.0 - double(y) / double(height - 1)));
@@ -278,23 +287,24 @@ inline void draw_colorbar(const std::string& file_name,
     cv::Mat colored;
     cv::applyColorMap(bar, colored, cv::COLORMAP_JET);
 
-    cv::Mat img(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
-    colored.copyTo(img(cv::Rect(0, 0, bar_width, height)));
+    // Place bar with padding at top and bottom so labels are never clipped
+    cv::Mat img(img_height, img_width, CV_8UC3, cv::Scalar(255, 255, 255));
+    colored.copyTo(img(cv::Rect(0, padding, bar_width, height)));
 
     // Tick marks and labels at evenly spaced values
     constexpr int n_ticks = 5;
     for (int i = 0; i <= n_ticks; ++i) {
         double t = double(i) / double(n_ticks);
         double val = min_val + t * (max_val - min_val);
-        int y = height - 1 - static_cast<int>(std::round(t * double(height - 1)));
+        int y = padding + height - 1 - static_cast<int>(std::round(t * double(height - 1)));
 
         cv::line(img, {bar_width, y}, {bar_width + 6, y}, cv::Scalar(0, 0, 0), 1);
 
         std::ostringstream oss;
         oss << std::fixed << std::setprecision(2) << val;
         cv::putText(img, oss.str(),
-                    {bar_width + 9, y + 5},
-                    cv::FONT_HERSHEY_SIMPLEX, 0.4,
+                    {bar_width + 9, y + label_size.height / 2},
+                    font_face, font_scale,
                     cv::Scalar(0, 0, 0), 1, cv::LINE_AA);
     }
 
@@ -361,7 +371,12 @@ inline void write_visulization(
     );
     {
         double min_req = 1.0 - std::exp(-helper.problem.req.minCoeff());
-        draw_colorbar(inst_name + "_colorbar.png", min_req, 1.0, height, 200);
+        std::string colorbar_fn = inst_name + "_colorbar.png";
+        draw_colorbar(colorbar_fn, min_req, 1.0, height, 200);
+        std::string cb_pdf = "magick " + colorbar_fn + " " + inst_name + "_colorbar.pdf";
+        int cb_flag = std::system(cb_pdf.c_str());
+        if (cb_flag)
+            std::cerr << "[WARNING] Non 0 return when writing colorbar png to pdf : flag " << cb_flag << std::endl;
     }
     png_to_pdf += sol_frame_fn + " " + inst_name + ".pdf";
     int r_flag = std::system(png_to_pdf.c_str());
@@ -376,7 +391,7 @@ inline void write_visulization(
             0,
             img_file.find('.')
             );
-    png_to_pdf += img_file + " " + inst_name + ".pdf";
+    png_to_pdf = "magick " + img_file + " " + inst_name + ".pdf";
     r_flag = std::system(png_to_pdf.c_str());
     if (r_flag){
         std::cerr << "[WARNING] Non 0 return when writing image png to pdf : flag " << r_flag << std::endl;
