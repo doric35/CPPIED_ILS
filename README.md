@@ -9,7 +9,7 @@ Link to the paper will be available here upon publication.
 
 ## Citation
 
-If you use this code or the data availabel in this repository for your scientific research, please cite:
+If you use this code or the data available in this repository for your scientific research, please cite:
 
 Latex format citation will be placed here upon publication.
 

@@ -240,7 +240,7 @@ void neighborhood_r::select(cppied_solution &pSol,
     cumulative_gains[1] = std::accumulate(odds.begin(), odds.end(),
                 cumulative_gains[1], func);
 
-    int s = ris_heuristic::softmax_sample(cumulative_gains, rng);
+    int s = ris_heuristic::softmaxSample(cumulative_gains, rng);
     if (s)
         selection.swap(evens);
     else

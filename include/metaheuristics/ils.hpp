@@ -13,7 +13,7 @@
 class ils : public cppied_method_base{
 public:
     ils(cppied_context& c, cppied_instance& i) :
-        cppied_method_base(c, i), ls(c, i){}
+        cppied_method_base(c, i), ls(c, i), L(), incumbent(){}
     void initialize() override {
         std::string configuration = ctx.config["ALGORITHM_CONFIG"];
         assert(configuration.size() == 12);
@@ -43,7 +43,30 @@ public:
     
 protected:
     vnd ls;
-
     std::vector<std::unique_ptr<perturbation>> P{};
     std::vector<std::unique_ptr<restarts>>     R{};
+    luby L;
+    int iterations = 1;
+    cppied_solution incumbent;
+
+private:
+    void constructInitialSolution();
+    void rootLocalSearch();
+    void iteratedSearch(cppied_solution &pSolution);
+    cppied_solution perturbate(const cppied_solution &pSolution);
+    cppied_solution restart();
+
+    void setLocalSearchCallbacks();
+    int setIncumbent(const cppied_solution& pSolution);
+    void setTerminalIncumbent();
+    void setInitialIncumbent();
+
+    int getElapsedTime();
+
+    bool isConstructOnly(){
+        return R.empty() && P.empty() && ls.neighborhoods_count() <=3;
+    }
+    bool isLocalSearchOnly() {
+        return R.empty() && P.empty();
+    }
 };

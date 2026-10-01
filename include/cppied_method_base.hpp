@@ -40,4 +40,9 @@ public:
     }
 
     int remaining_time();
+
+    void setCompleteSolution(cppied_solution& pSolution) {
+        geometry.complete(pSolution);
+        coverage.reset(pSolution);
+    }
 };

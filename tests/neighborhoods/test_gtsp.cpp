@@ -166,13 +166,38 @@ TEST_F(neighborhood_gtsp_fixture, BuildClustersNodeIDMatchesPosition) {
 // set_gtsp_costs — cost matrix content
 // ============================================================================
 
-// Intra-segment forward edges (position i→i+1 and i+1→i+2) must be zero
-// for every segment triple starting at position 0, 3, 6, ...
-TEST_F(neighborhood_gtsp_fixture, SetGtspCostsIntraSegmentEdgesAreZero) {
+// Root block (positions 0..5): intra edges are zero.
+TEST_F(neighborhood_gtsp_fixture, SetGtspCostsRootIntraEdgesAreZero) {
     auto g = make_graph(sol);
-    for (int i = 0; i < static_cast<int>(g.nodes.size()) - 2; i += 3) {
-        EXPECT_EQ(g.cost(i,   i+1), 0) << "intra edge (" << i   << "," << i+1 << ")";
-        EXPECT_EQ(g.cost(i+1, i+2), 0) << "intra edge (" << i+1 << "," << i+2 << ")";
+    for (int i = 0; i < 5; ++i)
+        EXPECT_EQ(g.cost(i, i+1), 0) << "root intra edge (" << i << "," << i+1 << ")";
+}
+
+// Every other segment triple (positions i, i+1, i+2 with i = 6, 9, ...):
+// the segment length is split across its two intra edges as
+// floor(length/2) (i→i+1) and ceil(length/2) (i+1→i+2).
+TEST_F(neighborhood_gtsp_fixture, SetGtspCostsIntraSegmentEdgesSplitLength) {
+    auto g = make_graph(sol);
+    for (int i = 6; i < static_cast<int>(g.nodes.size()) - 2; i += 3) {
+        segment s = {n->geometry.flip_segment(g.nodes[i].s).source,
+                     n->geometry.flip_segment(g.nodes[i+2].s).source};
+        if (s.source == s.target) s.target = path_engine::NULL_NODE;
+        int length = n->geometry.cost(s).length;
+        EXPECT_EQ(g.cost(i,   i+1), length / 2)
+            << "intra edge (" << i << "," << i+1 << "), length " << length;
+        EXPECT_EQ(g.cost(i+1, i+2), (length + 1) / 2)
+            << "intra edge (" << i+1 << "," << i+2 << "), length " << length;
+    }
+}
+
+// The two intra edges of a segment sum to its length and differ by at most 1.
+TEST_F(neighborhood_gtsp_fixture, SetGtspCostsIntraSegmentEdgesBalanced) {
+    auto g = make_graph(sol);
+    for (int i = 6; i < static_cast<int>(g.nodes.size()) - 2; i += 3) {
+        int a = g.cost(i, i+1), b = g.cost(i+1, i+2);
+        EXPECT_GE(a, 0);
+        EXPECT_TRUE(b == a || b == a + 1)
+            << "intra edges (" << i << ") not floor/ceil halves: " << a << ", " << b;
     }
 }
 

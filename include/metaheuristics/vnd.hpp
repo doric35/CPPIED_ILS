@@ -54,4 +54,9 @@ protected:
     std::vector<std::unique_ptr<neighborhood>> N_simple{};
     std::vector<std::unique_ptr<neighborhood>> N_nested{};
     std::vector<std::unique_ptr<neighborhood>> N_large{};
+
+private:
+    void simpleNeighborhoodsDescent(cppied_solution &pSol);
+    void nestedNeighborhoodsDescent(cppied_solution &pSol);
+    void largeNeighborhoodsDescent(cppied_solution &pSol);
 };

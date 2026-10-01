@@ -20,8 +20,8 @@ public:
 // Minimal fixture — uses test_config.txt.
 //   ALGORITHM_CONFIG = c00000000000
 //   config[8..11] = '0'  →  P empty, R empty
-//   VND: cut + trim only (2 neighborhoods)
-//   d_solve early-exit condition: R.empty() && P.empty() && ls.count <= 2
+//   VND: reduce + trim + cut only (3 neighborhoods)
+//   d_solve early-exit condition: R.empty() && P.empty() && ls.count <= 3
 // ---------------------------------------------------------------------------
 class ils_minimal_fixture : public cppied_context_fixture {
 protected:
@@ -232,10 +232,10 @@ TEST_F(ils_minimal_fixture, LocalSearchCostConsistentWhenReturnTrue) {
 // ===========================================================================
 // d_solve tests — minimal config (early-exit path)
 //
-// With P empty, R empty, and ls.neighborhoods_count() <= 2, d_solve:
-//   1. Constructs via dp_sweeper
-//   2. Runs one local_search pass
-//   3. Returns immediately (no ILS loop)
+// With P empty, R empty, and ls.neighborhoods_count() <= 3, d_solve:
+//   1. Copies pSolution into the incumbent (caller sizes coverage)
+//   2. Constructs via dp_sweeper
+//   3. Returns immediately (no local search, no ILS loop)
 // ===========================================================================
 
 TEST_F(ils_minimal_fixture, DSolveMinimalDoesNotThrow) {
@@ -529,16 +529,13 @@ TEST_F(ils_full_fixture, DSolveFullSecondCallCoverageSatisfied) {
 // ===========================================================================
 // Restart-path pre-condition tests
 //
-// In ils::d_solve the outer loop calls local_search(trial) after
-// restart->restart(trial) but WITHOUT geometry.complete(trial) +
-// coverage.reset(trial).  dp_sweeper::construct (invoked by restart) does not
-// guarantee coverage consistency; that is why ils::d_solve always calls
-// coverage.reset after its own dp_sweeper construction (lines 16-17).
+// dp_sweeper::construct (invoked by restart) does not guarantee coverage
+// consistency, so ils::restart and ils::constructInitialSolution call
+// setCompleteSolution (geometry.complete + coverage.reset) before any
+// local_search.
 //
-// The tests below document the correct calling sequence and verify that it
-// produces a valid state.  They also expose the missing complete+reset in the
-// ILS outer loop as the root cause of the coverage assertion failures
-// encountered at the beginning of neighborhood_r.
+// The tests below document that calling sequence and verify that it
+// produces a valid state.
 // ===========================================================================
 
 // After restart, geometry.complete + coverage.reset must produce a path whose

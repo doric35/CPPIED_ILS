@@ -13,7 +13,7 @@
 //     3. interval_function — maps each candidate id → interval{gain,x1,x2,y,id}
 //     4. interval_dp      — per y-row: non-overlapping weighted interval scheduling
 //     5. spacing_dp       — across y-rows: selects rows ≥ spacing apart
-//     6. softmax_sample   — picks one group proportionally to total gain
+//     6. softmaxSample   — picks one group proportionally to total gain
 //
 // Test strategy: controlled lambdas with exact spatial coordinates to
 // exercise each stage deterministically.  Probabilistic tests use a fixed
@@ -300,14 +300,14 @@ TEST(RisHeuristic, SelectionIds_AllHavePositiveGain) {
 }
 
 // ============================================================================
-// softmax_sample (public static overload)
+// softmaxSample (public static overload)
 // ============================================================================
 
 // With a single gain the only valid return index is 0.
 TEST(RisHeuristic, SoftmaxSample_SingleGain_ReturnsZero) {
     std::vector<cost_t> gains = {{5,3}};
     std::mt19937 gen(42);
-    int idx = ris_heuristic::softmax_sample(gains, gen);
+    int idx = ris_heuristic::softmaxSample(gains, gen);
     EXPECT_EQ(idx, 0);
 }
 
@@ -315,7 +315,7 @@ TEST(RisHeuristic, SoftmaxSample_SingleGain_ReturnsZero) {
 TEST(RisHeuristic, SoftmaxSample_MultipleGains_IndexInRange) {
     std::vector<cost_t> gains = {{5,3},{10,1},{1,7}};
     std::mt19937 gen(42);
-    int idx = ris_heuristic::softmax_sample(gains, gen);
+    int idx = ris_heuristic::softmaxSample(gains, gen);
     EXPECT_GE(idx, 0);
     EXPECT_LT(idx, static_cast<int>(gains.size()));
 }
@@ -328,7 +328,7 @@ TEST(RisHeuristic, SoftmaxSample_AllEqualGains_AllIndicesReachable) {
     std::mt19937 gen(1234);
     std::set<int> seen;
     for (int t = 0; t < 300; ++t)
-        seen.insert(ris_heuristic::softmax_sample(gains, gen));
+        seen.insert(ris_heuristic::softmaxSample(gains, gen));
     EXPECT_EQ(seen.size(), 3u) << "All three equal-gain indices should be reachable";
 }
 
@@ -340,7 +340,7 @@ TEST(RisHeuristic, SoftmaxSample_HighGainDominates) {
     std::mt19937 gen(99);
     int ones = 0;
     for (int t = 0; t < 200; ++t)
-        if (ris_heuristic::softmax_sample(gains, gen) == 1) ++ones;
+        if (ris_heuristic::softmaxSample(gains, gen) == 1) ++ones;
     // Expect at least 190/200 draws to pick index 1
     EXPECT_GE(ones, 190) << "Index 1 with gain 1000 should dominate over index 0 with gain 1";
 }
