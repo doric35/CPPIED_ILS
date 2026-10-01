@@ -18,10 +18,11 @@ Latex format citation will be placed here upon publication.
 ## Results Files
 
 The experimental results section contains all files to replicate the tables and figure from the Manuscript:
-- The aggregated ablation analysis results in ejor_ablation_path.csv
-- The raw ablation analysis results in ejor_ablation_results.csv
-- The raw configuration phase results in their order of execution in ejor_configuration_results.csv
-- The raw empirical analysis result in ejor_results.csv
+- The aggregated ablation analysis results [data](../experiments/results/ejor_ablation_path.csv).
+- The raw ablation analysis results [data](../experiments/results/ejor_ablation_results.csv).
+- The raw configuration phase results in their order of execution [data](../experiments/results/ejor_configuration_results.csv).
+- The selected configuration aggregated results of the configuration phase [data](../experiments/results/ejor_best_config.txt).
+- The raw empirical analysis result [data](../experiments/results/ejor_results.csv).
 
 ## Raw Results Structure
 
