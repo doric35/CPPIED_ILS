@@ -46,9 +46,9 @@ auto make_single_group_splitter() {
 
 // Interval function: maps each candidate id to the interval stored in `coords`.
 // The caller controls x1, x2, y exactly.
-auto make_interval_fn(const std::map<int, interval>& coords) {
+auto make_interval_fn(const std::map<int, Interval>& coords) {
     return [coords](const std::vector<int>& candidates,
-                    std::vector<interval>& out) {
+                    IntervalSet& out) {
         for (int id : candidates)
             out.push_back(coords.at(id));
     };
@@ -58,8 +58,9 @@ auto make_interval_fn(const std::map<int, interval>& coords) {
 // coordinate map.  Lifetime of `gains` must exceed that of the heuristic.
 ris_heuristic make_heuristic(int spacing,
                               const std::vector<cost_t>& gains,
-                              const std::map<int, interval>& coords) {
+                              const std::map<int, Interval>& coords) {
     return ris_heuristic(spacing,
+                         static_cast<int>(gains.size()),
                          make_single_group_splitter(),
                          make_filter(gains),
                          make_interval_fn(coords));
@@ -74,41 +75,41 @@ ris_heuristic make_heuristic(int spacing,
 // When every gain is zero or negative the filter removes all candidates and
 // the selection must be empty.
 TEST(RisHeuristic, AllZeroGains_SelectionIsEmpty) {
-    std::vector<cost_t> gains = {{0,0},{0,0},{0,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{0,0},{0,0},{0,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 0, 0, false, 0}},
         {1, {gains[1], 2, 2, 0, false, 1}},
         {2, {gains[2], 4, 4, 0, false, 2}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     EXPECT_TRUE(selection.empty());
 }
 
 // A vector of all negative gains must also yield an empty selection.
 TEST(RisHeuristic, AllNegativeGains_SelectionIsEmpty) {
-    std::vector<cost_t> gains = {{-3,0},{-1,2},{-2,-1}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{-3,0},{-1,2},{-2,-1}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 0, 0, false, 0}},
         {1, {gains[1], 2, 2, 0, false, 1}},
         {2, {gains[2], 4, 4, 0, false, 2}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     EXPECT_TRUE(selection.empty());
 }
 
 // Only the single candidate with a positive gain should be selected.
 TEST(RisHeuristic, SinglePositiveGain_ThatIdSelected) {
-    std::vector<cost_t> gains = {{0,0},{5,2},{0,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{0,0},{5,2},{0,0}};
+    std::map<int, Interval> coords = {
         {1, {gains[1], 2, 2, 0, false, 1}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     ASSERT_EQ(selection.size(), 1u);
     EXPECT_EQ(selection[0], 1);
 }
@@ -120,43 +121,43 @@ TEST(RisHeuristic, SinglePositiveGain_ThatIdSelected) {
 // Three candidates whose x-intervals are disjoint: all three must appear.
 // Intervals [0,1], [3,4], [6,7] are pairwise non-overlapping (gap ≥ 1 apart).
 TEST(RisHeuristic, IntervalDp_NonOverlapping_AllSelected) {
-    std::vector<cost_t> gains = {{5,0},{5,0},{5,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{5,0},{5,0},{5,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 1, 0, false, 0}},
         {1, {gains[1], 3, 4, 0, false, 1}},
         {2, {gains[2], 6, 7, 0, false, 2}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     EXPECT_EQ(selection.size(), 3u);
 }
 
 // Two overlapping candidates: at most one can be selected.
 // Intervals [0,5] and [3,8] overlap (3 <= 5).
 TEST(RisHeuristic, IntervalDp_TwoOverlapping_OnlyOneSelected) {
-    std::vector<cost_t> gains = {{5,0},{5,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{5,0},{5,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 5, 0, false, 0}},
         {1, {gains[1], 3, 8, 0, false, 1}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     EXPECT_EQ(selection.size(), 1u);
 }
 
 // Among two overlapping candidates the one with strictly higher gain must
 // always be selected (no tie, no randomness involved).
 TEST(RisHeuristic, IntervalDp_HigherGainOverlapAlwaysWins) {
-    std::vector<cost_t> gains = {{3,0},{10,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{3,0},{10,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 5, 0, false, 0}},
         {1, {gains[1], 2, 8, 0, false, 1}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     ASSERT_EQ(selection.size(), 1u);
     EXPECT_EQ(selection[0], 1) << "Candidate with higher gain must be selected";
 }
@@ -169,14 +170,14 @@ TEST(RisHeuristic, IntervalDp_HigherGainOverlapAlwaysWins) {
 TEST(RisHeuristic, IntervalDp_PairBeatsLongSegment_WhenCombinedGainHigher) {
     std::vector<cost_t> gains = {{5,0},{5,0},{8,0}};
     // id0: [0,2], id1: [4,6], id2: [0,6] (overlaps both)
-    std::map<int, interval> coords = {
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 2, 0, false, 0}},
         {1, {gains[1], 4, 6, 0, false, 1}},
         {2, {gains[2], 0, 6, 0, false, 2}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     // Total gain of pair ({10,0}) beats single ({8,0}).
     EXPECT_EQ(selection.size(), 2u);
     std::set<int> sel_set(selection.begin(), selection.end());
@@ -193,56 +194,56 @@ TEST(RisHeuristic, IntervalDp_PairBeatsLongSegment_WhenCombinedGainHigher) {
 TEST(RisHeuristic, SpacingDp_RowsTooClose_OnlyOneRow) {
     std::vector<cost_t> gains = {{5,0},{5,0}};
     // id0 at y=0, id1 at y=1, non-overlapping x so interval_dp keeps both
-    std::map<int, interval> coords = {
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 0, 0, false, 0}},
         {1, {gains[1], 0, 0, 1, false, 1}}
     };
-    auto h = make_heuristic(3, gains, coords);
+    auto                    h      = make_heuristic(3, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     EXPECT_EQ(selection.size(), 1u) << "spacing=3, rows at y=0 and y=1 are too close";
 }
 
 // Two y-rows exactly spacing apart: both must be selectable.
 // y=0 and y=3, spacing=3 → distance 3 == spacing, dp can include both.
 TEST(RisHeuristic, SpacingDp_RowsExactlySpacingApart_BothSelected) {
-    std::vector<cost_t> gains = {{5,0},{5,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{5,0},{5,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 0, 0, false, 0}},
         {1, {gains[1], 0, 0, 3, false, 1}}
     };
-    auto h = make_heuristic(3, gains, coords);
+    auto                    h      = make_heuristic(3, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     EXPECT_EQ(selection.size(), 2u) << "spacing=3, rows at y=0 and y=3 should both be selected";
 }
 
 // Three y-rows with spacing=2: rows 0, 2, 4 can all be selected (each pair
 // is exactly spacing apart); row 1 and 3 must not be chosen if they conflict.
 TEST(RisHeuristic, SpacingDp_EveryOtherRow_AllThreeSelected) {
-    std::vector<cost_t> gains = {{5,0},{5,0},{5,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{5,0},{5,0},{5,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 0, 0, false, 0}},
         {1, {gains[1], 0, 0, 2, false, 1}},
         {2, {gains[2], 0, 0, 4, false, 2}}
     };
-    auto h = make_heuristic(2, gains, coords);
+    auto                    h      = make_heuristic(2, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     EXPECT_EQ(selection.size(), 3u) << "y=0,2,4 with spacing=2: all three are selectable";
 }
 
 // A high-gain row at y=0 and a low-gain row at y=1, spacing=2.
 // Since y=1 is alone and y=0 is within spacing, spacing_dp must pick y=0.
 TEST(RisHeuristic, SpacingDp_HighGainRowPreferred_WhenConflicting) {
-    std::vector<cost_t> gains = {{10,0},{2,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{10,0},{2,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 0, 0, false, 0}},
         {1, {gains[1], 0, 0, 1, false, 1}}
     };
-    auto h = make_heuristic(2, gains, coords);
+    auto                    h      = make_heuristic(2, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     ASSERT_EQ(selection.size(), 1u);
     EXPECT_EQ(selection[0], 0) << "Higher-gain row y=0 must be preferred over y=1";
 }
@@ -253,15 +254,15 @@ TEST(RisHeuristic, SpacingDp_HighGainRowPreferred_WhenConflicting) {
 
 // Every id in the selection must be a valid index into gains[].
 TEST(RisHeuristic, SelectionIds_WithinValidRange) {
-    std::vector<cost_t> gains = {{3,1},{7,0},{0,0},{5,2},{0,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{3,1},{7,0},{0,0},{5,2},{0,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 0, 0, false, 0}},
         {1, {gains[1], 2, 2, 0, false, 1}},
         {3, {gains[3], 4, 4, 0, false, 3}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     for (int id : selection) {
         EXPECT_GE(id, 0);
         EXPECT_LT(id, static_cast<int>(gains.size()));
@@ -270,31 +271,31 @@ TEST(RisHeuristic, SelectionIds_WithinValidRange) {
 
 // The selection must contain no duplicate ids.
 TEST(RisHeuristic, SelectionIds_NoDuplicates) {
-    std::vector<cost_t> gains = {{5,0},{5,0},{5,0},{5,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{5,0},{5,0},{5,0},{5,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 0, 0, false, 0}},
         {1, {gains[1], 2, 2, 0, false, 1}},
         {2, {gains[2], 4, 4, 0, false, 2}},
         {3, {gains[3], 6, 6, 0, false, 3}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     std::set<int> unique(selection.begin(), selection.end());
     EXPECT_EQ(unique.size(), selection.size()) << "Selection must not contain duplicate ids";
 }
 
 // Selected ids must not appear at positions with non-positive gain.
 TEST(RisHeuristic, SelectionIds_AllHavePositiveGain) {
-    std::vector<cost_t> gains = {{5,0},{0,0},{4,0},{0,0},{3,0}};
-    std::map<int, interval> coords = {
+    std::vector<cost_t>     gains  = {{5,0},{0,0},{4,0},{0,0},{3,0}};
+    std::map<int, Interval> coords = {
         {0, {gains[0], 0, 0, 0, false, 0}},
         {2, {gains[2], 2, 2, 0, false, 2}},
         {4, {gains[4], 4, 4, 0, false, 4}}
     };
-    auto h = make_heuristic(1, gains, coords);
+    auto                    h      = make_heuristic(1, gains, coords);
     std::vector<int> selection;
-    h.solve_selection(gains, selection);
+    selection = h.solve_selection();
     for (int id : selection)
         EXPECT_GT(gains[id], (cost_t{0,0})) << "Selected id=" << id << " has non-positive gain";
 }
@@ -343,4 +344,55 @@ TEST(RisHeuristic, SoftmaxSample_HighGainDominates) {
         if (ris_heuristic::softmaxSample(gains, gen) == 1) ++ones;
     // Expect at least 190/200 draws to pick index 1
     EXPECT_GE(ones, 190) << "Index 1 with gain 1000 should dominate over index 0 with gain 1";
+}
+
+// ============================================================================
+// Group selection and repeated calls
+// ============================================================================
+
+// Two independent groups (one per candidate): the group whose schedule has a
+// vastly higher gain must dominate the softmax draw. This relies on the value
+// of each schedule built by merging row solutions being the sum of its gains.
+TEST(RisHeuristic, TwoGroups_HighGainScheduleDominates) {
+    std::vector<cost_t> gains = {{1000,0},{1,0}};
+    std::map<int, Interval> coords = {
+        {0, {gains[0], 0, 0, 0, false, 0}},
+        {1, {gains[1], 0, 0, 0, false, 1}}
+    };
+    auto one_group_per_candidate = [](const std::vector<int>& candidates,
+                                      std::vector<std::vector<int>>& solution) {
+        for (int c : candidates) solution.push_back({c});
+    };
+    int high = 0;
+    for (int t = 0; t < 200; ++t) {
+        ris_heuristic h(1, static_cast<int>(gains.size()), one_group_per_candidate, make_filter(gains),
+                        make_interval_fn(coords));
+        std::vector<int> selection;
+        selection = h.solve_selection();
+        ASSERT_EQ(selection.size(), 1u);
+        if (selection[0] == 0) ++high;
+    }
+    EXPECT_GE(high, 190) << "Group with gain 1000 should dominate group with gain 1";
+}
+
+// The same heuristic instance is reused across calls by the neighborhoods.
+// Schedules from a previous call must not leak into the next one.
+TEST(RisHeuristic, RepeatedCalls_OnlyCurrentCandidatesSelected) {
+    std::vector<cost_t> gains = {{5,0},{0,0}};
+    std::map<int, Interval> coords = {
+        {0, {{5,0}, 0, 0, 0, false, 0}},
+        {1, {{5,0}, 4, 4, 0, false, 1}}
+    };
+    auto h = make_heuristic(1, gains, coords);
+    std::vector<int> selection;
+    selection = h.solve_selection();
+    ASSERT_EQ(selection, (std::vector<int>{0}));
+
+    gains = {{0,0},{5,0}};   // filter now only keeps id 1
+    for (int t = 0; t < 50; ++t) {
+        selection.clear();
+        selection = h.solve_selection();
+        ASSERT_EQ(selection, (std::vector<int>{1})) << "call " << t
+            << ": a schedule from an earlier call was selected";
+    }
 }

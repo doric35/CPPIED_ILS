@@ -69,15 +69,6 @@ inline std::ostream& operator<<(std::ostream& os, const cost_t& c) {
     return os << "{l=" << c.length << ", t=" << c.turns << "}";
 }
 
-struct interval{
-    cost_t gain;
-    int x1;
-    int x2;
-    int y;
-    bool rotated;
-    int id;
-};
-
 struct iCoordinate{
     int x;
     int y;

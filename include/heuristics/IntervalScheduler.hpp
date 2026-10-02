@@ -1,9 +1,8 @@
 #pragma once
 
-#include <utility>
-#include "../structures.hpp"
+#include "../data_structures/Interval.hpp"
 
-using iVecIt = std::vector<interval>::const_iterator;
+using namespace cppied_intervals;
 
 class IntervalScheduler {
 private:
@@ -13,31 +12,31 @@ private:
 
     std::vector<cost_t> stateCosts;
     std::vector<int> statePredecessors;
-    std::vector<interval> solution;
+    IntervalSet solution;
 
-    iVecIt begin, end;
+    const IntervalSet& intervals;
 
     void forwardPass();
     void backwardPass();
 
     void setStateCostAndPredecessor(int i);
-    iVecIt getValidPredecessor(iVecIt itInterval);
-    bool isValidPredecessor(iVecIt itPredecessor){ return itPredecessor != end; }
-    void setStateWithoutPredecessor(iVecIt itInterval);
-    void setStateWithPredecessor(iVecIt itInterval, iVecIt itPredecessor);
-    int randomBackwardControl(iVecIt itInterval);
+    IntervalSet::const_iterator getValidPredecessor(IntervalSet::const_iterator itInterval);
+    void setStateWithoutPredecessor(IntervalSet::const_iterator itInterval);
+    void setStateWithPredecessor(IntervalSet::const_iterator itInterval, IntervalSet::const_iterator itPredecessor);
+    int randomBackwardControl(IntervalSet::const_iterator itInterval);
     int setBackwardControl(int i);
+    void resetData();
 
-    bool isStateInSolution(iVecIt itInterval);
-    bool isPredecessorEquivalent(iVecIt itInterval);
+    bool isStateInSolution(IntervalSet::const_iterator itInterval);
+    bool isPredecessorEquivalent(IntervalSet::const_iterator itInterval);
 
 protected:
 
 public:
     //----Constructors & Destructors----
-    IntervalScheduler(iVecIt begin, iVecIt end) :
-        begin(begin), end(end),
-        nIntervals(static_cast<int>(std::distance(begin, end))),
+    IntervalScheduler(const IntervalSet& intervals) :
+        intervals(intervals),
+        nIntervals(static_cast<int>(intervals.size())),
         stateCosts(nIntervals, cost_t{0,0}),
         statePredecessors(nIntervals, -1),
         solution(), rng(){}
@@ -45,8 +44,11 @@ public:
     ~IntervalScheduler() = default;
 
     //----Getters----
-    const std::vector<interval>& getSolution(){ return solution; }
-    cost_t getCost(){ return stateCosts.back(); }
+    const IntervalSet& getSolution(){ return solution; }
+    cost_t getCost(){
+        cost_t cost{0,0};
+        if (!stateCosts.empty()) cost = stateCosts.back();
+        return cost; }
 
     //----Setters----
 
@@ -54,7 +56,7 @@ public:
     void solve();
 
     //----Static Functions----
-    static bool cmpEndPoint(const interval& interval, int bound){ return interval.x2 < bound; }
+    static bool cmpEndPoint(const Interval& interval, int bound){ return interval.x2 < bound; }
 
     //----Friend Classes----
 };

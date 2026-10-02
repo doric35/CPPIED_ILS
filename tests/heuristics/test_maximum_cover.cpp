@@ -84,6 +84,15 @@ TEST(MaximumCover, BeforeSolve_SolutionEmptyAndCostZero) {
     EXPECT_EQ(mc.getCost(), (cost_t{0,0}));
 }
 
+// Empty input: solve() must not read costs[0]; solution empty, cost zero.
+TEST(MaximumCover, EmptyCosts_SolveIsNoOp) {
+    std::vector<cost_t> costs;
+    MaximumCover mc(costs, 3);
+    mc.solve();
+    EXPECT_TRUE(mc.getSolution().empty());
+    EXPECT_EQ(mc.getCost(), (cost_t{0,0}));
+}
+
 // ============================================================================
 // Base cases
 // ============================================================================
@@ -251,6 +260,32 @@ TEST(MaximumCover, Random_MatchesBruteForce) {
         int spacing = 1 + (trial / 12) % 5;
         std::vector<cost_t> costs(n);
         for (auto& c : costs) c = {len(gen), turns(gen)};
+
+        MaximumCover mc(costs, spacing);
+        mc.solve();
+        auto sol = mc.getSolution();
+        cost_t expected = brute_force(costs, spacing);
+
+        SCOPED_TRACE("n=" + std::to_string(n) + " spacing=" + std::to_string(spacing)
+                     + " costs=" + to_string(costs));
+        ASSERT_EQ(mc.getCost(), expected);
+        ASSERT_TRUE(is_feasible(costs, sol, spacing));
+        ASSERT_EQ(sum_costs(costs, sol), expected);
+    }
+}
+
+// Zero-heavy instances: zero costs create ties between the base window
+// (indices < spacing) and later states, so the backward recursion itself may
+// select an index < spacing. The root selection must then be skipped.
+TEST(MaximumCover, RandomZeroHeavy_MatchesBruteForce) {
+    std::mt19937 gen(7);
+    std::uniform_int_distribution<int> len(0, 2);
+    std::bernoulli_distribution zero(0.6);
+    for (int trial = 0; trial < 2000; ++trial) {
+        int n = 1 + trial % 10;
+        int spacing = 1 + (trial / 10) % 4;
+        std::vector<cost_t> costs(n);
+        for (auto& c : costs) c = zero(gen) ? cost_t{0,0} : cost_t{len(gen), 0};
 
         MaximumCover mc(costs, spacing);
         mc.solve();

@@ -98,23 +98,23 @@ void neighborhood_n12::selection_heuristic_update(cppied_solution &pSol,
                  std::min(pSol.path[i].target, pSol.path[i].source) : pSol.path[i].source;
         int x2 = std::max(pSol.path[i].source, pSol.path[i].target);
         bool rotated = !geometry.is_horizontal(pSol.path[i]);
-        int y = rotated ? geometry.get_column(pSol.path[i]): geometry.get_row(pSol.path[i]);
-        interval candidate = {gains[i], x1, x2, y, rotated, i};
+        int      y         = rotated ? geometry.get_column(pSol.path[i]): geometry.get_row(pSol.path[i]);
+        Interval candidate = {gains[i], x1, x2, y, rotated, i};
         return candidate;
     };
     auto interval_function = [&](const std::vector<int>& candidates,
-                                 std::vector<interval>& interval_sol){
+                                 IntervalSet& interval_sol){
         interval_sol.reserve(candidates.size());
         std::transform(candidates.begin(), candidates.end(),
                        std::back_inserter(interval_sol), interval_transform);
     };
     ris_heuristic selection_heuristic(2*problem.max_range,
+                                      static_cast<int>(gains.size()),
                                       splitter,
                                       filter,
                                       interval_function);
 
-    std::vector<int> selection;
-    selection_heuristic.solve_selection(gains, selection);
+    std::vector<int> selection = selection_heuristic.solve_selection();
 
     update(pSol, trials, gains, selection);
 }

@@ -14,6 +14,8 @@ private:
     std::vector<cost_t> stateValues;
     std::vector<int> solution;
 
+    void resetData();
+
     void forwardPass();
     void backwardPass();
 
@@ -23,13 +25,14 @@ private:
     int uniformChoice(const std::vector<int>& range);
     int processCandidate(int i);
     int backwardRecursion();
-    void selectRoot(int i);
+    int selectRoot(int i);
 protected:
 
 public:
     //----Constructors & Destructors----
     MaximumCover(const std::vector<cost_t>& costs, int spacing) :
-        minSpacing(spacing), rng(), costs(costs),
+        minSpacing(std::min(spacing, static_cast<int>(costs.size()))),
+        rng(), costs(costs),
         stateValues(costs.size(), cost_t{0,0}),
         solution(){}
 
@@ -37,7 +40,10 @@ public:
 
     //----Getters----
     std::vector<int> getSolution() { return solution; }
-    cost_t getCost() { return stateValues.back(); }
+    cost_t getCost() {
+        if (stateValues.empty()) return cost_t{0,0};
+        return stateValues.back();
+    }
 
     //----Setters----
 

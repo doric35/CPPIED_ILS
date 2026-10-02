@@ -1191,8 +1191,12 @@ protected:
         grb_model_vlf = std::make_unique<GRBModel>(genv_vlf);
         m_vlf->set_flow_sets(sol_vlf);
         m_vlf->set_variables(sol_vlf, *grb_model_vlf);
-        grb_model_vlf->set(GRB_DoubleParam_TimeLimit, ctx_vlf->max_time);
-        grb_model_vlf->set(GRB_DoubleParam_NoRelHeurTime, 300);
+        // The retrieve tests only need a feasible flow, not an optimal one:
+        // stop at the first incumbent (it has passed the lazy subtour
+        // callback) and favour feasibility. TimeLimit is a safety net only.
+        grb_model_vlf->set(GRB_DoubleParam_TimeLimit, 120);
+        grb_model_vlf->set(GRB_IntParam_SolutionLimit, 1);
+        grb_model_vlf->set(GRB_IntParam_MIPFocus, GRB_MIPFOCUS_FEASIBILITY);
         grb_model_vlf->update();
 
         m_vlf->set_constraints(sol_vlf, *grb_model_vlf);
@@ -1202,6 +1206,17 @@ protected:
         grb_model_vlf->update();
 
         m_vlf->set_objectives(sol_vlf, *grb_model_vlf);
+
+        // Without a MIP start Gurobi needs several minutes to find any
+        // incumbent on this instance. Seed it with the feasible dp_sweeper
+        // path (same procedure as ilp::solve with warm_start enabled).
+        cppied_solution warm = sol_vlf;
+        m_vlf->geometry.complete(warm);
+        m_vlf->coverage.reset(warm);
+        std::vector<int> seq;
+        m_vlf->segments_to_positions_sequence(warm, seq);
+        m_vlf->set_warm_start(seq);
+
         grb_model_vlf->update();
         grb_model_vlf ->optimize();
     }
@@ -1212,8 +1227,9 @@ protected:
 
     void SetUp() override{
         int status = grb_model_vlf->get(GRB_IntAttr_Status);
+        bool has_incumbent = grb_model_vlf->get(GRB_IntAttr_SolCount) > 0;
         if (status != GRB_OPTIMAL && status != GRB_SUBOPTIMAL &&
-            !(status == GRB_TIME_LIMIT && grb_model_vlf->get(GRB_IntAttr_SolCount) > 0))
+            !((status == GRB_TIME_LIMIT || status == GRB_SOLUTION_LIMIT) && has_incumbent))
             GTEST_SKIP() << "Gurobi did not find a feasible solution; skipping retrieve tests";
     }
 

@@ -1,13 +1,22 @@
 #include "../../include/heuristics/MaximumCover.hpp"
 
 void MaximumCover::solve() {
-    forwardPass();
-    backwardPass();
+    if (!solution.empty()) resetData();
+    if (!costs.empty()) {
+        forwardPass();
+        backwardPass();
+    }
+}
+
+void MaximumCover::resetData() {
+    solution.clear();
+    stateValues = std::vector<cost_t>(costs.size(), cost_t{0,0});
 }
 
 void MaximumCover::forwardPass() {
-    for (int i=0; i<minSpacing; i++)
-        stateValues[i] = costs[i];
+    stateValues[0] = costs[0];
+    for (int i=1; i<minSpacing; i++)
+        stateValues[i] = std::max(stateValues[i-1],costs[i]);
 
     for (int i = minSpacing; i< costs.size(); i++)
         stateValues[i] = std::max(stateValues[i-1], stateValues[i - minSpacing] + costs[i]);
@@ -15,9 +24,7 @@ void MaximumCover::forwardPass() {
 
 void MaximumCover::backwardPass() {
     int i = backwardRecursion();
-    auto max_item = std::max_element(costs.begin(), std::next(costs.begin(), i));
-    i = std::distance(costs.begin(), max_item);
-    solution.push_back(i);
+    if (i >= 0) solution.push_back(selectRoot(i));
 }
 
 int MaximumCover::backwardRecursion() {
@@ -27,10 +34,9 @@ int MaximumCover::backwardRecursion() {
     return i;
 }
 
-void MaximumCover::selectRoot(int i) {
+int MaximumCover::selectRoot(int i) {
     std::vector<int> candidates = setRootCandidates(i);
-    int j = uniformChoice(candidates);
-    solution.push_back(j);
+    return uniformChoice(candidates);
 }
 
 int MaximumCover::processCandidate(int i) {
@@ -54,11 +60,9 @@ std::vector<int> MaximumCover::setRangeCandidates(int j, int i) {
 }
 
 std::vector<int> MaximumCover::setRootCandidates(int i) {
-    auto max_item = std::max_element(costs.begin(), std::next(costs.begin(), i+1));
-    cost_t value = *max_item;
     std::vector<int> candidates(i+1, 0);
     std::iota(candidates.begin(), candidates.end(), 0);
-    std::erase_if(candidates, [&](int j){ return costs[j] != value; });
+    std::erase_if(candidates, [&](int j){ return costs[j] != stateValues[i]; });
     return candidates;
 }
 
@@ -69,5 +73,6 @@ int MaximumCover::uniformChoice(const std::vector<int> &range) {
 }
 
 bool MaximumCover::isOptimalCandidate(int i) {
+    if (i - minSpacing < 0) return stateValues[i] == costs[i];
     return stateValues[i] == stateValues[i-minSpacing] + costs[i];
 }

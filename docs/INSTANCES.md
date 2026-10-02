@@ -46,5 +46,22 @@ The matrix data have the following data types:
 - Integer values in {`1`,`2`,`3`} cppied_problem.txt
 - Floating points with one decimal in cppied_req.txt
 
+## Instances Identifier
+
+Each instance is named with a code `s<mn>_i<seabed_type><seabed_id>_lrc<lrc_type><original_range><range>`.
+Each code is unique for an instance. For the lateral range curve, we used two types of curves which we discretized into
+8 discrete matrix columns. We then took the first `original_range` columns and approximated them with `range` columns.
+
+| Data             | Description                                                               |
+|------------------|---------------------------------------------------------------------------|
+| `mn`             | Seabed matrix dimension `m n` for m lines and n columns.                  |
+| `seabed_type`    | Whether it is structured `s` or sampled uniformly at random `r`.          |
+| `seabed_id`      | Unique seabed id as an integer for each `s<mn>_i<seabed_type>`.           |
+| `lrc_type`       | Whether detection is is better at closed range `0` or  at long range `1`. |
+| `original_range` | The lrc range which is approximated by the pod matrix.                    |
+| `range`          | The lateral range modeled by the pod matrix.                              |
+
+
+
 
 

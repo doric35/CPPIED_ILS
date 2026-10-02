@@ -1,119 +1,104 @@
 #include "../../include/heuristics/ris_heuristic.hpp"
 
-void ris_heuristic::solve_selection(const std::vector<cost_t> &pGains,
-                                    std::vector<int> &pSelection) {
-    std::vector<std::vector<int>> candidate_sets = std::move(setSegmentSets(pGains));
-    std::vector<std::vector<interval>> interval_sets = std::move(setIntervalSets(candidate_sets));
-
-    if (interval_sets.empty()) return;
-
-    setNonOverlapIntervals(interval_sets);
-    std::vector<cost_t> gain_sets = setIntervalGains(schedules);
-
-    if (!schedules.empty())
-        pSelection = setSegmentSelection(gain_sets);
+std::vector<int> ris_heuristic::solve_selection() {
+    if (!schedules.empty()) clear();
+    GroupedIntervalSets buckets = getBuckets();
+    return getSelection(buckets);
 }
 
-std::vector<std::vector<int>> ris_heuristic::setSegmentSets(const std::vector<cost_t> &pGains) {
-    std::vector<int> candidates;
-    candidates.resize(pGains.size());
-    std::iota(candidates.begin(), candidates.end(), 0);
+GroupedIntervalSets ris_heuristic::getBuckets() {
+    std::vector<std::vector<int>> segment_ids_sets = splitSegmentIds();
+    return getIntervalSets(segment_ids_sets);
+}
 
+std::vector<std::vector<int>> ris_heuristic::splitSegmentIds() {
+    std::vector<int> candidates;
+    candidates.resize(size);
+    std::iota(candidates.begin(), candidates.end(), 0);
     std::vector<std::vector<int>> candidate_sets;
     filter_function(candidates);
     split_function(candidates,candidate_sets);
     return candidate_sets;
 }
 
-std::vector<std::vector<interval>> ris_heuristic::setIntervalSets(std::vector<std::vector<int>>& candidateSets) {
-    std::vector<std::vector<interval>> interval_sets(candidateSets.size());
-    for (int i=0; i< candidateSets.size(); i++)
-        interval_function(candidateSets[i], interval_sets[i]);
+
+std::vector<int> ris_heuristic::getSelection(GroupedIntervalSets& intervalSets){
+    std::vector<int> selection;
+    if (!intervalSets.empty()){
+        setNonOverlappingGroups(intervalSets);
+        if (!schedules.empty())
+            selection = setSegmentSelection();
+    }
+    return selection;
+}
+
+GroupedIntervalSets ris_heuristic::getIntervalSets(std::vector<std::vector<int>>& candidateSets) {
+    GroupedIntervalSets interval_sets;
+    interval_sets.reserve(candidateSets.size());
+    for (const auto & candidateSet : candidateSets) {
+        IntervalSet intervals;
+        interval_function(candidateSet, intervals);
+        interval_sets.push(intervals);
+    }
     return interval_sets;
 }
 
-void ris_heuristic::setNonOverlapIntervals(
-        std::vector<std::vector<interval>> &intervalSets) {
+void ris_heuristic::setNonOverlappingGroups(GroupedIntervalSets &intervalSets){
     schedules.reserve(intervalSets.size());
-
-    for (auto & intervalSet : intervalSets) {
-        schedules.push_back(setOptimalSchedule(intervalSet));
-        if (schedules.back().empty()) schedules.pop_back();
+    std::vector<GroupedIntervalSets> collection = intervalSets.groupSetsByRows();
+    for (auto & interval_set : collection) {
+        schedules.push(getOptimalSchedule(interval_set));
+        if (schedules.back().empty()) schedules.pop();
     }
 }
 
-std::vector<cost_t> ris_heuristic::setIntervalGains(std::vector<std::vector<interval>>& intervals) {
-    std::vector<cost_t> gains(intervals.size(), cost_t{0,0});
-    auto gainSum = [](cost_t acc, const interval& I){
-        return acc + I.gain;
-    };
-    for (std::size_t i=0; i<intervals.size(); ++i)
-        gains[i] = std::accumulate(intervals[i].begin(), intervals[i].end(),
-                                   cost_t{0,0}, gainSum);
-    return gains;
+IntervalSet ris_heuristic::getOptimalSchedule(const GroupedIntervalSets &intervals) {
+    if (intervals.empty()) return {};
+    auto solutions = getRowsOptimalSchedule(intervals);
+    std::vector<int> cover_solution = getCoverSolution(solutions);
+    return getCoverIntervals(cover_solution, solutions);
 }
 
-std::vector<interval> ris_heuristic::setOptimalSchedule(std::vector<interval> &intervals) {
-    if (intervals.empty()) return {};
-
-    std::sort(intervals.begin(), intervals.end(), cmpIntervalsPosition);
-    auto rows = groupIntervalsByRows(intervals);
-    auto solutions = setRowsOptimalSchedule(rows);
-    auto gains = setIntervalGains(solutions);
+std::vector<int> ris_heuristic::getCoverSolution(GroupedIntervalSets &intervals) const {
+    auto gains = intervals.getGroupWiseValues();
     MaximumCover solver(gains, static_cast<int>(spacing));
     solver.solve();
-    std::vector<int> cover_solution = solver.getSolution();
+    return solver.getSolution();
+}
 
-    std::vector<interval> schedule;
-    schedule.reserve(cover_solution.size());
-    for (int i: cover_solution)
-        schedule.insert(schedule.end(), schedules[i].begin(), schedules[i].end());
+IntervalSet ris_heuristic::getCoverIntervals(const std::vector<int> &cover, GroupedIntervalSets &intervals) {
+    IntervalSet schedule;
+    schedule.reserve(cover.size());
+    for (int i: cover)
+        schedule.push(intervals[i]);
 
     return schedule;
 }
 
-std::vector<std::pair<iVecIt, iVecIt>> ris_heuristic::groupIntervalsByRows(std::vector<interval> &intervals) {
-    std::sort(intervals.begin(), intervals.end(), cmpIntervalsPosition);
-    int min_y = intervals.front().y;
-    int max_y = intervals.back().y;
-    std::vector<std::pair<iVecIt, iVecIt>> rows(max_y - min_y + 1, {intervals.end(), intervals.end()});
-    for (auto source = intervals.begin(); source != intervals.end();){
-        auto end = std::lower_bound(
-                source, intervals.end(),source->y + 1, cmpIntervalY);
-        rows[source->y - min_y] = {source, end};
-        source = end;
-    }
-    return rows;
-}
-
-std::vector<std::vector<interval>> ris_heuristic::setRowsOptimalSchedule(
-        const std::vector<std::pair<iVecIt, iVecIt>>& intervalGroups) {
-    std::vector<std::vector<interval>> solutions;
-    for (auto& group : intervalGroups)
-        solutions.push_back(setRowOptimalSchedule(group.first, group.second));
+GroupedIntervalSets ris_heuristic::getRowsOptimalSchedule(const GroupedIntervalSets& collection) const {
+    GroupedIntervalSets solutions;
+    for (const auto& group : collection)
+        solutions.push(getRowOptimalSchedule(group));
     return solutions;
 }
 
-std::vector<interval> ris_heuristic::setRowOptimalSchedule(ris_heuristic::iVecIt begin, ris_heuristic::iVecIt end) {
-    std::vector<interval> solution;
-    if (begin != end) {
-        IntervalScheduler solver(begin, end);
-        solver.solve();
-        solution = solver.getSolution();
-    }
-    return solution;
+IntervalSet ris_heuristic::getRowOptimalSchedule(const IntervalSet& intervals) const{
+    IntervalScheduler solver(intervals);
+    solver.solve();
+    return solver.getSolution();
 }
 
-std::vector<int> ris_heuristic::setSegmentSelection(std::vector<cost_t> &gainSets) {
+std::vector<int> ris_heuristic::setSegmentSelection() {
     std::vector<int> selection;
-    int item = softmaxSample(gainSets);
+    int item = softmaxSample();
     selection.reserve(schedules[item].size());
     for (auto& i : schedules[item])
         selection.push_back(i.id);
     return selection;
 }
 
-int ris_heuristic::softmaxSample(std::vector<cost_t> &gains) {
+int ris_heuristic::softmaxSample() {
+    auto gains = schedules.getGroupWiseValues();
     return softmaxSample(gains, rng);
 }
 
