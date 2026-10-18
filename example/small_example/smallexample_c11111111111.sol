@@ -1,0 +1,35 @@
+NAME : smallexample_c11111111111.23.tour
+COMMENT : Length = 23
+COMMENT : Found by LKH [Keld Helsgaun] Sat Oct 17 17:19:43 2026
+TYPE : TOUR
+DIMENSION : 27
+TOUR_SECTION
+1
+2
+3
+4
+5
+6
+22
+23
+24
+19
+20
+21
+18
+17
+16
+15
+14
+13
+27
+26
+25
+7
+8
+9
+10
+11
+12
+-1
+EOF

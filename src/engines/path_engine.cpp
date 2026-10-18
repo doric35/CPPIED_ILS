@@ -514,6 +514,15 @@ void path_engine::correct_segment_direction(segment &a, direction d) {
     }
 }
 
+segment path_engine::getNonOriented(const segment &s) {
+    segment non_oriented = s;
+    if (is_horizontal(s))
+        correct_segment_direction(non_oriented, direction::E);
+    else
+        correct_segment_direction(non_oriented, direction::S);
+    return non_oriented;
+}
+
 segment path_engine::flip_segment(const segment &s){
     if (!is_node(s.source)) return s;
     direction dir = get_direction(s);
@@ -548,6 +557,23 @@ void path_engine::complete(std::vector<segment>& path) const{
         link(new_path, path[i]);
 
     path.swap(new_path);
+}
+
+std::pair<segment, segment> path_engine::splitSegment(const segment &s, int index) {
+    std::pair<segment, segment> split_segment = {s, {NULL_NODE, NULL_NODE}};
+    segment non_oriented = getNonOriented(s);
+    if (index < cost(non_oriented).length){
+        split_segment.first = {non_oriented.source, non_oriented.source + index};
+        split_segment.second = {non_oriented.source + index + 1, non_oriented.target};
+        if (split_segment.first.source == split_segment.first.target) split_segment.first.target = NULL_NODE;
+        if (split_segment.second.source == split_segment.second.target) split_segment.second.target = NULL_NODE;
+        const direction d = get_direction(s);
+        correct_segment_direction(split_segment.first, d);
+        correct_segment_direction(split_segment.second, d);
+    }
+    if (split_segment.first.source != s.source)
+        std::swap(split_segment.first, split_segment.second);
+    return split_segment;
 }
 
 void path_engine::link(std::vector<segment> &path,
@@ -640,27 +666,22 @@ std::vector<std::pair<int, cost_t>> path_engine::get_top_k_insertion(
         const cppied_solution& pSol,
         const segment& pTrial,
         int k) const{
-    std::vector<int> candidates(pSol.path.size()-1);
-    std::iota(candidates.begin(), candidates.end(), 1);
-    std::vector<std::pair<int,cost_t>> solution;
-    solution.reserve(k);
+    int guarded_k = std::min(k, static_cast<int>(pSol.path.size()));
+    auto indexes_view = std::views::iota(1, static_cast<int>(pSol.path.size()) + 1);
 
-    auto func = [&](const int & i){
-        return std::pair<int,cost_t>{i,
-                                     insert_between_gain(pSol.path[i-1], pTrial, pSol.path[i])};
-    };
-    std::transform(candidates.begin(), candidates.end(),
-                   std::back_inserter(solution), func);
+    auto insertions_view = indexes_view | std::views::transform([&](const int &i){
+        return std::pair<int,cost_t>{i, insertion_gain(pSol, pSol.path.begin() + i - 1, pTrial)};
+    });
+    auto insertions = std::ranges::to<std::vector<std::pair<int,cost_t>>>(insertions_view);
+
     auto cmp = [&](
             const std::pair<int,cost_t> & a,
             const std::pair<int,cost_t> & b){
         return a.second < b.second;
     };
 
-    std::partial_sort(solution.begin(),
-                      std::next(solution.begin(),k),
-                      solution.end(), cmp);
-    std::vector<std::pair<int,cost_t>> top_k(solution.begin(), std::next(solution.begin(), k));
+    std::partial_sort(insertions.begin(),std::next(insertions.begin(),guarded_k),insertions.end(), cmp);
+    std::vector<std::pair<int,cost_t>> top_k(insertions.begin(), std::next(insertions.begin(), guarded_k));
     return top_k;
 }
 

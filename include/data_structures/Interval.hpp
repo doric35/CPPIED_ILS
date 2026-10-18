@@ -178,7 +178,7 @@ namespace cppied_intervals {
 
         [[nodiscard]] cost_t getValue() const{ return value; }
 
-        std::vector<GroupedIntervalSets> groupSetsByRows(){
+        std::vector<GroupedIntervalSets> groupIntervalSetsByRows(){
             std::vector<GroupedIntervalSets> grouped;
             for (auto& intervals : intervalGroups)
                 grouped.push_back(intervals.groupByRows());

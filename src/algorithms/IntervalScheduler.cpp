@@ -1,4 +1,4 @@
-#include "../../include/heuristics/IntervalScheduler.hpp"
+#include "../../include/algorithms/IntervalScheduler.hpp"
 
 void IntervalScheduler::solve() {
     if (nIntervals == 0) return;
@@ -9,6 +9,7 @@ void IntervalScheduler::solve() {
 
 void IntervalScheduler::resetData() {
     solution.clear();
+    nIntervals = static_cast<int>(intervals.size());
     stateCosts = std::vector<cost_t>(nIntervals, cost_t{0,0});
     statePredecessors = std::vector<int>(nIntervals, -1);
 }

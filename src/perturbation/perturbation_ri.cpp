@@ -85,6 +85,10 @@ void perturbation_ri::best_insertions(cppied_solution &pSol,
         }
         new_sol.push_back(pSol.path[i]);
     }
+    if (j < static_cast<int>(candidates.size())) {
+        new_sol.push_back(candidates[j].second);
+        coverage.insert(pSol, candidates[j].second);
+    }
     pSol.path.swap(new_sol);
     pSol.cost = geometry.cost(pSol);
 }

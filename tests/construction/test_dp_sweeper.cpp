@@ -199,10 +199,7 @@ static bool sweep_once(dp_sweeper_accessor& dps,
     dps.coverage.unsatisfied_cells(sol, unsat);
     if (unsat.empty()) return false;
 
-    iRectangle box = {std::numeric_limits<int>::max(),
-                      std::numeric_limits<int>::max(),
-                      std::numeric_limits<int>::min(),
-                      std::numeric_limits<int>::min()};
+    iRectangle box;
     dps.coverage.unsatisfied_rectangle(unsat, box);
 
     std::array<sweeper::segment_set, 2> S{{

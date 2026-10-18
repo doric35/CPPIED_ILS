@@ -39,10 +39,16 @@ public:
     }
 
     bool can_remove(cppied_solution& sol, const segment& seg) const;
+    [[nodiscard]] bool can_remove_vertex(const cppied_solution&, int v) const;
     bool insertion_satisfies(
             cppied_solution& sol,
             const segment& seg,
             const std::vector<int>& set_cover);
+    bool insertion_satisfies(
+            cppied_solution& sol,
+            const std::vector<segment>& segments,
+            const std::vector<int>& setCover
+            );
     void unsatisfied_cells(
             const cppied_solution& sol,
             std::vector<int>& out) const;
@@ -65,6 +71,5 @@ protected:
     void update_vertex_insert(cppied_solution&, int v);
     void update_vertex_remove(cppied_solution&, int v);
     void add_over_coverage_contribution(cppied_solution&, int v, double& acc_oc, int& acc_size);
-    bool can_remove_vertex(const cppied_solution&, int v) const;
     void push_vertex_unsatisfied_cells(const cppied_solution& pSol, int v, std::vector<int>& out) const;
 };

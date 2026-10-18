@@ -3,11 +3,11 @@
 void ils::d_solve(cppied_solution &pSolution) {
     incumbent = pSolution;
     setInitialIncumbent();
-    if (isConstructOnly()) { pSolution = incumbent; return; }
+    if (factory.isConstructOnly()) { pSolution = incumbent; return; }
 
     rootLocalSearch();
 
-    if (isLocalSearchOnly()){
+    if (factory.isLocalSearchOnly()){
         setTerminalIncumbent();
         pSolution = incumbent;
         return;
@@ -24,10 +24,10 @@ void ils::d_solve(cppied_solution &pSolution) {
 }
 
 void ils::constructInitialSolution() {
-    if (!R.empty()){
-        auto starter = uniform_sample(R);
-        //std::cout << "Selected starter " << std::endl;
-        starter->restart(incumbent);
+    if (!factory.isWithoutRestart()){
+        auto restart_class = factory.sampleRestartMethod();
+        std::unique_ptr<Restart> restart_ptr = restart_class(ctx, problem, incumbent);
+        restart_ptr->restart(incumbent);
     } else {
         dp_sweeper h(ctx, problem);
         auto saver = [](const cppied_solution& pSol){
@@ -55,20 +55,22 @@ void ils::iteratedSearch(cppied_solution &pSolution) {
 }
 
 cppied_solution ils::perturbate(const cppied_solution &pSolution) {
-    if (P.empty()) return pSolution;
-
     cppied_solution trial = pSolution;
-    auto perturbation_function = uniform_sample(P);
+    if (!factory.isWithoutPerturbation()) {
+        auto                          perturbation_class = factory.samplePerturbationMethod();
+        std::unique_ptr<perturbation> perturbation_ptr   = perturbation_class(ctx, problem, trial);
 
-    perturbation_function->perturbate(trial);
+        perturbation_ptr->perturbate(trial);
+    }
     return trial;
 }
 
 cppied_solution ils::restart() {
     cppied_solution trial = incumbent;
-    if (!R.empty() && !stopping_criterion()){
-        auto starter = uniform_sample(R);
-        starter->restart(trial);
+    if (!factory.isWithoutRestart()){
+        auto restart_class = factory.sampleRestartMethod();
+        std::unique_ptr<Restart> restart_ptr = restart_class(ctx, problem, trial);
+        restart_ptr->restart(trial);
     }
     setCompleteSolution(trial);
     if (!stopping_criterion())

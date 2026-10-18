@@ -170,8 +170,8 @@ void cppied_instance_base::set_cover(int v, std::vector<int> &C, bool horizontal
         const int col1 = std::max(0, static_cast<int>(v_p.x) - max_range);
         const int colm = std::min(static_cast<int>(seabed.cols())-1, static_cast<int>(v_p.x) + max_range - 1);
         const int row = static_cast<int>(std::floor(v_p.y));
-        cell1 = (row * static_cast<int>(seabed.rows())) + col1;
-        cellm = (row * static_cast<int>(seabed.rows())) + colm;
+        cell1 = (row * static_cast<int>(seabed.cols())) + col1;
+        cellm = (row * static_cast<int>(seabed.cols())) + colm;
         step = 1;
     }
     C.reserve(((cellm - cell1) / step) + 1);

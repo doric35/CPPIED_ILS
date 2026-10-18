@@ -44,5 +44,6 @@ public:
     void setCompleteSolution(cppied_solution& pSolution) {
         geometry.complete(pSolution);
         coverage.reset(pSolution);
+        pSolution.cost = geometry.cost(pSolution);
     }
 };

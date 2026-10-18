@@ -52,7 +52,7 @@ protected:
                     {62, 63}};
         sol.cost     = {0, 0};
         sol.coverage = Eigen::VectorXd::Zero(P.req.size());
-        n = std::make_unique<neighborhood_r_accessor>(ctx, P);
+        n = std::make_unique<neighborhood_r_accessor>(ctx, P, sol);
         n->coverage.reset(sol);
         sol.cost = n->geometry.cost(sol);
         ctx.start_time = std::chrono::high_resolution_clock::now();
@@ -65,12 +65,12 @@ protected:
 
 TEST_F(neighborhood_r_fixture, GainEqualsRemovalGainAtSameIterator) {
     auto it = std::next(sol.path.cbegin(), 2);
-    EXPECT_EQ(n->gain(sol, it), n->geometry.removal_gain(sol, it));
+    EXPECT_EQ(n->gain(it), n->geometry.removal_gain(sol, it));
 }
 
 TEST_F(neighborhood_r_fixture, GainNonNegativeForAllPositions) {
     for (int k = 1; k < (int)sol.path.size(); ++k) {
-        cost_t g = n->gain(sol, std::next(sol.path.cbegin(), k));
+        cost_t g = n->gain(std::next(sol.path.cbegin(), k));
         EXPECT_GE(g.length, 0) << "negative length gain at position " << k;
     }
 }
@@ -83,7 +83,7 @@ TEST_F(neighborhood_r_fixture, GainNonNegativeForAllPositions) {
 TEST_F(neighborhood_r_fixture, ReplacementCostSelfIsNonNegative) {
     for (int k = 1; k < (int)sol.path.size(); ++k) {
         auto it = std::next(sol.path.cbegin(), k);
-        cost_t c = n->replacement_cost(sol, it, *it);
+        cost_t c = n->replacement_cost(it, *it);
         EXPECT_GE(c.length, 0) << "negative self-replacement cost at position " << k;
     }
 }
@@ -94,8 +94,8 @@ TEST_F(neighborhood_r_fixture, ReplacementCostFlipConsistentWithGeometry) {
     auto it = std::next(sol.path.cbegin(), 2);
     segment seg  = *it;
     segment flip = n->geometry.flip_segment(seg);
-    cost_t c1 = n->replacement_cost(sol, it, seg);
-    cost_t c2 = n->replacement_cost(sol, it, flip);
+    cost_t c1 = n->replacement_cost(it, seg);
+    cost_t c2 = n->replacement_cost(it, flip);
     // Both are valid costs; we only verify they are non-negative.
     EXPECT_GE(c1.length, 0);
     EXPECT_GE(c2.length, 0);
@@ -109,7 +109,7 @@ TEST_F(neighborhood_r_fixture, ReplacementCostFlipConsistentWithGeometry) {
 TEST_F(neighborhood_r_fixture, AddReplacementsKeepsOriginalAsFirst) {
     std::vector<segment> candidates = {sol.path[2]};
     segment original = candidates[0];
-    n->add_replacements(sol, candidates);
+    n->add_replacements(candidates);
     EXPECT_EQ(candidates[0].source, original.source);
     EXPECT_EQ(candidates[0].target, original.target);
 }
@@ -119,7 +119,7 @@ TEST_F(neighborhood_r_fixture, AddReplacementsKeepsOriginalAsFirst) {
 TEST_F(neighborhood_r_fixture, AddReplacementsRestoresCoverage) {
     Eigen::VectorXd saved = sol.coverage;
     std::vector<segment> candidates = {sol.path[2]};
-    n->add_replacements(sol, candidates);
+    n->add_replacements(candidates);
     EXPECT_TRUE(sol.coverage.isApprox(saved, 1e-9))
         << "coverage must be unchanged after add_replacements";
 }
@@ -127,7 +127,7 @@ TEST_F(neighborhood_r_fixture, AddReplacementsRestoresCoverage) {
 // Every extra candidate added must have a valid source vertex.
 TEST_F(neighborhood_r_fixture, AddReplacementsProducesValidSegments) {
     std::vector<segment> candidates = {sol.path[2]};
-    n->add_replacements(sol, candidates);
+    n->add_replacements(candidates);
     for (const auto& s : candidates)
         EXPECT_NE(s.source, path_engine::NULL_NODE) << "path_engine::NULL_NODE source in replacement candidates";
 }
@@ -139,7 +139,7 @@ TEST_F(neighborhood_r_fixture, AddReplacementsProducesValidSegments) {
 // Indices returned by select must be in [1, path.size()-1].
 TEST_F(neighborhood_r_fixture, SelectIndicesInValidRange) {
     std::vector<int> selection;
-    n->select(sol, selection);
+    n->select(selection);
     for (int idx : selection) {
         EXPECT_GE(idx, 1)                    << "selected index " << idx << " < 1";
         EXPECT_LT(idx, (int)sol.path.size()) << "selected index " << idx << " >= path.size()";
@@ -150,7 +150,7 @@ TEST_F(neighborhood_r_fixture, SelectIndicesInValidRange) {
 TEST_F(neighborhood_r_fixture, SelectNeverSelectsFirstSegment) {
     for (int trial = 0; trial < 20; ++trial) {
         std::vector<int> selection;
-        n->select(sol, selection);
+        n->select(selection);
         EXPECT_FALSE(std::find(selection.begin(), selection.end(), 0)
                      != selection.end())
             << "trial " << trial << ": first segment (index 0) was selected";
@@ -160,7 +160,7 @@ TEST_F(neighborhood_r_fixture, SelectNeverSelectsFirstSegment) {
 // select must produce a non-empty result for any non-trivial path.
 TEST_F(neighborhood_r_fixture, SelectNonEmptyForNontrivialPath) {
     std::vector<int> selection;
-    n->select(sol, selection);
+    n->select(selection);
     EXPECT_GT(selection.size(), 0u);
 }
 
@@ -170,7 +170,7 @@ TEST_F(neighborhood_r_fixture, SelectGainsIndexedAtCorrectPathPosition) {
     // Compute correct gain for each path position [1..N-1].
     std::vector<cost_t> correct_gains(N, {0, 0});
     for (int k = 1; k < N; ++k)
-        correct_gains[k] = n->gain(sol, std::next(sol.path.cbegin(), k));
+        correct_gains[k] = n->gain(std::next(sol.path.cbegin(), k));
 
     // Even candidates: {2,4,6,...}, odd candidates: {1,3,5,...}
     cost_t correct_even{0,0}, correct_odd{0,0};
@@ -208,11 +208,11 @@ protected:
         genv.start();
         model = std::make_unique<GRBModel>(genv);
 
-        n->select(sol, selection);
+        n->select(selection);
         ASSERT_FALSE(selection.empty()) << "select returned empty; cannot build model";
 
-        n->set_initial_replacements(sol, selection, replacements, *model);
-        n->set_constraints(sol, replacements, constraints, *model);
+        n->set_initial_replacements(selection, replacements, *model);
+        n->set_constraints(replacements, constraints, *model);
         model->set(GRB_IntAttr_ModelSense, GRB_MINIMIZE);
         model->update();
     }
@@ -296,7 +296,7 @@ TEST_F(neighborhood_r_solved_fixture, RetrieveSolutionNonSelectedSegmentsPreserv
     std::set<int>        selected_pos;
     for (auto& rs : replacements) selected_pos.insert(rs.r);
 
-    n->retrieve_solution(sol, replacements);
+    n->retrieve_solution(replacements);
 
     for (int k = 0; k < (int)original.size(); ++k) {
         if (selected_pos.count(k)) continue;
@@ -314,7 +314,7 @@ TEST_F(neighborhood_r_solved_fixture, RetrieveSolutionNonSelectedSegmentsPreserv
 // When r reaches R.size() the remaining iterations must not access R[r].r.
 // Bug: no guard `r < R.size()` before the condition `i == R[r].r`.
 TEST_F(neighborhood_r_solved_fixture, RetrieveSolutionNoOutOfBoundsAfterRExhausted) {
-    EXPECT_NO_FATAL_FAILURE(n->retrieve_solution(sol, replacements))
+    EXPECT_NO_FATAL_FAILURE(n->retrieve_solution(replacements))
         << "retrieve_solution accessed R[r].r with r >= R.size() (out-of-bounds). "
            "Fix: guard with `if (r < (int)R.size() && i == R[r].r)`.";
 }
@@ -332,7 +332,7 @@ TEST_F(neighborhood_r_solved_fixture, ExtractDualsPopulatesVectorsWhenPresized) 
     std::vector<double> cov_duals(n_cells, 0.0);
     std::vector<double> r_duals(replacements.size(), 0.0);
 
-    EXPECT_NO_THROW(n->extract_duals(sol, constraints, cov_duals, r_duals));
+    EXPECT_NO_THROW(n->extract_duals(constraints, cov_duals, r_duals));
 
     EXPECT_EQ((int)cov_duals.size(), n_cells)
         << "coverage_duals must have one entry per coverage cell";
@@ -357,7 +357,7 @@ TEST_F(neighborhood_r_fixture, DagHeuristicReturnedSegmentVerticesInRange) {
     auto cost_func = [](cost_t c) { return (double)c.length; };
 
     // r=1: compute dag for the second segment replacement.
-    auto [seg, rc] = n->dag_heuristic(sol, first, last,
+    auto [seg, rc] = n->dag_heuristic(first, last,
                                       cov_duals,
                                       /*r=*/1, /*r_dual=*/0.0,
                                       /*gamma=*/0.0,
@@ -389,11 +389,11 @@ protected:
 };
 
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchDoesNotThrow) {
-    EXPECT_NO_THROW(n->local_search(sol));
+    EXPECT_NO_THROW(n->local_search());
 }
 
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchPathNonEmpty) {
-    n->local_search(sol);
+    n->local_search();
     EXPECT_GT(sol.path.size(), 0u);
 }
 
@@ -401,7 +401,7 @@ TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchPathNonEmpty) {
 // Bug 1: retrieve_solution drops non-selected segments, shrinking the path.
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchPathSizeUnchanged) {
     size_t before = sol.path.size();
-    n->local_search(sol);
+    n->local_search();
     EXPECT_LE(sol.path.size(), before)
         << "local_search changed path size from " << before << " to " << sol.path.size()
         << " (retrieve_solution missing else-clause drops non-selected segments)";
@@ -410,19 +410,19 @@ TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchPathSizeUnchanged) {
 // On TRUE return the stored cost must be strictly less than the pre-call cost.
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCostDecreasedWhenReturnTrue) {
     cost_t before = sol.cost;
-    if (n->local_search(sol))
+    if (n->local_search())
         EXPECT_LT(sol.cost, before);
 }
 
 // On TRUE the stored cost must equal geometry.cost(sol).
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCostConsistentWhenReturnTrue) {
-    if (n->local_search(sol))
+    if (n->local_search())
         EXPECT_EQ(n->geometry.cost(sol), sol.cost);
 }
 
 // On TRUE the coverage vector must match a fresh recompute.
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCoverageConsistentWhenReturnTrue) {
-    if (n->local_search(sol)) {
+    if (n->local_search()) {
         Eigen::VectorXd saved = sol.coverage;
         n->coverage.reset(sol);
         EXPECT_TRUE(sol.coverage.isApprox(saved, 1e-9))
@@ -432,7 +432,7 @@ TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCoverageConsistentWhenReturnTru
 
 // On TRUE the coverage constraint must remain satisfied.
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCoverageConstraintSatisfied) {
-    if (n->local_search(sol)) {
+    if (n->local_search()) {
         n->coverage.reset(sol);
         EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all());
     }
@@ -443,7 +443,7 @@ TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCoverageConstraintSatisfied) {
 // solve sets all variables to 0 for an unconstrained-cell position, retrieve_solution
 // never re-inserts that coverage, leaving pSol.coverage depleted.
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCoverageConsistentAlways) {
-    n->local_search(sol);
+    n->local_search();
     Eigen::VectorXd saved = sol.coverage;
     n->coverage.reset(sol);
     EXPECT_TRUE(sol.coverage.isApprox(saved, 1e-9))
@@ -457,7 +457,7 @@ TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCoverageConsistentAlways) {
 // The binary solver may produce an all-zero assignment for a position, causing
 // retrieve_solution to drop the segment and leave those cells below req.
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCoverageConstraintSatisfiedAlways) {
-    n->local_search(sol);
+    n->local_search();
     n->coverage.reset(sol);
     EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all())
         << "coverage infeasibility after local_search; "
@@ -468,7 +468,7 @@ TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCoverageConstraintSatisfiedAlwa
 // Bug: retrieve_solution may produce a shorter path (dropped positions);
 // pSol.cost = geometry.cost(pSol) is correct, but only if the path is intact.
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCostConsistentAlways) {
-    n->local_search(sol);
+    n->local_search();
     EXPECT_EQ(n->geometry.cost(sol), sol.cost)
         << "cost inconsistency after local_search";
 }
@@ -478,12 +478,12 @@ TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchCostConsistentAlways) {
 // Bug: Z1 and Z2 are never reset to 0 at the start of local_search.
 // Fix: add `Z1 = 0; Z2 = 0;` at the very beginning of local_search.
 TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchStateConsistentOnSecondCall) {
-    n->local_search(sol);
+    n->local_search();
     n->coverage.reset(sol);
     sol.cost = n->geometry.cost(sol);
 
     // Second call must not crash and must leave the solution consistent.
-    EXPECT_NO_THROW(n->local_search(sol))
+    EXPECT_NO_THROW(n->local_search())
         << "second call to local_search crashed; "
            "Z1 and Z2 hold dangling GRBVar references from the first model. "
            "Fix: reset Z1 = 0; Z2 = 0; at the start of local_search.";
@@ -569,7 +569,7 @@ TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_IsFeasible) {
 TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_LocalSearchReturnsTrue) {
     ASSERT_TRUE((sol.coverage.array() >= P.req.array()).all())
         << "precondition: improvable path must be feasible";
-    EXPECT_TRUE(n->local_search(sol))
+    EXPECT_TRUE(n->local_search())
         << "local_search() returned false on a path with two over-extended segments; "
            "column generation should have found at least one of {47,42}→{44,42} or "
            "{48,53}→{48,51} as a strict improvement";
@@ -579,7 +579,7 @@ TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_LocalSearchReturnsTrue)
 TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_CostStrictlyDecreased) {
     ASSERT_TRUE((sol.coverage.array() >= P.req.array()).all());
     const cost_t cost_before = sol.cost;
-    const bool improved = n->local_search(sol);
+    const bool improved = n->local_search();
     ASSERT_TRUE(improved)
         << "local_search() did not improve; cannot verify cost decrease";
     EXPECT_LT(sol.cost, cost_before)
@@ -588,7 +588,7 @@ TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_CostStrictlyDecreased) 
 
 // The stored cost must equal the recomputed geometry cost after the move.
 TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_CostConsistentAfterImprovement) {
-    ASSERT_TRUE(n->local_search(sol))
+    ASSERT_TRUE(n->local_search())
         << "local_search() did not improve; cannot verify cost consistency";
     EXPECT_EQ(n->geometry.cost(sol), sol.cost)
         << "sol.cost is inconsistent with geometry.cost(sol) after local_search";
@@ -596,7 +596,7 @@ TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_CostConsistentAfterImpr
 
 // The incremental coverage vector must match a full reset after the move.
 TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_CoverageConsistentAfterImprovement) {
-    ASSERT_TRUE(n->local_search(sol))
+    ASSERT_TRUE(n->local_search())
         << "local_search() did not improve; cannot verify coverage consistency";
     const Eigen::VectorXd coverage_after = sol.coverage;
     n->coverage.reset(sol);
@@ -606,7 +606,7 @@ TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_CoverageConsistentAfter
 
 // All coverage requirements must remain satisfied after the move.
 TEST_F(neighborhood_r_improvable_fixture, ImprovablePath_CoverageConstraintSatisfied) {
-    ASSERT_TRUE(n->local_search(sol))
+    ASSERT_TRUE(n->local_search())
                                 << "local_search() did not improve; cannot verify coverage feasibility";
     n->coverage.reset(sol);
     EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all())
@@ -636,5 +636,5 @@ TEST_F(neighborhood_r_fixture, SpecialCaseNoInvalidNode){
     n->coverage.reset(sol);
     sol.cost = n->geometry.cost(sol);
     ctx.max_time = 600;
-    EXPECT_NO_THROW(n->local_search(sol));
+    EXPECT_NO_THROW(n->local_search());
 }

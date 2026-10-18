@@ -26,6 +26,8 @@ namespace tsp{
 
         Eigen::MatrixXi cost;
 
+        std::vector<int> tour;
+
         int penalty;
     };
 }

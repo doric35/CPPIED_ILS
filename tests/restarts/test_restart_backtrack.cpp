@@ -41,7 +41,7 @@ protected:
 
     void SetUp() override {
         cppied_context_fixture::SetUp();
-        rb = std::make_unique<restart_backtrack_accessor>(ctx, P);
+        rb = std::make_unique<restart_backtrack_accessor>(ctx, P, sol);
 
         // Anchor the clock BEFORE any dp_sweeper / LKH call.
         ctx.start_time = std::chrono::high_resolution_clock::now();

@@ -10,14 +10,17 @@ public:
     using neighborhood::coverage;
     using neighborhood::problem;
 
-    using neighborhood_trim::gain;
-    using neighborhood_trim::update;
 };
 
 class neighborhood_trim_fixture : public cppied_context_fixture {
 protected:
     std::unique_ptr<neighborhood_trim_accessor> n;
     cppied_solution sol;
+
+    // Neighborhoods are bound to a solution at construction.
+    bool search(cppied_solution& s){
+        return neighborhood_trim_accessor(ctx, P, s).local_search();
+    }
 
     void SetUp() override{
         cppied_context_fixture::SetUp();
@@ -30,17 +33,17 @@ protected:
                      {62, 63}};
         sol.cost = {0,0};
         sol.coverage = Eigen::VectorXd::Zero(P.req.size());
-        n = std::make_unique<neighborhood_trim_accessor>(ctx, P);
+        n = std::make_unique<neighborhood_trim_accessor>(ctx, P, sol);
         n->coverage.reset(sol);
         sol.cost = n->geometry.cost(sol);
     }
 };
 
 TEST_F(neighborhood_trim_fixture, LocalOptimaFound){
-    EXPECT_FALSE(n->local_search(sol));
+    EXPECT_FALSE(search(sol));
     n->geometry.complete(sol);
     n->coverage.reset(sol);
-    EXPECT_FALSE(n->local_search(sol));
+    EXPECT_FALSE(search(sol));
 }
 
 TEST_F(neighborhood_trim_fixture, ImprovementFound){
@@ -57,7 +60,7 @@ TEST_F(neighborhood_trim_fixture, ImprovementFound){
     n->coverage.reset(other);
     ASSERT_TRUE((other.coverage.array() >= P.req.array()).all());
     ASSERT_TRUE((n->geometry.cost(other) == n->geometry.cost(sol) + cost_t{0,2}));
-    EXPECT_TRUE(n->local_search(other));
+    EXPECT_TRUE(search(other));
 }
 
 TEST_F(neighborhood_trim_fixture, MarginalCostUpdate){
@@ -73,7 +76,7 @@ TEST_F(neighborhood_trim_fixture, MarginalCostUpdate){
                   {61, 63}};
     n->coverage.reset(other);
     other.cost = n->geometry.cost(other);
-    ASSERT_TRUE(n->local_search(other));
+    ASSERT_TRUE(search(other));
     EXPECT_EQ(n->geometry.cost(other), other.cost);
 }
 
@@ -90,7 +93,7 @@ TEST_F(neighborhood_trim_fixture, ValidCoverageUpdate){
                   {61, 63}};
     n->coverage.reset(other);
     other.cost = n->geometry.cost(other);
-    ASSERT_TRUE(n->local_search(other));
+    ASSERT_TRUE(search(other));
     Eigen::VectorXd C = other.coverage;
     n->coverage.reset(other);
     EXPECT_TRUE(other.coverage.isApprox(C, 1e-9));
@@ -109,7 +112,7 @@ TEST_F(neighborhood_trim_fixture, CoverageConstraintSatisfied){
                   {61, 63}};
     n->coverage.reset(other);
     other.cost = n->geometry.cost(other);
-    ASSERT_TRUE(n->local_search(other));
+    ASSERT_TRUE(search(other));
     n->coverage.reset(other);
     EXPECT_TRUE((other.coverage.array() >= P.req.array()).all());
 }
@@ -127,6 +130,6 @@ TEST_F(neighborhood_trim_fixture, LocalOptimaAfterImprovement){
                   {61, 63}};
     n->coverage.reset(other);
     other.cost = n->geometry.cost(other);
-    ASSERT_TRUE(n->local_search(other));
-    EXPECT_FALSE(n->local_search(other));
+    ASSERT_TRUE(search(other));
+    EXPECT_FALSE(search(other));
 }

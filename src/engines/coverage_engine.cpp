@@ -80,8 +80,20 @@ bool coverage_engine::insertion_satisfies(cppied_solution &sol, const segment &s
     for (int c : set_cover)
         sat &= sol.coverage(c) >= problem.req(c);
 
-
     remove(sol,seg);
+    return sat;
+}
+
+bool coverage_engine::insertion_satisfies(cppied_solution &sol, const std::vector<segment> &segments, const std::vector<int> &set_cover) {
+    for (auto& s : segments)
+        insert(sol, s);
+
+    bool sat = true;
+    for (int c : set_cover)
+        sat &= sol.coverage(c) >= problem.req(c);
+
+    for (auto& s : segments)
+        remove(sol, s);
     return sat;
 }
 

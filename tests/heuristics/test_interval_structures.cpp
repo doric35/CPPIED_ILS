@@ -531,7 +531,7 @@ TEST(GroupedIntervalSets, GroupSetsByRows_OneEntryPerSet) {
     GroupedIntervalSets groups;
     groups.push(make_set({make_iv(0,1,{1,0},0, 0), make_iv(0,1,{1,0},1, 1)}));
     groups.push(make_set({make_iv(0,1,{1,0},2, 4)}));
-    auto per_set = groups.groupSetsByRows();
+    auto per_set = groups.groupIntervalSetsByRows();
     ASSERT_EQ(per_set.size(), 2u);
     EXPECT_EQ(row_ids(per_set[0]), (std::vector<std::vector<int>>{{0}, {1}}));
     EXPECT_EQ(row_ids(per_set[1]), (std::vector<std::vector<int>>{{2}}));

@@ -4,8 +4,12 @@
 #include "../heuristics/ris_heuristic.hpp"
 
 class neighborhood : public cppied_method_base{
+private:
+protected:
+    cppied_solution& solution;
 public:
-    using cppied_method_base::cppied_method_base;
+    neighborhood(cppied_context& c, cppied_instance& i, cppied_solution& s) :
+        cppied_method_base(c, i), solution(s){}
     void initialize() override {
         throw std::runtime_error("Not implemented for neighborhoods interface.");
     }
@@ -16,11 +20,14 @@ public:
         throw std::runtime_error("Not implemented for neighborhoods interface.");
     }
     virtual ~neighborhood() = default;
-    virtual bool local_search(cppied_solution& pSolution) = 0;
+    virtual bool local_search() = 0;
 
     using sVecIt = std::vector<segment>::const_iterator;
     segment trim(cppied_solution&, sVecIt seg);
     segment trim(cppied_solution&, segment seg);
+    std::vector<segment> getCompleteCoverageSegments(const iRectangle& box);
+    std::vector<segment> getCompleteCoverageHorizontalSegments(const iRectangle& box);
+    std::vector<segment> getCompleteCoverageVerticalSegments(const iRectangle& box);
 
     template<class F>
     void for_each_segment(const iRectangle& box,

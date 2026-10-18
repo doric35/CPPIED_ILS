@@ -10,26 +10,15 @@
 #include "../restart/restart_backtrack.hpp"
 #include "../construction/dp_sweeper.hpp"
 
+#include "HeuristicFactory.hpp"
+
 class ils : public cppied_method_base{
 public:
     ils(cppied_context& c, cppied_instance& i) :
-        cppied_method_base(c, i), ls(c, i), L(), incumbent(){}
-    void initialize() override {
-        std::string configuration = ctx.config["ALGORITHM_CONFIG"];
-        assert(configuration.size() == 12);
-        ls.initialize();
-        if (configuration[8] == '1')
-            P.push_back(std::make_unique<perturbation_ri>(ctx, problem));
-        if (configuration[9] == '1')
-            P.push_back(std::make_unique<perturbation_pt>(ctx, problem));
-        if (configuration[10] == '1')
-            P.push_back(std::make_unique<perturbation_db>(ctx, problem));
-        if (configuration[11] == '1')
-            R.push_back(std::make_unique<restart_backtrack>(ctx, problem));
-    }
-    void terminate() override {
-
-    }
+        cppied_method_base(c, i), ls(c, i), L(), incumbent(),
+        factory(std::bitset<11>(reverse_string(ctx.config["ALGORITHM_CONFIG"].substr(1)))){}
+    void initialize() override {}
+    void terminate() override {}
     void d_solve(cppied_solution& pSolution) override;
     bool local_search(cppied_solution& pSol);
     bool stopping_criterion();
@@ -43,11 +32,11 @@ public:
     
 protected:
     vnd ls;
-    std::vector<std::unique_ptr<perturbation>> P{};
-    std::vector<std::unique_ptr<restarts>>     R{};
-    luby L;
+    luby                                       L;
     int iterations = 1;
     cppied_solution incumbent;
+
+    HeuristicFactory factory;
 
 private:
     void constructInitialSolution();
@@ -62,11 +51,4 @@ private:
     void setInitialIncumbent();
 
     int getElapsedTime();
-
-    bool isConstructOnly(){
-        return R.empty() && P.empty() && ls.neighborhoods_count() <=3;
-    }
-    bool isLocalSearchOnly() {
-        return R.empty() && P.empty();
-    }
 };

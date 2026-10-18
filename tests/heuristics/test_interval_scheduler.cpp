@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <set>
-#include "../../include/heuristics/IntervalScheduler.hpp"
+#include "../../include/algorithms/IntervalScheduler.hpp"
 
 // ============================================================================
 // IntervalScheduler unit tests
@@ -325,6 +325,107 @@ TEST(IntervalScheduler, Random_MatchesBruteForce) {
         const auto& sol = to_vec(s.getSolution());
         cost_t expected = brute_force(v);
 
+        SCOPED_TRACE("intervals=" + to_string(v));
+        ASSERT_EQ(s.getCost(), expected);
+        ASSERT_TRUE(non_overlapping(sol));
+        ASSERT_EQ(sum_gains(sol), expected);
+    }
+}
+
+// ============================================================================
+// Getters before solve() and degenerate inputs
+// ============================================================================
+
+TEST(IntervalScheduler, BeforeSolve_SolutionEmptyAndCostZero) {
+    IntervalSet iset = to_set({make_iv(0,1,{5,0},0), make_iv(3,4,{2,0},1)});
+    IntervalScheduler s(iset);
+    EXPECT_TRUE(s.getSolution().empty());
+    EXPECT_EQ(s.getCost(), (cost_t{0,0}));
+}
+
+TEST(IntervalScheduler, EmptyRange_SolveTwice_StillEmpty) {
+    IntervalSet iset;
+    IntervalScheduler s(iset);
+    s.solve();
+    s.solve();
+    EXPECT_TRUE(s.getSolution().empty());
+    EXPECT_EQ(s.getCost(), (cost_t{0,0}));
+}
+
+// Negative x coordinates: compatibility only depends on x2 < x1.
+TEST(IntervalScheduler, NegativeCoordinates_Handled) {
+    IntervalSet iset = to_set({make_iv(-10,-6,{3,0},0), make_iv(-5,-1,{3,0},1),
+                               make_iv(-1,2,{1,0},2)});
+    IntervalScheduler s(iset);
+    s.solve();
+    EXPECT_EQ(ids(to_vec(s.getSolution())), (std::set<int>{0,1}));
+    EXPECT_EQ(s.getCost(), (cost_t{6,0}));
+}
+
+// A short interval nested inside a long one with the same right end-point.
+TEST(IntervalScheduler, NestedSameEndPoint_BestOfTheTwoPlusCompatible) {
+    std::vector<Interval> v = {make_iv(0,1,{4,0},0), make_iv(0,9,{5,0},1),
+                               make_iv(3,9,{2,0},2)};
+    sort_by_end(v);
+    IntervalSet iset = to_set(v);
+    IntervalScheduler s(iset);
+    s.solve();
+    EXPECT_EQ(ids(to_vec(s.getSolution())), (std::set<int>{0,2}));
+    EXPECT_EQ(s.getCost(), (cost_t{6,0}));
+}
+
+// Chain where every interval overlaps only its neighbours: optimum alternates.
+TEST(IntervalScheduler, OverlapChain_AlternateIntervals) {
+    IntervalSet iset = to_set({make_iv(0,2,{1,0},0), make_iv(2,4,{1,0},1),
+                               make_iv(4,6,{1,0},2), make_iv(6,8,{1,0},3),
+                               make_iv(8,10,{1,0},4)});
+    IntervalScheduler s(iset);
+    s.solve();
+    EXPECT_EQ(ids(to_vec(s.getSolution())), (std::set<int>{0,2,4}));
+    EXPECT_EQ(s.getCost(), (cost_t{3,0}));
+}
+
+// Negative gains: the result must stay feasible and consistent with getCost().
+TEST(IntervalScheduler, NegativeGains_SolutionConsistentWithCost) {
+    IntervalSet iset = to_set({make_iv(0,1,{-2,0},0), make_iv(3,4,{5,0},1),
+                               make_iv(6,7,{-1,0},2)});
+    IntervalScheduler s(iset);
+    s.solve();
+    auto sol = to_vec(s.getSolution());
+    EXPECT_TRUE(non_overlapping(sol));
+    EXPECT_EQ(sum_gains(sol), s.getCost());
+}
+
+// The scheduler keeps a reference to the set (by design): re-solving after
+// the set changed must use the new content without stale state.
+TEST(IntervalScheduler, Resolve_AfterSetGrows_UsesNewContent) {
+    IntervalSet iset = to_set({make_iv(0,1,{1,0},0)});
+    IntervalScheduler s(iset);
+    s.solve();
+    ASSERT_EQ(s.getCost(), (cost_t{1,0}));
+    iset.push(make_iv(3,4,{2,0},1));
+    s.solve();
+    EXPECT_EQ(s.getCost(), (cost_t{3,0}));
+    EXPECT_EQ(ids(to_vec(s.getSolution())), (std::set<int>{0,1}));
+}
+
+// Randomised check with negative coordinates and many ties.
+TEST(IntervalScheduler, RandomNegativeCoordinates_MatchesBruteForce) {
+    std::mt19937 gen(99);
+    std::uniform_int_distribution<int> pos(-8, 8), width(0, 3), len(0, 2);
+    for (int trial = 0; trial < 1500; ++trial) {
+        int n = 1 + trial % 9;
+        std::vector<Interval> v;
+        for (int k = 0; k < n; ++k) {
+            int x1 = pos(gen);
+            v.push_back(make_iv(x1, x1 + width(gen), {len(gen), 0}, k));
+        }
+        sort_by_end(v);
+        IntervalSet iset = to_set(v);
+        IntervalScheduler s(iset);
+        s.solve();
+        auto sol = to_vec(s.getSolution());
+        cost_t expected = brute_force(v);
         SCOPED_TRACE("intervals=" + to_string(v));
         ASSERT_EQ(s.getCost(), expected);
         ASSERT_TRUE(non_overlapping(sol));

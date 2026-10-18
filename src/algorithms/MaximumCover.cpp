@@ -1,4 +1,4 @@
-#include "../../include/heuristics/MaximumCover.hpp"
+#include "../../include/algorithms/MaximumCover.hpp"
 
 void MaximumCover::solve() {
     if (!solution.empty()) resetData();

@@ -3,8 +3,11 @@
 #include "../cppied_method_base.hpp"
 
 class perturbation : public cppied_method_base {
+private:
+    cppied_solution& solution;
 public:
-    using cppied_method_base::cppied_method_base;
+    perturbation(cppied_context& c, cppied_instance& i, cppied_solution& s) :
+            cppied_method_base(c, i), solution(s){}
     void initialize() override {
         throw std::runtime_error("Not implemented for neighborhoods interface.");
     }
@@ -14,7 +17,7 @@ public:
     void d_solve(cppied_solution& pSolution) override {
         throw std::runtime_error("Not implemented for neighborhoods interface.");
     }
-    virtual ~perturbation() = default;
+    ~perturbation() override = default;
 
     void perturbate(cppied_solution&);
 

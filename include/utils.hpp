@@ -8,6 +8,7 @@
 #include <list>
 #include <set>
 #include <tuple>
+#include <unordered_set>
 #include <unordered_map>
 #include <Eigen/Dense>
 #include <Eigen/Core>
@@ -18,6 +19,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <utility>
+#include <ranges>
 #include <type_traits>
 #include <functional>
 #include <any>
@@ -26,6 +28,9 @@
 #include <bitset>
 #include <sstream>
 #include <iomanip>
+
+constexpr int MIN_INT = std::numeric_limits<int>::min();
+constexpr int MAX_INT = std::numeric_limits<int>::max();
 
 #define ALGORITHM_FLAG_LIST \
     X(NONE)                 \
@@ -90,6 +95,11 @@ public:
         return f_;
     }
 };
+
+inline std::string reverse_string(std::string s){
+    std::reverse(s.begin(), s.end());
+    return s;
+}
 
 template<typename T>
 MatrixXdRow<T> read_matrix(const std::string& filename){

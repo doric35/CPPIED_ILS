@@ -1,17 +1,19 @@
 #pragma once
 
-#include "neighborhood.hpp"
+#include "SimpleNeighborhood.hpp"
+#include "../algorithms/MaximumSegmentCut.hpp"
 
-class neighborhood_cut : public neighborhood{
+class neighborhood_cut : public SimpleNeighborhood<CutMove, MaximumSegmentCut>{
+private:
+    void pushSegments(std::list<segment>& path, std::array<segment, 2>& replacements);
+    segment getFirstCut(segment& nonOrientedCut, segment& nonOrientedSegment);
+    segment getSecondCut(segment& nonOrientedCut, segment& nonOrientedSegment);
+protected:
+    void applyMoves(std::vector<int>& selectedMoves) override;
+    void cutSelectedMoves(std::vector<int> &selectedMoves);
+    void splitMoves(std::vector<int>& candidates) override;
+    std::array<segment, 2> cut(int i);
+    std::array<segment, 2> cutDiff(segment &cut, int i);
 public:
-    using neighborhood::neighborhood;
-
-    bool local_search(cppied_solution&) override;
-    segment cut(cppied_solution&, sVecIt seg);
-    cost_t gain(const cppied_solution&, sVecIt target);
-    void update(cppied_solution&,
-                std::vector<segment>& trials,
-                std::vector<int>& selection);
-    std::array<segment, 2> cut_diff(const segment& a,
-                                    segment& b);
+    using SimpleNeighborhood::SimpleNeighborhood;
 };

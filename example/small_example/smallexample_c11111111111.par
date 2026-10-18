@@ -1,0 +1,10 @@
+PROBLEM_FILE = /Users/dominikrichard/Workspace/Doctorat/Cppied/example/small_example/smallexample_c11111111111.tsp
+OUTPUT_TOUR_FILE = /Users/dominikrichard/Workspace/Doctorat/Cppied/example/small_example/smallexample_c11111111111.sol
+TIME_LIMIT = 10
+MAX_CANDIDATES = 6
+EXCESS = 1.0
+RECOMBINATION = CLARIST
+RESTRICTED_SEARCH = NO
+INITIAL_PERIOD = 100
+RUNS = 1
+INITIAL_TOUR_FILE = /Users/dominikrichard/Workspace/Doctorat/Cppied/example/small_example/smallexample_c11111111111.tour

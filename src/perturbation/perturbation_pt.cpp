@@ -9,8 +9,11 @@ void perturbation_pt::d_perturbate(cppied_solution &pSol) {
     replace(pSol, sampling);
 
     pSol.cost = geometry.cost(pSol);
-    neighborhood_trim N(ctx, problem);
-    while (N.local_search(pSol)) continue;
+    neighborhood_trim N(ctx, problem, pSol);
+
+    bool improved = true;
+    while (improved)
+        improved = N.local_search();
 }
 
 void perturbation_pt::uniform_sample(cppied_solution &pSol,
@@ -63,12 +66,7 @@ void perturbation_pt::replace_segment(cppied_solution &pSol,
     coverage.remove(pSol, pSol.path[i]);
     std::vector<int> unsat;
     coverage.unsatisfied_cells(pSol, pSol.path[i], unsat);
-    iRectangle box = {
-            {std::numeric_limits<int>::max(),
-                    std::numeric_limits<int>::max()},
-            {std::numeric_limits<int>::min(),
-                    std::numeric_limits<int>::min()}
-    };
+    iRectangle box;
     coverage.unsatisfied_rectangle(unsat, box);
     bool horizontal = geometry.is_horizontal(pSol.path[i]);
     direction dir = direction::E;

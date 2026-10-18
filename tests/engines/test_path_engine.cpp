@@ -542,3 +542,57 @@ TEST_F(cppied_method_fixture, ValidSetBoundaries) {
             << "Block 9 (NS): unexpected boundary at vertical bottom c=" << c << " v=" << v;
     }
 }
+// ---------------------------------------------------------------------------
+// splitSegment: the two pieces must be returned in travel order (first piece
+// starts at s.source, second ends at s.target), for every split index and
+// for both orientations. Regression: pieces were returned low-index first,
+// which reversed the travel order of W/N segments.
+// ---------------------------------------------------------------------------
+static int segmentEnd(const segment& s) {
+    return path_engine::is_node(s.target) ? s.target : s.source;
+}
+
+static void expectSplitInTravelOrder(path_engine& geometry, const segment& s) {
+    const int length = geometry.cost(s).length;
+    ASSERT_GT(length, 0) << "segment must span at least two vertices";
+    const direction d = geometry.get_direction(s);
+    for (int index = 0; index < length; ++index) {
+        auto [first, second] = geometry.splitSegment(s, index);
+        SCOPED_TRACE("segment {" + std::to_string(s.source) + "," + std::to_string(s.target) +
+                     "} index " + std::to_string(index));
+        ASSERT_TRUE(path_engine::is_node(first.source));
+        ASSERT_TRUE(path_engine::is_node(second.source));
+        EXPECT_EQ(first.source, s.source);
+        EXPECT_EQ(segmentEnd(second), segmentEnd(s));
+        // The second piece starts one vertex after the end of the first one.
+        EXPECT_EQ(std::abs(second.source - segmentEnd(first)), 1);
+        EXPECT_EQ(geometry.get_direction(first), d);
+        EXPECT_EQ(geometry.get_direction(second), d);
+        // No vertex is lost or duplicated.
+        EXPECT_EQ(geometry.cost(first).length + geometry.cost(second).length + 1, length);
+    }
+}
+
+TEST_F(cppied_method_fixture, SplitSegmentForwardHorizontalKeepsTravelOrder) {
+    expectSplitInTravelOrder(method_instance.geometry, {6, 11});
+}
+
+TEST_F(cppied_method_fixture, SplitSegmentReversedHorizontalKeepsTravelOrder) {
+    expectSplitInTravelOrder(method_instance.geometry, {23, 18});
+}
+
+TEST_F(cppied_method_fixture, SplitSegmentForwardVerticalKeepsTravelOrder) {
+    expectSplitInTravelOrder(method_instance.geometry, {48, 51});
+}
+
+TEST_F(cppied_method_fixture, SplitSegmentReversedVerticalKeepsTravelOrder) {
+    expectSplitInTravelOrder(method_instance.geometry, {75, 73});
+}
+
+// An index past the last cut leaves the segment whole (second piece NULL).
+TEST_F(cppied_method_fixture, SplitSegmentIndexPastLengthKeepsSegment) {
+    segment s = {23, 18};
+    auto [first, second] = method_instance.geometry.splitSegment(s, method_instance.geometry.cost(s).length);
+    EXPECT_EQ(first, s);
+    EXPECT_FALSE(path_engine::is_node(second.source));
+}

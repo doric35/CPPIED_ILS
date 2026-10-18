@@ -1,201 +1,171 @@
 #include "../../include/neighborhoods/neighborhood_tsp.hpp"
 
-bool neighborhood_tsp::local_search(cppied_solution &pSol) {
-    cppied_solution trial = pSol;
-    split(trial);
-
-    int tsp_dimensions = static_cast<int>(trial.path.size()) * 3 + 3;
-    Eigen::MatrixXi C(tsp_dimensions, tsp_dimensions);
-    C.setConstant(trial.cost.length);
-    path_to_tsp(trial, C);
-    assert(C.isApprox(C.transpose()));
-
-    std::vector<int> tsp_solution(tsp_dimensions, 0);
-    std::iota(tsp_solution.begin(), tsp_solution.end(), 1);
-
-    tsp_solution = std::move(tspEngine.lkh(C,tsp_solution));
-    tsp_to_path(trial, tsp_solution);
-    trial.cost = geometry.cost(trial);
-    if (trial.cost < pSol.cost) {
-        pSol.path = std::move(trial.path);
-        pSol.cost = trial.cost;
-        pSol.coverage = trial.coverage;
-        return true;
+bool neighborhood_tsp::local_search() {
+    bool improved = false;
+    trial = solution;
+    splitTrial();
+    TspInstance instance = buildTspInstance();
+    moveTrialFromTspSolution(instance);
+    if (trial.cost < solution.cost) {
+        solution = trial;
+        improved = true;
     }
-    return false;
+    return improved;
 }
 
-void neighborhood_tsp::split(cppied_solution &pSol) {
-    int max_split = int(std::sqrt(static_cast<double>(pSol.path.size())));
-    std::vector<segment> new_sol;
-    new_sol.reserve(pSol.path.size() + max_split);
+TspInstance neighborhood_tsp::buildTspInstance() {
+    TspInstance instance{};
+    instance.distances = getDistanceMatrix();
+    auto tsp_solution_view = std::views::iota(1, tspDimension+1);
+    instance.tour = std::ranges::to<std::vector<int>>(tsp_solution_view);
+    return instance;
+}
 
-    std::vector<int> selection(pSol.path.size());
-    std::iota(selection.begin(), selection.end(), 0);
+Eigen::MatrixXi neighborhood_tsp::getDistanceMatrix() {
+    Eigen::MatrixXi C(tspDimension, tspDimension);
+    C.setConstant(trial.cost.length);
+    connectDummyNodes(C);
+    connectSegmentsToEndNode(C);
+    connectPairWiseSegments(C);
+    C.triangularView<Eigen::Lower>() = C.transpose();
+    return C;
+}
 
-    auto cmp = [&](int i, int j){
-        return geometry.cost(pSol.path[i]) > geometry.cost(pSol.path[j]);
-    };
-    std::partial_sort(selection.begin(),
-                      std::next(selection.begin(), max_split),
-                      selection.end(), cmp);
+void neighborhood_tsp::splitTrial() {
+    std::vector<int> split_selection = selectSplitIndexes();
+    std::vector<segment> path = constructSplitPath(split_selection);
+    trial.path.swap(path);
+    tspDimension = static_cast<int>(trial.path.size()) * 3 + 3;
+}
 
-    std::vector<int> split_selection(selection.begin(),
-                                     std::next(selection.begin(), max_split));
-    std::sort(split_selection.begin(), split_selection.end());
-
-    int i=0, j=0;
-    for(;i<pSol.path.size();i++){
-        if (j< split_selection.size() && i==split_selection[j]){
-            if (geometry.cost(pSol.path[i]) <= cost_t{0,0}){
-                new_sol.push_back(pSol.path[i]);
-            } else if (geometry.cost(pSol.path[i]) == cost_t{1,0}){
-                direction dir = geometry.get_direction(pSol.path[i]);
-                segment s1 = {pSol.path[i].source, path_engine::NULL_NODE};
-                segment s2 = {pSol.path[i].target, path_engine::NULL_NODE};
-                geometry.correct_segment_direction(s1, dir);
-                geometry.correct_segment_direction(s2,dir);
-                new_sol.push_back(s1);
-                new_sol.push_back(s2);
-            } else if (geometry.cost(pSol.path[i]) == cost_t{2,0}){
-                int mid = (pSol.path[i].target - pSol.path[i].source) / 2;
-                mid += pSol.path[i].source;
-                direction dir = geometry.get_direction(pSol.path[i]);
-                segment s1 = {pSol.path[i].source, path_engine::NULL_NODE};
-                geometry.correct_segment_direction(s1, dir);
-                segment s2 = {mid, pSol.path[i].target};
-                new_sol.push_back(s1);
-                new_sol.push_back(s2);
-            } else {
-                int first = std::min(pSol.path[i].source, pSol.path[i].target);
-                int last = std::max(pSol.path[i].source, pSol.path[i].target);
-                std::uniform_int_distribution<> d(first,last);
-                int split_point = d(rng);
-
-                segment s1{}, s2{};
-                if (split_point == first) {
-                    s1 = {first, path_engine::NULL_NODE};
-                    s2 = {first + 1, last};
-                } else if (split_point == last){
-                    s1 = {first, last-1};
-                    s2 = {last, path_engine::NULL_NODE};
-                } else {
-                    s1 = {first, split_point};
-                    s2 = {split_point+1, last};
-                    if (s2.source == last)
-                        s2.target = path_engine::NULL_NODE;
-                }
-                direction ref_dir = geometry.get_direction(pSol.path[i]);
-                geometry.correct_segment_direction(s1, ref_dir);
-                geometry.correct_segment_direction(s2, ref_dir);
-                if (s1.source == pSol.path[i].source){
-                    new_sol.push_back(s1);
-                    new_sol.push_back(s2);
-                } else {
-                    new_sol.push_back(s2);
-                    new_sol.push_back(s1);
-                }
-            }
+std::vector<segment> neighborhood_tsp::constructSplitPath(std::vector<int> &splitSelection) {
+    std::vector<segment> path;
+    path.reserve(trial.path.size() + splitSelection.size());
+    for (int i=0, j=0; i<trial.path.size(); i++){
+        if ( j < splitSelection.size() && i == splitSelection[j] ) {
+            splitAndPush(path, trial.path[i]);
             j++;
         } else
-            new_sol.push_back(pSol.path[i]);
+            path.push_back(trial.path[i]);
     }
-    pSol.path.swap(new_sol);
+    return path;
 }
 
-void neighborhood_tsp::path_to_tsp(const cppied_solution &pSol,
-                                   Eigen::Ref<Eigen::MatrixXi> C) {
-    //Dummy nodes
-    C(0,1) = 0;
-    C(1,2) = 0;
+void neighborhood_tsp::splitAndPush(std::vector<segment> &partialPath, const segment &s) {
+    int                         index = getSplitIndex(s);
+    std::pair<segment, segment> split = geometry.splitSegment(s, index);
+    partialPath.push_back(split.first);
+    if (path_engine::is_node(split.second.source)) partialPath.push_back(split.second);
+}
 
-    //Connect to initial position
-    C(2, 3) = 0;
+std::vector<int> neighborhood_tsp::selectSplitIndexes(){
+    const int n_splits = int(std::sqrt(static_cast<double>(trial.path.size())));
+    auto selection_view = std::views::iota(0, static_cast<int>(trial.path.size()));
+    auto selection = std::ranges::to<std::vector<int>>(selection_view);
+    auto cmp = [&](int i, int j){
+        return geometry.cost(trial.path[i]) > geometry.cost(trial.path[j]);
+    };
+    std::partial_sort(selection.begin(),std::next(selection.begin(), n_splits),
+                      selection.end(), cmp);
+    std::vector<int> split_selection(selection.begin(),
+                                     std::next(selection.begin(), n_splits));
+    std::sort(split_selection.begin(), split_selection.end());
+    return split_selection;
+}
 
-    //Connect all segment endpoints to 0 with null cost except for first segment which cant connect to end.
-    for (int i=1; i<pSol.path.size(); i++){
+int neighborhood_tsp::getSplitIndex(const segment& s) {
+    cost_t cost = geometry.cost(s);
+    int min_cut = 0;
+    int max_cut = std::max(0, cost.length - 1);
+    std::uniform_int_distribution<> d(min_cut, max_cut);
+    int index = d(rng);
+    return index;
+}
+
+void neighborhood_tsp::moveTrialFromTspSolution(TspInstance &instance) {
+    instance.tour = std::move(tspEngine.lkh(instance.distances,instance.tour));
+    setTrialFromTspTour(instance.tour);
+    trial.cost = geometry.cost(trial);
+}
+
+void neighborhood_tsp::connectDummyNodes(Eigen::Ref<Eigen::MatrixXi> distances) {
+    distances(0,1) = 0;
+    distances(1,2) = 0;
+    distances(2, 3) = 0;
+}
+
+void neighborhood_tsp::connectSegmentsToEndNode(Eigen::Ref<Eigen::MatrixXi> distances) const {
+    for (int i=1; i<trial.path.size(); i++){
         int mat_tsp_idx = (i+1) * 3;
-        C(0, mat_tsp_idx) = 0;
-        C(0, mat_tsp_idx+2) =0;
-    }
-
-    //Pair-wise segment endpoints connection
-    for (int i =0; i< pSol.path.size(); i++){
-        int tsp_idx = (i+1) * 3;
-        C(tsp_idx, tsp_idx+1) = 0;
-        C(tsp_idx+1, tsp_idx+2) = 0;
-
-        segment i_reversed = geometry.flip_segment(pSol.path[i]);
-        for (int j=i+1; j< pSol.path.size(); j++){
-            int other_idx = (j+1) * 3;
-            segment j_reversed = geometry.flip_segment(pSol.path[j]);
-            if (i > 0){
-                //Just for non start positions
-                C(tsp_idx, other_idx) = geometry.dist(
-                        i_reversed,
-                        pSol.path[j]).length;
-                C(tsp_idx, other_idx+2) = geometry.dist(
-                        i_reversed,
-                        j_reversed).length;
-            }
-            C(tsp_idx+2, other_idx) = geometry.dist(
-                    pSol.path[i],
-                    pSol.path[j]).length;
-            C(tsp_idx+2, other_idx+2) = geometry.dist(
-                    pSol.path[i],
-                    j_reversed).length;
-        }
-    }
-    //Set inferior matrix
-    for (int i = 0; i < C.rows(); ++i) {
-        for (int j = i + 1; j < C.cols(); ++j) {
-            C(j, i) = C(i, j);
-        }
+        distances(0, mat_tsp_idx) = 0;
+        distances(0, mat_tsp_idx+2) =0;
     }
 }
 
-segment neighborhood_tsp::tour_id_to_segment(cppied_solution &pSol, int i) {
-    assert(i > 3);
+void neighborhood_tsp::connectPairWiseSegments(const Eigen::Ref<Eigen::MatrixXi>& distances) {
+    for (int i =0; i< trial.path.size(); i++){
+        connectSegmentNodes(distances, i);
+        connectSegmentToForwardNodes(distances, i);
+    }
+}
 
+void neighborhood_tsp::connectSegmentToForwardNodes(const Eigen::Ref<Eigen::MatrixXi>& distances, int path_index) {
+    for (int j = path_index + 1; j < trial.path.size(); j++)
+        connectSegmentPair(distances, path_index, j);
+}
+
+void neighborhood_tsp::connectSegmentNodes(Eigen::Ref<Eigen::MatrixXi> distances, int path_index) {
+    int tsp_idx = (path_index + 1) * 3;
+    distances(tsp_idx, tsp_idx+1) = 0;
+    distances(tsp_idx+1, tsp_idx+2) = 0;
+}
+
+void neighborhood_tsp::connectSegmentPair(Eigen::Ref<Eigen::MatrixXi> distances, int first, int second) {
+    int source_tsp_index = (first + 1) * 3;
+    int target_tsp_index = (second + 1) * 3;
+    const segment first_segment = trial.path[first];
+    const segment first_flipped = geometry.flip_segment(first_segment);
+    const segment second_segment = trial.path[second];
+    const segment second_flipped = geometry.flip_segment(second_segment);
+    if (first > 0){
+        distances(source_tsp_index, target_tsp_index)  = geometry.dist(first_flipped, second_segment).length;
+        distances(source_tsp_index, target_tsp_index+2) = geometry.dist(first_flipped, second_flipped).length;
+    }
+    distances(source_tsp_index + 2, target_tsp_index) = geometry.dist(first_segment, second_segment).length;
+    distances(source_tsp_index + 2, target_tsp_index + 2) = geometry.dist(first_segment, second_flipped).length;
+}
+
+void neighborhood_tsp::setTrialFromTspTour(std::vector<int> &tour) {
+    orderTspTourAndOrientation(tour);
+
+    //Positions 0, 1, and 2 of the tour are now the dummy nodes.
+    std::vector<segment> path;
+    for (int i=3; i<tour.size(); i+=3){
+        segment s = tour_id_to_segment(tour[i]);
+        path.push_back(s);
+    }
+    trial.path.swap(path);
+}
+
+void neighborhood_tsp::orderTspTourAndOrientation(std::vector<int> &unorderedTour) {
+    auto first_elem = std::find(unorderedTour.begin(), unorderedTour.end(), 1);
+    std::rotate(unorderedTour.begin(), first_elem, unorderedTour.end());
+    if (unorderedTour.size() > 1 && unorderedTour[1] != 2)
+        std::reverse(std::next(unorderedTour.begin()), unorderedTour.end());
+}
+
+segment neighborhood_tsp::tour_id_to_segment(int i) {
     int idx;
     segment s{};
     if (i % 3 == 1) {
         idx = (i - 2) / 3;
-        s = pSol.path[idx];
+        s = trial.path[idx];
     } else if (i % 3 == 0) {
         idx = (i - 6) / 3;
-        s = geometry.flip_segment(pSol.path[idx]);
+        s = geometry.flip_segment(trial.path[idx]);
     } else {
         throw std::runtime_error("Encountered segment mid point in tsp solution.");
     }
 
-    if (idx < 0 || idx >= pSol.path.size()) {
-        std::cerr << "BAD IDX: " << idx
-                  << " size: " << pSol.path.size()
-                  << " i: " << i << std::endl;
-        abort();
-    }
-
     return s;
-}
-
-void neighborhood_tsp::tsp_to_path(cppied_solution &pSol,
-                                   std::vector<int>& tour) {
-    auto first_elem = std::find(tour.begin(), tour.end(), 1);
-    if (first_elem != std::prev(tour.end())
-        && *std::next(first_elem)!=2)
-        std::reverse(tour.begin(), tour.end());
-    first_elem = std::find(tour.begin(), tour.end(), 1);
-    if (first_elem != tour.begin())
-        std::rotate(tour.begin(), first_elem, tour.end());
-
-    std::vector<segment> new_sol;
-    new_sol.reserve(pSol.path.size());
-
-    assert(tour[0] == 1 && tour[1] == 2 && tour[2] == 3);
-    for (int i=3; i<tour.size(); i+=3){
-        segment s = tour_id_to_segment(pSol, tour[i]);
-        new_sol.push_back(s);
-    }
-    pSol.path.swap(new_sol);
 }

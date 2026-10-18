@@ -2,11 +2,11 @@
 
 #include "../structures.hpp"
 
-
 class MaximumCover {
 private:
     int minSpacing;
 
+    std::random_device device;
     std::uniform_real_distribution<> d{0.0, 1.0};
     std::mt19937 rng;
 
@@ -32,9 +32,11 @@ public:
     //----Constructors & Destructors----
     MaximumCover(const std::vector<cost_t>& costs, int spacing) :
         minSpacing(std::min(spacing, static_cast<int>(costs.size()))),
-        rng(), costs(costs),
+        device(), rng(device()), costs(costs),
         stateValues(costs.size(), cost_t{0,0}),
-        solution(){}
+        solution(){
+        minSpacing = std::max(minSpacing, 1);
+    }
 
     ~MaximumCover() = default;
 

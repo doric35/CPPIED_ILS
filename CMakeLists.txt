@@ -80,6 +80,8 @@ configure_file(tests/configurations/ilp_test_config.in
         ${CMAKE_SOURCE_DIR}/tests/configurations/ilp_test_config.txt @ONLY)
 configure_file(tests/configurations/ilp_large_test_config.in
         ${CMAKE_SOURCE_DIR}/tests/configurations/ilp_large_test_config.txt @ONLY)
+configure_file(example/small_example/configuration.in
+        ${CMAKE_SOURCE_DIR}/example/small_example/configuration.txt @ONLY)
 
 file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/tests/scratch)
 

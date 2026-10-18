@@ -1,5 +1,6 @@
 #include "../test_fixture.hpp"
 #include "../../include/metaheuristics/ils.hpp"
+#include "factory_sampling.hpp"
 
 // ---------------------------------------------------------------------------
 // Regression tests for the ils refactor (d_solve split into helpers).
@@ -11,12 +12,19 @@
 struct ils_refactor_accessor : public ils {
     using ils::ils;
     using ils::ls;
-    using ils::P;
-    using ils::R;
+    using ils::factory;
     using ils::iterations;
     using ils::incumbent;
     using ils::geometry;
     using ils::coverage;
+
+    // Perturbations and restarts are sampled from the factory, bound to s.
+    std::vector<std::unique_ptr<perturbation>> perturbations(cppied_solution& s) {
+        return sample_perturbations(factory, ctx, problem, s);
+    }
+    std::vector<std::unique_ptr<Restart>> restarts(cppied_solution& s) {
+        return sample_restarts(factory, ctx, problem, s);
+    }
 };
 
 class ils_refactor_fixture : public cppied_context_fixture {
@@ -139,9 +147,9 @@ TEST_F(ils_refactor_fixture, DSolveTwiceOnSameObjectIsIndependent) {
 
 TEST_F(ils_refactor_fixture, IteratedSearchRespectsLubyCutoff) {
     make_algorithm("c00000001000", 2);
-    ASSERT_EQ(algorithm->P.size(), 1u);
-    ASSERT_TRUE(algorithm->R.empty());
     cppied_solution s = sized_empty_solution();
+    ASSERT_EQ(algorithm->perturbations(s).size(), 1u);
+    ASSERT_TRUE(algorithm->restarts(s).empty());
     algorithm->d_solve(s);
     EXPECT_GT(algorithm->iterations, 2);
 }

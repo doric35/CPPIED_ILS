@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <set>
-#include "../../include/heuristics/MaximumCover.hpp"
+#include "../../include/algorithms/MaximumCover.hpp"
 
 // ============================================================================
 // MaximumCover unit tests
@@ -79,6 +79,14 @@ std::string to_string(const std::vector<cost_t>& costs) {
 
 TEST(MaximumCover, BeforeSolve_SolutionEmptyAndCostZero) {
     std::vector<cost_t> costs = {{3,0},{4,0},{5,0}};
+    MaximumCover mc(costs, 2);
+    EXPECT_TRUE(mc.getSolution().empty());
+    EXPECT_EQ(mc.getCost(), (cost_t{0,0}));
+}
+
+// Empty input before solve(): getters stay well defined.
+TEST(MaximumCover, EmptyCosts_GettersBeforeSolve) {
+    std::vector<cost_t> costs;
     MaximumCover mc(costs, 2);
     EXPECT_TRUE(mc.getSolution().empty());
     EXPECT_EQ(mc.getCost(), (cost_t{0,0}));
@@ -236,13 +244,20 @@ TEST(MaximumCover, SolveTwice_SolutionNotDuplicated) {
     EXPECT_TRUE(is_feasible(costs, second, 2));
 }
 
-// Same input, two fresh solvers: identical result (default-seeded RNG).
-TEST(MaximumCover, Deterministic_SameInputSameSolution) {
+// Same input, two fresh solvers: ties are broken at random, so the selections
+// may differ, but each must be a feasible optimal selection.
+TEST(MaximumCover, SameInput_AnyOptimalSelection) {
     std::vector<cost_t> costs = {{1,0},{1,0},{1,0},{1,0},{1,0},{1,0}};
+    const cost_t optimum = brute_force(costs, 2);
     MaximumCover a(costs, 2), b(costs, 2);
     a.solve();
     b.solve();
-    EXPECT_EQ(a.getSolution(), b.getSolution());
+    for (MaximumCover* mc : {&a, &b}) {
+        auto selection = mc->getSolution();
+        EXPECT_TRUE(is_feasible(costs, selection, 2));
+        EXPECT_EQ(sum_costs(costs, selection), optimum);
+    }
+    EXPECT_EQ(a.getCost(), b.getCost());
 }
 
 // ============================================================================
@@ -298,4 +313,92 @@ TEST(MaximumCover, RandomZeroHeavy_MatchesBruteForce) {
         ASSERT_TRUE(is_feasible(costs, sol, spacing));
         ASSERT_EQ(sum_costs(costs, sol), expected);
     }
+}
+
+// ============================================================================
+// Degenerate parameters and inputs
+// ============================================================================
+
+// spacing <= 0 places no constraint between selected indices, like spacing 1.
+// Run in a child process: the forward pass indexes stateValues[i - spacing].
+TEST(MaximumCover, ZeroSpacing_BehavesLikeSpacingOne) {
+    std::vector<cost_t> costs = {{1,0},{2,0},{3,0}};
+    const cost_t expected = {6,0};
+    EXPECT_EXIT({
+        MaximumCover mc(costs, 0);
+        mc.solve();
+        std::exit(mc.getCost() == expected ? 0 : 1);
+    }, ::testing::ExitedWithCode(0), "");
+}
+
+TEST(MaximumCover, NegativeSpacing_BehavesLikeSpacingOne) {
+    std::vector<cost_t> costs = {{1,0},{2,0},{3,0}};
+    const cost_t expected = {6,0};
+    EXPECT_EXIT({
+        MaximumCover mc(costs, -2);
+        mc.solve();
+        std::exit(mc.getCost() == expected ? 0 : 1);
+    }, ::testing::ExitedWithCode(0), "");
+}
+
+// Spacing much larger than the input: a single element, the best one.
+TEST(MaximumCover, HugeSpacing_BestSingleElement) {
+    std::vector<cost_t> costs = {{2,0},{1,0},{7,1},{7,0}};
+    MaximumCover mc(costs, 1000);
+    mc.solve();
+    EXPECT_EQ(mc.getSolution(), (std::vector<int>{2}));
+    EXPECT_EQ(mc.getCost(), (cost_t{7,1}));
+}
+
+// Single zero-cost element: still a feasible, consistent answer.
+TEST(MaximumCover, SingleZeroElement) {
+    std::vector<cost_t> costs = {{0,0}};
+    MaximumCover mc(costs, 3);
+    mc.solve();
+    EXPECT_EQ(mc.getCost(), (cost_t{0,0}));
+    EXPECT_TRUE(is_feasible(costs, mc.getSolution(), 3));
+}
+
+// Negative turns with positive length: lexicographic order still applies.
+TEST(MaximumCover, NegativeTurns_LexicographicOptimum) {
+    std::vector<cost_t> costs = {{3,-5},{3,2},{1,-1}};
+    MaximumCover mc(costs, 2);
+    mc.solve();
+    EXPECT_EQ(mc.getCost(), brute_force(costs, 2));
+    EXPECT_EQ(sum_costs(costs, mc.getSolution()), mc.getCost());
+}
+
+// Negative costs: whatever is returned must be feasible and consistent with
+// getCost() (the cost reports the selected elements).
+TEST(MaximumCover, NegativeCosts_SolutionConsistentWithCost) {
+    std::vector<cost_t> costs = {{-1,0},{4,0},{-3,0},{2,0},{-5,0}};
+    MaximumCover mc(costs, 2);
+    mc.solve();
+    auto sol = mc.getSolution();
+    EXPECT_TRUE(is_feasible(costs, sol, 2));
+    EXPECT_EQ(sum_costs(costs, sol), mc.getCost());
+    EXPECT_EQ(mc.getCost(), (cost_t{6,0}));
+}
+
+// getSolution() returns a copy: modifying it does not alter the solver.
+TEST(MaximumCover, GetSolution_ReturnsIndependentCopy) {
+    std::vector<cost_t> costs = {{5,0},{1,0},{5,0}};
+    MaximumCover mc(costs, 2);
+    mc.solve();
+    auto sol = mc.getSolution();
+    sol.push_back(99);
+    EXPECT_EQ(mc.getSolution().size(), 2u);
+}
+
+// Re-solving after the shared cost vector changed uses the new costs
+// (MaximumCover keeps a reference to the costs by design).
+TEST(MaximumCover, Resolve_AfterCostsChange_UsesNewCosts) {
+    std::vector<cost_t> costs = {{5,0},{1,0},{5,0}};
+    MaximumCover mc(costs, 2);
+    mc.solve();
+    ASSERT_EQ(mc.getCost(), (cost_t{10,0}));
+    costs = {{1,0},{9,0},{1,0}};
+    mc.solve();
+    EXPECT_EQ(mc.getCost(), (cost_t{9,0}));
+    EXPECT_EQ(mc.getSolution(), (std::vector<int>{1}));
 }

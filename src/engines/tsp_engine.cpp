@@ -195,27 +195,15 @@ void tsp_engine::gtsp_to_sgtsp(tsp::GTSPGraph& graph) {
 }
 
 void tsp_engine::sgtsp_to_atsp(tsp::GTSPGraph& graph) {
-//    int64_t sum64 = 0;
-//    for (int r = 0; r < graph.cost.rows(); ++r)
-//        for (int c = 0; c < graph.cost.cols(); ++c)
-//            if (graph.cost(r, c) != graph.penalty)
-//                sum64 += graph.cost(r, c);
-//    sum64 += 1;
-//    if (static_cast<int64_t>(graph.penalty) == sum64)
-//        sum64 += 1;
-//    int sum = static_cast<int>(
-//        std::min(sum64, static_cast<int64_t>(std::numeric_limits<int>::max() / 2)));
-
-//    graph.cost.array() = graph.cost.array() + sum;
-//
-//    for (auto& c : graph.clusters){
-//        for (int i=0; i< c.nodes.size() -1; ++i)
-//            graph.cost(c.nodes[i], c.nodes[i+1]) = 0;
-//
-//        if (c.nodes.size() > 1)
-//            graph.cost(c.nodes.back(), c.nodes.front()) = 0;
-//    }
-    //Identity transformation, the penalty must have been already given.
+    const int n = static_cast<int>(graph.cost.rows());
+    const int M = n * (graph.penalty + 1) + 1;   // > cost of any clustered tour
+    graph.cost.array() += M;
+    for (auto& c : graph.clusters){
+        for (int i=0; i + 1 < static_cast<int>(c.nodes.size()); ++i)
+            graph.cost(c.nodes[i], c.nodes[i+1]) = 0;
+        if (c.nodes.size() > 1)
+            graph.cost(c.nodes.back(), c.nodes.front()) = 0;
+    }
 }
 
 void tsp_engine::tsp_tour_to_gtsp_tour(std::vector<int> &tour,

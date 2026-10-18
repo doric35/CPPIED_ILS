@@ -7,6 +7,8 @@ using namespace cppied_intervals;
 class IntervalScheduler {
 private:
     int nIntervals;
+
+    std::random_device device;
     std::uniform_real_distribution<> d{0.0, 1.0};
     std::mt19937 rng;
 
@@ -34,12 +36,12 @@ protected:
 
 public:
     //----Constructors & Destructors----
-    IntervalScheduler(const IntervalSet& intervals) :
+    explicit IntervalScheduler(const IntervalSet& intervals) :
         intervals(intervals),
         nIntervals(static_cast<int>(intervals.size())),
         stateCosts(nIntervals, cost_t{0,0}),
         statePredecessors(nIntervals, -1),
-        solution(), rng(){}
+        solution(), device(), rng(device()){}
 
     ~IntervalScheduler() = default;
 

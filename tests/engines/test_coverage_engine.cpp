@@ -36,12 +36,7 @@ TEST_F(cppied_method_fixture, ValidUnsatBoxFromCells){
     };
     method_instance.coverage.reset(sol);
     sol.cost = method_instance.geometry.cost(sol);
-    iRectangle box = {
-            std::numeric_limits<int>::max(),
-            std::numeric_limits<int>::max(),
-            std::numeric_limits<int>::min(),
-            std::numeric_limits<int>::min(),
-    };
+    iRectangle box;
     method_instance.coverage.remove(sol, sol.path[5]);
     std::vector<int> unsat;
     method_instance.coverage.unsatisfied_cells(sol, unsat);

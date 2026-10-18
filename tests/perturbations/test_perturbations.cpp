@@ -72,7 +72,7 @@ protected:
 
         // Use a temporary accessor to access the engines without constructing
         // the full algorithm.
-        perturbation_ri_accessor tmp(ctx, P);
+        perturbation_ri_accessor tmp(ctx, P, raw_sol);
         tmp.coverage.reset(raw_sol);
 
         sol = raw_sol;
@@ -99,7 +99,7 @@ protected:
 
     void SetUp() override {
         perturbation_base_fixture::SetUp();
-        p = std::make_unique<perturbation_ri_accessor>(ctx, P);
+        p = std::make_unique<perturbation_ri_accessor>(ctx, P, sol);
     }
 
     path_engine&     geo() { return p->geometry; }
@@ -242,7 +242,7 @@ protected:
 
     void SetUp() override {
         perturbation_base_fixture::SetUp();
-        p = std::make_unique<perturbation_pt_accessor>(ctx, P);
+        p = std::make_unique<perturbation_pt_accessor>(ctx, P, sol);
     }
 
     path_engine&     geo() { return p->geometry; }
@@ -387,7 +387,7 @@ protected:
 
     void SetUp() override {
         perturbation_base_fixture::SetUp();
-        p = std::make_unique<perturbation_db_accessor>(ctx, P);
+        p = std::make_unique<perturbation_db_accessor>(ctx, P, sol);
 
         // Build a large path of single-vertex segments so that
         // d_perturbate does not hit the early-return guard (k >= 4) and

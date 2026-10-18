@@ -9,14 +9,17 @@ public:
     using neighborhood::coverage;
     using neighborhood::problem;
 
-    using neighborhood_cut::gain;
-    using neighborhood_cut::update;
 };
 
 class neighborhood_cut_fixture : public cppied_context_fixture {
 protected:
     std::unique_ptr<neighborhood_cut_accessor> n;
     cppied_solution sol;
+
+    // Neighborhoods are bound to a solution at construction.
+    bool search(cppied_solution& s){
+        return neighborhood_cut_accessor(ctx, P, s).local_search();
+    }
 
     void SetUp() override{
         cppied_context_fixture::SetUp();
@@ -29,28 +32,28 @@ protected:
                      {62, 63}};
         sol.cost = {0,0};
         sol.coverage = Eigen::VectorXd::Zero(P.req.size());
-        n = std::make_unique<neighborhood_cut_accessor>(ctx, P);
+        n = std::make_unique<neighborhood_cut_accessor>(ctx, P, sol);
         n->coverage.reset(sol);
         sol.cost = n->geometry.cost(sol);
     }
 };
 
 TEST_F(neighborhood_cut_fixture, LocalOptimaFound){
-    EXPECT_FALSE(n->local_search(sol));
+    EXPECT_FALSE(search(sol));
 }
 
 TEST_F(neighborhood_cut_fixture, ImprovedSolution){
     n->geometry.complete(sol);
     n->coverage.reset(sol);
     cost_t c = sol.cost;
-    EXPECT_TRUE(n->local_search(sol));
+    EXPECT_TRUE(search(sol));
     EXPECT_LE(sol.cost, c);
 }
 
 TEST_F(neighborhood_cut_fixture, MarginalCostUpdate){
     n->geometry.complete(sol);
     n->coverage.reset(sol);
-    ASSERT_TRUE(n->local_search(sol));
+    ASSERT_TRUE(search(sol));
     cost_t c_hat = sol.cost;
     cost_t true_c = n->geometry.cost(sol);
     EXPECT_EQ(c_hat, true_c);
@@ -59,7 +62,7 @@ TEST_F(neighborhood_cut_fixture, MarginalCostUpdate){
 TEST_F(neighborhood_cut_fixture, ValidCoverageUpdate){
     n->geometry.complete(sol);
     n->coverage.reset(sol);
-    ASSERT_TRUE(n->local_search(sol));
+    ASSERT_TRUE(search(sol));
     Eigen::VectorXd C = sol.coverage;
     n->coverage.reset(sol);
     EXPECT_TRUE(sol.coverage.isApprox(C, 1e-9));
@@ -68,7 +71,7 @@ TEST_F(neighborhood_cut_fixture, ValidCoverageUpdate){
 TEST_F(neighborhood_cut_fixture, CoverageConstraintSatisfied){
     n->geometry.complete(sol);
     n->coverage.reset(sol);
-    ASSERT_TRUE(n->local_search(sol));
+    ASSERT_TRUE(search(sol));
     n->coverage.reset(sol);
     EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all());
 }
@@ -76,8 +79,8 @@ TEST_F(neighborhood_cut_fixture, CoverageConstraintSatisfied){
 TEST_F(neighborhood_cut_fixture, CovergeToLocalOptima){
     n->geometry.complete(sol);
     n->coverage.reset(sol);
-    bool improved = n->local_search(sol);
-    while (n->local_search(sol)){}
+    bool improved = search(sol);
+    while (search(sol)){}
     EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all());
 }
 
@@ -110,7 +113,7 @@ TEST_F(neighborhood_cut_fixture, ErrorCaseOnCoverageUpdate){
     };
     n->coverage.reset(sol);
     ASSERT_TRUE((sol.coverage.array() >= P.req.array()).all());
-    n->local_search(sol);
+    search(sol);
     EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all());
     auto tmp = sol.coverage;
     n->coverage.reset(sol);
@@ -143,7 +146,7 @@ TEST_F(neighborhood_cut_fixture, ErrorCaseUnsatisfyCoverage){
     sol.cost = n->geometry.cost(sol);
     n->coverage.reset(sol);
     ASSERT_TRUE((sol.coverage.array() >= P.req.array()).all());
-    n->local_search(sol);
+    search(sol);
     if (!(sol.coverage.array() >= P.req.array()).all()){
         for (auto& s: sol.path)
             std::cerr << s << std::endl;

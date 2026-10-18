@@ -61,6 +61,16 @@ specified in the configuration.
 ./build/CppiedEJOR <configuration_file>.txt
 ```
 
+### Example
+
+Once the source code has been compiled into an executable using the provided `CMakeLists.txt` and that requirements 
+are satisfied, an example can be run using the command that follows. The user might need to correct the
+path to the LKH executable, which is currently assumed to be inside `external/LKH-2.0.11`.
+
+```bash
+./build/CppiedEJOR ./example/small_example/configuration.txt
+```
+
 ### Documentation
 
 - [Detailed results](docs/RESULTS.md)

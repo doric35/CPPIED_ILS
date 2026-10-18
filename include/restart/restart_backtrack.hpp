@@ -1,11 +1,11 @@
 #pragma once
 
-#include "restarts.hpp"
+#include "Restart.hpp"
 #include "../construction/dp_sweeper.hpp"
 
-class restart_backtrack : public  restarts{
+class restart_backtrack : public  Restart{
 public:
-    using  restarts::restarts;
+    using  Restart::Restart;
     void restart(cppied_solution&) override;
     void sample(cppied_solution&);
 protected:

@@ -5,46 +5,65 @@
 // Control-flow tests for vnd::search after it was split into
 // simple/nested/large descent helpers.
 //
-// Scripted mock neighborhoods replace the real ones: each mock logs its name
-// when called and lowers the solution cost by 1 for its first `improvements`
-// calls. The solution path is left untouched, so setCompleteSolution inside
-// search() is a no-op on cost. Expected call sequences follow the
-// pre-refactor vnd::search.
+// Scripted mock neighborhoods replace the real ones in the LocalSearchFactory:
+// each mock logs its name when called and, for the first `improvements` calls
+// of its group, makes a real improvement by removing the last segment(s) of the
+// path until geometry.cost strictly decreases. The improvement must be real:
+// setCompleteSolution inside search() recomputes the cost from the path. Each
+// cost drop is recorded in the fixture. The factory instantiates neighborhoods
+// on every descent, so the remaining improvements are kept in the fixture.
+// Expected call sequences follow the pre-refactor vnd::search.
 // ---------------------------------------------------------------------------
 
 struct vnd_refactor_accessor : public vnd {
     using vnd::vnd;
-    using vnd::N_setup;
-    using vnd::N_simple;
-    using vnd::N_nested;
-    using vnd::N_large;
+    using vnd::factory;
     using vnd::geometry;
     using vnd::coverage;
 };
 
 struct mock_neighborhood : public neighborhood {
-    mock_neighborhood(cppied_context& c, cppied_instance& i,
-                      std::vector<std::string>& log, std::string name, int improvements)
-        : neighborhood(c, i), log(log), name(std::move(name)), improvements(improvements) {}
+    mock_neighborhood(cppied_context& c, cppied_instance& i, cppied_solution& s,
+                      std::vector<std::string>& log, std::string name, int& improvements,
+                      std::vector<cost_t>& drops)
+        : neighborhood(c, i, s), log(log), name(std::move(name)), improvements(improvements),
+          drops(drops) {}
 
-    bool local_search(cppied_solution& pSol) override {
+    bool local_search() override {
         log.push_back(name);
         if (improvements <= 0) return false;
+        const cost_t before = geometry.cost(solution);
+        do {
+            if (solution.path.size() <= 1) return false;
+            coverage.remove(solution, solution.path.back());
+            solution.path.pop_back();
+        } while (!(geometry.cost(solution) < before));
         --improvements;
-        pSol.cost.length -= 1;
+        solution.cost = geometry.cost(solution);
+        drops.push_back(before - solution.cost);
         return true;
     }
 
     std::vector<std::string>& log;
     std::string name;
-    int improvements;
+    int& improvements;
+    std::vector<cost_t>& drops;
 };
+
 
 class vnd_refactor_fixture : public cppied_context_fixture {
 protected:
     std::unique_ptr<vnd_refactor_accessor> v;
     cppied_solution sol;
     std::vector<std::string> log;
+    std::array<int, 4> remaining{};
+    std::vector<cost_t> drops;          // cost drop of each mock improvement, in call order
+
+    cost_t total_drop() const {
+        cost_t total{0, 0};
+        for (const auto& d : drops) total += d;
+        return total;
+    }
 
     void SetUp() override {
         cppied_context_fixture::SetUp();
@@ -67,10 +86,18 @@ protected:
 
     // One mock per group: S (setup), M (simple), N (nested), L (large).
     void install_mocks(int setup, int simple, int nested, int large) {
-        v->N_setup.push_back(std::make_unique<mock_neighborhood>(ctx, P, log, "S", setup));
-        v->N_simple.push_back(std::make_unique<mock_neighborhood>(ctx, P, log, "M", simple));
-        v->N_nested.push_back(std::make_unique<mock_neighborhood>(ctx, P, log, "N", nested));
-        v->N_large.push_back(std::make_unique<mock_neighborhood>(ctx, P, log, "L", large));
+        remaining = {setup, simple, nested, large};
+        using factory_t = Sequence<neighborhood>::TFactory;
+        auto mock = [this](const std::string& name, int& counter) {
+            return [this, name, &counter](cppied_context& c, cppied_instance& i, cppied_solution& s)
+                    -> std::unique_ptr<neighborhood> {
+                return std::make_unique<mock_neighborhood>(c, i, s, log, name, counter, drops);
+            };
+        };
+        v->factory.setupNeighborhoodsFactory  = Sequence<neighborhood>(factory_t{mock("S", remaining[0])});
+        v->factory.simpleNeighborhoodsFactory = Sequence<neighborhood>(factory_t{mock("M", remaining[1])});
+        v->factory.nestedNeighborhoodsFactory = Sequence<neighborhood>(factory_t{mock("N", remaining[2])});
+        v->factory.largeNeighborhoodsFactory  = Sequence<neighborhood>(factory_t{mock("L", remaining[3])});
     }
 
     void set_stop(std::function<bool()> stop) {
@@ -101,7 +128,8 @@ TEST_F(vnd_refactor_fixture, LargeImprovementRestartsOuterLoop) {
     EXPECT_TRUE(v->search(sol));
     EXPECT_EQ(log, (seq{"S", "M", "N", "L",
                         "S", "M", "N", "L"}));
-    EXPECT_EQ(sol.cost.length, before.length - 1);
+    ASSERT_EQ(drops.size(), 1u);
+    EXPECT_EQ(sol.cost, before - total_drop());
 }
 
 // Setup neighborhoods are driven to a local optimum (find_local_optima).
@@ -136,7 +164,9 @@ TEST_F(vnd_refactor_fixture, ReturnValueReflectsTotalImprovement) {
     install_mocks(1, 1, 0, 1);
     cost_t before = sol.cost;
     EXPECT_TRUE(v->search(sol));
-    EXPECT_EQ(sol.cost.length, before.length - 3);
+    ASSERT_EQ(drops.size(), 3u);
+    EXPECT_EQ(sol.cost, before - total_drop());
+    EXPECT_EQ(sol.cost, v->geometry.cost(sol));
 }
 
 // ===========================================================================
@@ -193,6 +223,8 @@ protected:
         vnd_refactor_fixture::SetUp();
         ctx.config["ALGORITHM_CONFIG"] = "c11111100000";
         ctx.max_time = 10;
+        // The factory reads ALGORITHM_CONFIG at construction.
+        v = std::make_unique<vnd_refactor_accessor>(ctx, P);
         v->initialize();
     }
 };

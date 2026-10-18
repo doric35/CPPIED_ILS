@@ -77,6 +77,9 @@ struct iCoordinate{
 struct iRectangle{
     iCoordinate ul;
     iCoordinate lr;
+
+    iRectangle() : ul({std::numeric_limits<int>::max(),std::numeric_limits<int>::max()}),
+                    lr({std::numeric_limits<int>::min(),std::numeric_limits<int>::min()}){}
 };
 
 //Handle solutions

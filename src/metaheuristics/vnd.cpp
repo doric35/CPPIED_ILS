@@ -15,34 +15,37 @@ bool vnd::search(cppied_solution &pSolution) {
 
 void vnd::simpleNeighborhoodsDescent(cppied_solution &pSol) {
     cost_t best_cost = pSol.cost;
-    for (const auto& i : N_setup) {
+    std::vector<std::unique_ptr<neighborhood>> setup_neighborhoods = factory.getSetupNeighborhoods(ctx, problem, pSol);
+    for (const auto& i : setup_neighborhoods) {
         if (callbacks.stopCriteria && callbacks.stopCriteria(pSol, nullptr))
             break;
         find_local_optima(pSol, i);
     }
-
+    std::vector<std::unique_ptr<neighborhood>> simple_neighborhoods = factory.getSimpleNeighborhoods(ctx, problem, pSol);
     do {
         best_cost = pSol.cost;
         if (callbacks.stopCriteria && callbacks.stopCriteria(pSol, nullptr))
             break;
-        for (const auto &i : N_simple)
+        for (const auto &i : simple_neighborhoods)
             find_local_optima(pSol, i);
     } while (pSol.cost < best_cost);
 }
 
 void vnd::nestedNeighborhoodsDescent(cppied_solution &pSol) {
-    for (const auto &i : N_nested) {
+    std::vector<std::unique_ptr<neighborhood>> nested_neighborhoods = factory.getNestedNeighborhoods(ctx, problem, pSol);
+    for (const auto &i : nested_neighborhoods) {
         if (callbacks.stopCriteria && callbacks.stopCriteria(pSol, nullptr))
             break;
-        i->local_search(pSol);
+        i->local_search();
     }
 }
 
 void vnd::largeNeighborhoodsDescent(cppied_solution &pSol) {
-    for (const auto& i : N_large) {
+    std::vector<std::unique_ptr<neighborhood>> large_neighborhoods = factory.getLargeNeighborhoods(ctx, problem, pSol);
+    for (const auto& i : large_neighborhoods) {
         if (callbacks.stopCriteria && callbacks.stopCriteria(pSol, nullptr))
             break;
-        i->local_search(pSol);
+        i->local_search();
     }
 }
 
@@ -51,7 +54,7 @@ void vnd::find_local_optima(cppied_solution &pSol, const std::unique_ptr<neighbo
     while (improved) {
         if (callbacks.stopCriteria && callbacks.stopCriteria(pSol, nullptr))
             break;
-        improved = N->local_search(pSol);
+        improved = N->local_search();
     }
 }
 

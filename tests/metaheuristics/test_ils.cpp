@@ -1,5 +1,6 @@
 #include "../test_fixture.hpp"
 #include "../../include/metaheuristics/ils.hpp"
+#include "factory_sampling.hpp"
 
 // ---------------------------------------------------------------------------
 // Accessor: exposes protected members of ils for white-box inspection.
@@ -8,12 +9,19 @@ struct ils_accessor : public ils {
 public:
     using ils::ils;
     using ils::ls;
-    using ils::P;
-    using ils::R;
+    using ils::factory;
     using ils::geometry;
     using ils::coverage;
     using ils::stopping_criterion;
     using ils::local_search;
+
+    // Perturbations and restarts are sampled from the factory, bound to s.
+    std::vector<std::unique_ptr<perturbation>> perturbations(cppied_solution& s) {
+        return sample_perturbations(factory, ctx, problem, s);
+    }
+    std::vector<std::unique_ptr<Restart>> restarts(cppied_solution& s) {
+        return sample_restarts(factory, ctx, problem, s);
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -118,11 +126,11 @@ TEST_F(ils_minimal_fixture, InitializeLsNeighborhoodCountMinimalConfig) {
 }
 
 TEST_F(ils_minimal_fixture, InitializePerturbationCountMinimalConfig) {
-    EXPECT_EQ(algorithm->P.size(), 0u);
+    EXPECT_EQ(algorithm->perturbations(sol).size(), 0u);
 }
 
 TEST_F(ils_minimal_fixture, InitializeRestartCountMinimalConfig) {
-    EXPECT_EQ(algorithm->R.size(), 0u);
+    EXPECT_EQ(algorithm->restarts(sol).size(), 0u);
 }
 
 // ===========================================================================
@@ -135,37 +143,37 @@ TEST_F(ils_full_fixture, InitializeLsNeighborhoodCountFullConfig) {
 }
 
 TEST_F(ils_full_fixture, InitializePerturbationCountFullConfig) {
-    EXPECT_EQ(algorithm->P.size(), 3u);
+    EXPECT_EQ(algorithm->perturbations(sol).size(), 3u);
 }
 
 TEST_F(ils_full_fixture, InitializeRestartCountFullConfig) {
-    EXPECT_EQ(algorithm->R.size(), 1u);
+    EXPECT_EQ(algorithm->restarts(sol).size(), 1u);
 }
 
 TEST_F(ils_full_fixture, InitializeRiIsPresentInFullConfig) {
     bool found = false;
-    for (auto& p : algorithm->P)
+    for (auto& p : algorithm->perturbations(sol))
         if (dynamic_cast<perturbation_ri*>(p.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
 
 TEST_F(ils_full_fixture, InitializePtIsPresentInFullConfig) {
     bool found = false;
-    for (auto& p : algorithm->P)
+    for (auto& p : algorithm->perturbations(sol))
         if (dynamic_cast<perturbation_pt*>(p.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
 
 TEST_F(ils_full_fixture, InitializeDbIsPresentInFullConfig) {
     bool found = false;
-    for (auto& p : algorithm->P)
+    for (auto& p : algorithm->perturbations(sol))
         if (dynamic_cast<perturbation_db*>(p.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
 
 TEST_F(ils_full_fixture, InitializeRestartBacktrackIsPresentInFullConfig) {
     bool found = false;
-    for (auto& r : algorithm->R)
+    for (auto& r : algorithm->restarts(sol))
         if (dynamic_cast<restart_backtrack*>(r.get())) { found = true; break; }
     EXPECT_TRUE(found);
 }
@@ -354,7 +362,7 @@ TEST_F(ils_local_search_fixture, LocalSearchLsNeighborhoodCountIs9) {
 
 TEST_F(ils_local_search_fixture, LocalSearchPerturbationCountIsZero) {
     // config[8..11] = '0' → no perturbations
-    EXPECT_EQ(algorithm->P.size(), 0u);
+    EXPECT_EQ(algorithm->perturbations(sol).size(), 0u);
 }
 
 // ---------------------------------------------------------------------------
@@ -541,8 +549,8 @@ TEST_F(ils_full_fixture, DSolveFullSecondCallCoverageSatisfied) {
 // After restart, geometry.complete + coverage.reset must produce a path whose
 // tracked coverage equals a fresh recompute.
 TEST_F(ils_full_fixture, RestartFollowedByCompleteResetProducesConsistentCoverage) {
-    ASSERT_FALSE(algorithm->R.empty());
-    algorithm->R.front()->restart(sol);
+    ASSERT_FALSE(algorithm->restarts(sol).empty());
+    algorithm->restarts(sol).front()->restart(sol);
     geo().complete(sol);
     cov().reset(sol);
 
@@ -557,8 +565,8 @@ TEST_F(ils_full_fixture, RestartFollowedByCompleteResetProducesConsistentCoverag
 // If this fails, dp_sweeper does not guarantee a feasible construction for the
 // given instance.
 TEST_F(ils_full_fixture, RestartFollowedByCompleteResetSatisfiesCoverage) {
-    ASSERT_FALSE(algorithm->R.empty());
-    algorithm->R.front()->restart(sol);
+    ASSERT_FALSE(algorithm->restarts(sol).empty());
+    algorithm->restarts(sol).front()->restart(sol);
     geo().complete(sol);
     cov().reset(sol);
     EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all())
@@ -572,8 +580,8 @@ TEST_F(ils_full_fixture, RestartFollowedByCompleteResetSatisfiesCoverage) {
 // Fix: add geometry.complete(trial) + coverage.reset(trial) before
 //      local_search(trial) at the end of the outer while-loop in ils::d_solve.
 TEST_F(ils_full_fixture, LocalSearchAfterRestartWithCompleteResetDoesNotCrash) {
-    ASSERT_FALSE(algorithm->R.empty());
-    algorithm->R.front()->restart(sol);
+    ASSERT_FALSE(algorithm->restarts(sol).empty());
+    algorithm->restarts(sol).front()->restart(sol);
     geo().complete(sol);
     cov().reset(sol);
     sol.cost = geo().cost(sol);
@@ -587,16 +595,16 @@ TEST_F(ils_full_fixture, LocalSearchAfterRestartWithCompleteResetDoesNotCrash) {
 // Bug: ils::d_solve inner loop calls local_search(local_trial) WITHOUT first
 // calling geometry.complete + coverage.reset after perturbate(local_trial).
 TEST_F(ils_full_fixture, LocalSearchAfterPerturbationWithCompleteResetDoesNotCrash) {
-    ASSERT_FALSE(algorithm->P.empty());
-    ASSERT_FALSE(algorithm->R.empty());
+    ASSERT_FALSE(algorithm->perturbations(sol).empty());
+    ASSERT_FALSE(algorithm->restarts(sol).empty());
     // Build a non-trivial starting solution via restart.
-    algorithm->R.front()->restart(sol);
+    algorithm->restarts(sol).front()->restart(sol);
     geo().complete(sol);
     cov().reset(sol);
     sol.cost = geo().cost(sol);
 
     auto local_trial = sol;
-    algorithm->P.front()->perturbate(local_trial);
+    algorithm->perturbations(local_trial).front()->perturbate(local_trial);
     geo().complete(local_trial);
     cov().reset(local_trial);
     local_trial.cost = geo().cost(local_trial);

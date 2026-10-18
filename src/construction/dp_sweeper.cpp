@@ -13,10 +13,7 @@ void dp_sweeper::construct(cppied_solution &pSol, std::function<void(cppied_solu
     coverage.unsatisfied_cells(pSol, unsat);
     if (!unsat.empty()) {
         while (!unsat.empty()) {
-            iRectangle box = {std::numeric_limits<int>::max(),
-                              std::numeric_limits<int>::max(),
-                              std::numeric_limits<int>::min(),
-                              std::numeric_limits<int>::min()};
+            iRectangle box;
             coverage.unsatisfied_rectangle(unsat, box);
             std::array<sweeper::segment_set, 2> S{{
                                                           {{}, 0.0, true},
@@ -45,10 +42,8 @@ void dp_sweeper::construct(cppied_solution &pSol, std::function<void(cppied_solu
             pSol.path[i] = geometry.flip_segment(pSol.path[i]);
     }
     pSol.cost = geometry.cost(pSol);
-    neighborhood_tsp n(ctx, problem);
-    //std::cout << "Before local search call " << std::endl;
-    n.local_search(pSol);
-    //std::cout << "After local search" << std::endl;
+    neighborhood_tsp n(ctx, problem, pSol);
+    n.local_search();
 }
 
 void dp_sweeper::select(cppied_solution &pSol,

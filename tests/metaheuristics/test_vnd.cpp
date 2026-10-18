@@ -12,16 +12,26 @@
 #include "../../include/neighborhoods/neighborhood_r.hpp"
 
 // ---------------------------------------------------------------------------
-// Accessor: exposes the four protected neighborhood vectors for white-box
-// inspection.
+// Accessor: builds the four neighborhood groups from the protected
+// LocalSearchFactory for white-box inspection. Neighborhoods are bound to a
+// solution at construction, hence bind_neighborhoods.
 // ---------------------------------------------------------------------------
 struct vnd_accessor : public vnd {
 public:
     using vnd::vnd;
-    using vnd::N_setup;
-    using vnd::N_simple;
-    using vnd::N_nested;
-    using vnd::N_large;
+    using vnd::factory;
+
+    std::vector<std::unique_ptr<neighborhood>> N_setup{};
+    std::vector<std::unique_ptr<neighborhood>> N_simple{};
+    std::vector<std::unique_ptr<neighborhood>> N_nested{};
+    std::vector<std::unique_ptr<neighborhood>> N_large{};
+
+    void bind_neighborhoods(cppied_solution& s) {
+        N_setup  = factory.getSetupNeighborhoods(ctx, problem, s);
+        N_simple = factory.getSimpleNeighborhoods(ctx, problem, s);
+        N_nested = factory.getNestedNeighborhoods(ctx, problem, s);
+        N_large  = factory.getLargeNeighborhoods(ctx, problem, s);
+    }
 
     using vnd::geometry;
     using vnd::coverage;
@@ -60,6 +70,7 @@ protected:
         v->geometry.complete(sol);
         v->coverage.reset(sol);
         sol.cost = v->geometry.cost(sol);
+        v->bind_neighborhoods(sol);
     }
 
     path_engine&     geo() { return v->geometry; }
@@ -121,6 +132,7 @@ protected:
         v->geometry.complete(sol);
         v->coverage.reset(sol);
         sol.cost = v->geometry.cost(sol);
+        v->bind_neighborhoods(sol);
     }
 
     path_engine&     geo() { return v->geometry; }
@@ -164,10 +176,11 @@ TEST_F(vnd_minimal_fixture, InitializeLargeNeighborhoodsEmptyInMinimalConfig) {
     EXPECT_EQ(v->N_large.size(), 0u);
 }
 
-// Calling initialize() a second time without a clear guard appends duplicates.
-TEST_F(vnd_minimal_fixture, InitializeDoubleCallAppendsDuplicates) {
+// The configuration is read at construction: initialize() must not add
+// neighborhoods, even when called a second time.
+TEST_F(vnd_minimal_fixture, InitializeDoubleCallKeepsConfiguration) {
     v->initialize();
-    EXPECT_EQ(v->neighborhoods_count(), 6u);
+    EXPECT_EQ(v->neighborhoods_count(), 3u);
 }
 
 // ===========================================================================
@@ -316,11 +329,12 @@ TEST_F(vnd_minimal_fixture, SearchLocalOptimumVerifiedForAllNeighborhoods) {
     cov().reset(sol);
     sol.cost = geo().cost(sol);
 
-    auto all = v->all_neighborhoods();
-    for (std::size_t i = 0; i < all.size(); ++i) {
+    const std::size_t count = v->all_neighborhoods().size();
+    for (std::size_t i = 0; i < count; ++i) {
         cppied_solution copy = sol;
         cost_t copy_c = copy.cost;
-        all[i]->local_search(copy);
+        v->bind_neighborhoods(copy);
+        v->all_neighborhoods()[i]->local_search();
         EXPECT_FALSE(copy_c > copy.cost)
             << "Neighborhood " << i
             << " still finds improvement after VND convergence.";

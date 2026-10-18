@@ -1,43 +1,43 @@
 #pragma once
 
-#include "neighborhood.hpp"
+#include "SimpleNeighborhood.hpp"
+#include "../algorithms/MaximumTwoOneReallocation.hpp"
+#include "../heuristics/RandomKeyPacking.hpp"
 
-namespace n21 {
-    struct trial {
-        segment s;
-        int other;
-        int position;
-        cost_t gain;
-    };
 
-    struct packing {
-        std::set<int> P;
-        Eigen::VectorXi Cover;
-    };
-}
+class neighborhood_n21 : public SimpleNeighborhood<TwoOneReallocationMove, MaximumTwoOneReallocation>{
+private:
+    std::vector<std::pair<segment, int>> orderedMoves{};
+    std::vector<int> pairedRemovals{};
+    std::vector<int> selectedMoves{};
 
-class neighborhood_n21 : public neighborhood{
+    void swapSelectedMoves();
+    void removeSelectedMovesCoverage();
+    void addSelectedMovesCoverage();
+    void setOrderedMoves();
+    void computeMarginalGain();
+    std::vector<Key> constructPackingKeys(std::vector<int>& candidates);
+    void splitPackings(std::vector<int> &candidates, std::vector<Packing>& packing);
+
+    bool isSelectedOrRemoved(int index,
+                             std::vector<int>::const_iterator selector_iterator,
+                             std::vector<int>::const_iterator removal_iterator);
+    bool isSelected(int index, std::vector<int>::const_iterator selector_iterator);
+    bool isRemoved(int index, std::vector<int>::const_iterator removal_iterator);
+    bool isMoveToInsert(int index, std::vector<std::pair<segment,int>>::const_iterator move_iterator);
+    void pushRemainingMoves(std::vector<std::pair<segment,int>>::iterator move_iterator);
+protected:
+    void clear() override { SimpleNeighborhood::clear(); orderedMoves.clear(); pairedRemovals.clear(); }
+    void applyMoves(std::vector<int>& selectedMoves) override;
+    void splitMoves(std::vector<int>& candidates) override;
+    Interval transformToInterval(int i) override;
+    Interval correctIntervalEncoding(Interval& interval);
+    Interval getSecondInterval(Interval& first, int second);
+    Interval getSecondPerpendicularInterval(Interval& first, int second);
+    Interval getIntervalsUnion(Interval& first, Interval& second);
 public:
-    using neighborhood::neighborhood;
-
-    bool local_search(cppied_solution&) override;
-    n21::trial replace(cppied_solution&, sVecIt seg);
-    n21::trial explore_replacements(cppied_solution& pSol,
-                                    const segment& ref,
-                                    cost_t extraction_gain,
-                                    int position);
-    n21::trial select_best_trial(cppied_solution&,
-                                 std::vector<int>& candidates,
-                                 std::vector<int>& global_unsat);
-    n21::trial select_boxed_candidate(cppied_solution&,
-                                      const iRectangle& box,
-                                      std::vector<int>& unsat,
-                                      sVecIt ref);
-    void configure_trial(cppied_solution&,
-                         n21::trial& candidate);
-
-    cost_t update(cppied_solution&,
-                const std::vector<n21::trial>& trials,
-                const std::vector<cost_t>& gains,
-                std::vector<int>& selection);
+    template<typename... Args>
+    explicit neighborhood_n21(Args&&... args) : SimpleNeighborhood<TwoOneReallocationMove, MaximumTwoOneReallocation>(std::forward<Args>(args)...){
+        spacingConstraint = 6;
+    }
 };

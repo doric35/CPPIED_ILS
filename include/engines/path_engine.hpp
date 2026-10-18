@@ -39,19 +39,29 @@ public:
                 ((s.target != NULL_NODE) & (s.target < s.source))
         );
     }
+    std::pair<segment, segment> splitSegment(const segment& s, int index);
     bool is_in_rectangle(const segment& s, iRectangle& box) const;
     [[nodiscard]] int get_row(const segment&) const;
     [[nodiscard]] int get_column(const segment&) const;
-    [[nodiscard]] std::vector<std::pair<int,cost_t>> get_top_k_insertion(const cppied_solution& pSol,
-                                             const segment& pSeg,
-                                             int k) const;
+    [[nodiscard]] std::vector<std::pair<int,cost_t>> get_top_k_insertion(
+            const cppied_solution& pSol, const segment& pSeg, int k) const;
+
     [[nodiscard]] bool satisfy(const segment& a, const segment& b) const;
     [[nodiscard]] bool is_horizontal(const segment& a) const;
     void correct_segment_direction(segment& a, direction d);
     segment flip_segment(const segment& s);
+    segment getNonOriented(const segment& s);
 
     using sVecIt = std::vector<segment>::const_iterator;
     [[nodiscard]] cost_t removal_gain(const cppied_solution& pSol, sVecIt seg) const;
+    [[nodiscard]] inline cost_t insertion_gain(const cppied_solution& pSol, sVecIt prev, const segment& node) const {
+        cost_t cost{};
+        if (prev != std::prev(pSol.path.end()))
+            cost = insert_between_gain(*prev, node, *std::next(prev));
+        else
+            cost = insert_tail_gain(*prev, node);
+        return cost;
+    }
     [[nodiscard]] inline cost_t insert_front_gain(const segment& node, const segment& next) const {
         return cost(node) + dist(node,next);
     }
