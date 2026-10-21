@@ -19,7 +19,8 @@ void neighborhood_n1::swapSelectedMoves(std::vector<int> &selectedMoves) {
 
 void neighborhood_n1::swap(int i) {
     coverage.remove(solution, solution.path[i]);
-    coverage.insert(solution, candidatesMoves[i].s);
+    if (path_engine::is_node(candidatesMoves[i].s.source))
+        coverage.insert(solution, candidatesMoves[i].s);
     solution.path[i] = candidatesMoves[i].s;
     solution.cost -= candidatesMoves[i].gain;
 }

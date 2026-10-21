@@ -1,550 +1,398 @@
 #include "../../include/neighborhoods/neighborhood_r.hpp"
 
 bool neighborhood_r::local_search() {
-    std::vector<int> selection;
-    cost_t init_cost = solution.cost;
+    cost_t initial_cost = solution.cost;
+    reset();
+    setSelectReallocations();
+    constructGurobiModel();
+    reallocationDuals.resize(static_cast<int>(reallocationSets.size()));
+    reallocationDuals.setZero();
 
-    selection.reserve(solution.path.size() / 2 +1);
-    select(selection);
-    Z1.clear();
-    Z2.clear();
-    GRBEnv reallocation_env = GRBEnv(true);
+    try {
+        columnGeneration();
+    } catch (TimeOutError& E){
+        coverage.reset(solution);
+        return false;
+    }
+    setLexicographicBinaryProgram();
+    setReallocationModelWarmStart();
+
+    model->set(GRB_DoubleParam_TimeLimit, remaining_time());
+    model->update();
+    model->optimize();
+    retrieveSolution();
+    return solution.cost < initial_cost;
+}
+
+void neighborhood_r::reset() {
+    if (Z1) {
+        Z1->clear();
+        delete Z1;
+        Z1 = nullptr;
+    }
+    if (Z2) {
+        Z2->clear();
+        delete Z2;
+        Z2 = nullptr;
+    }
+    reallocationSelection.clear();
+    reallocationSets.clear();
+    coverageDuals.setZero();
+    reallocationDuals.setZero();
+    lengthDual = 0.0;
+    columnGenerationConvergedFlag = false;
+    delete model;
+    model = nullptr;
+    delete env;
+    env = nullptr;
+}
+
+void neighborhood_r::constructGurobiModel() {
+    initializeGurobiEnvironment();
+    initializeGurobiModel();
+    setInitialReallocationSets();
+    constructLinearProgram();
+    model->set(GRB_IntAttr_ModelSense, GRB_MINIMIZE);
+    model->update();
+}
+
+void neighborhood_r::setSelectReallocations() {
+    std::vector<cost_t> gains = getRemovalGains();
+    const int index_bound = static_cast<int>(solution.path.size());
+    auto pairs_view = std::views::iota(1, index_bound)
+                      | std::views::filter([](int i){ return i% 2 == 0; });
+    auto impairs_view = std::views::iota(1, index_bound)
+                      | std::views::filter([](int i){ return i% 2 == 1; });
+    auto sum_gain = [&](cost_t cost, int i){ return cost + gains[i]; };
+    cost_t pair_gain = std::ranges::fold_left(pairs_view, cost_t{0,0}, sum_gain);
+    cost_t impairs_gain = std::ranges::fold_left(impairs_view, cost_t{0,0}, sum_gain);
+    std::vector<cost_t> cumulative_gains{pair_gain, impairs_gain};
+    int s = ris_heuristic::softmaxSample(cumulative_gains, rng);
+
+    if (s)
+        reallocationSelection = std::ranges::to<std::vector<int>>(impairs_view);
+    else
+        reallocationSelection = std::ranges::to<std::vector<int>>(pairs_view);
+}
+
+std::vector<cost_t> neighborhood_r::getRemovalGains() {
+    std::vector<cost_t> gains(solution.path.size(), cost_t{0,0});
+    for(int i=1; i< solution.path.size(); ++i)
+        gains[i] = removalGain(i);
+    return gains;
+}
+
+void neighborhood_r::initializeGurobiEnvironment() {
+    env = new GRBEnv(true);
     auto log_item = ctx.config.find("WORKING_DIRECTORY");
     if (log_item != ctx.config.end()){
         std::filesystem::path log_path = log_item->second;
         log_path = log_path / "reallocation.log";
-        reallocation_env.set("LogFile", log_path);
+        env->set("LogFile", log_path);
     } else
-        reallocation_env.set("LogFile", "reallocation.log");
-    reallocation_env.set(GRB_IntParam_OutputFlag, 0);
-    reallocation_env.set(GRB_IntParam_LogToConsole, 0);
-    reallocation_env.set(GRB_IntParam_ThreadLimit, 1);
-    reallocation_env.start();
-    GRBModel model = GRBModel(reallocation_env);
+        env->set("LogFile", "reallocation.log");
+    env->set(GRB_IntParam_OutputFlag, 0);
+    env->set(GRB_IntParam_LogToConsole, 0);
+    env->set(GRB_IntParam_ThreadLimit, 1);
+    env->start();
+}
 
-    std::vector<replacement_set> replacements;
-    replacements.reserve(selection.size());
-    set_initial_replacements(selection,
-                             replacements,
-                             model);
+void neighborhood_r::initializeGurobiModel() {
+    model = new GRBModel(*env);
+}
 
-    std::vector<GRBConstr> constraints;
-    set_constraints(replacements, constraints, model);
-    model.set(GRB_IntAttr_ModelSense, GRB_MINIMIZE);
+void neighborhood_r::setInitialReallocationSets() {
+    reallocationSets.resize(solution.path.size(),{});
+    for (int r : reallocationSelection)
+        pushInitialSegmentReallocation(r);
+}
 
-    model.update();
-    bool converged = false;
-    double t;
-    while (!converged){
-        model.setObjective(Z1, GRB_MINIMIZE);
-        t = remaining_time();
-        if (t < 0.0) {
-            // Remaining time too low, skip this optimization
-            coverage.reset(solution);
-            return false;  // or break/return from local_search
-        }
-        model.set(GRB_DoubleParam_TimeLimit, t + 1.0);
-        model.update();
-        model.optimize();
-        int status = model.get(GRB_IntAttr_Status);
-        if (status != GRB_OPTIMAL){
-            std::cerr << "[Warning] First phase LP terminated with status" << status << "\n";
-            break;
-        }
-        bool converged_z1 = add_stage_columns(constraints, replacements, model, 1);
-        double obj_value = model.get(GRB_DoubleAttr_ObjVal);
-        constraints.back().set(GRB_DoubleAttr_RHS, obj_value);
-        model.setObjective(Z2, GRB_MINIMIZE);
-        t = remaining_time();
-        if (t < 0.0) {
-            // Remaining time too low, skip this optimization
-            coverage.reset(solution);
-            return false;  // or break/return from local_search
-        }
-        model.set(GRB_DoubleParam_TimeLimit, t + 1.0);
-        model.update();
-        model.optimize();
-        status = model.get(GRB_IntAttr_Status);
-        if (status != GRB_OPTIMAL){
-            std::cerr << "[Warning] Second phase LP terminated with status" << status << "\n";
-            break;
-        }
-        bool converged_z2 = add_stage_columns(constraints, replacements, model, 2);
-        converged = converged_z1 && converged_z2;
+void neighborhood_r::pushInitialSegmentReallocation(int index) {
+    ReplacementMove self_move{solution.path[index], replacementGain(index, solution.path[index])};
+    reallocationSets[index].moves.push_back(self_move);
+    MaximumReplacement replacement_algorithm(problem, coverage, geometry, solution, index);
+    ReplacementMove move = replacement_algorithm.solve();
+    if (path_engine::is_node(move.s.source)) {
+        move.gain = replacementGain(index, move.s);
+        reallocationSets[index].moves.push_back(move);
     }
-    model.setObjective(GRBLinExpr(0.0));
-    model.setObjectiveN(Z1, 0, 2);
-    model.setObjectiveN(Z2, 1, 1);
-    //Solve binary
-    //set variables to binary
-    for (auto& R : replacements){
-        for (auto& var:R.variables)
+}
+
+void neighborhood_r::constructLinearProgram() {
+    constructInitialVariables();
+    constructObjectives();
+    constructConstraints();
+}
+
+void neighborhood_r::constructInitialVariables() {
+    for (int i : reallocationSelection)
+        constructReallocationSetVariables(i);
+}
+
+void neighborhood_r::constructReallocationSetVariables(int index) {
+    for (auto& move : reallocationSets[index].moves)
+        reallocationSets[index].variables.push_back(model->addVar(0.0, 1.0, 0.0, GRB_CONTINUOUS, nullptr));
+}
+
+void neighborhood_r::constructObjectives() {
+    constructLengthObjective();
+    constructTurnsObjective();
+}
+
+void neighborhood_r::constructLengthObjective() {
+    Z1 = new GRBLinExpr(0.0);
+    for (auto& set : reallocationSets){
+        for (std::size_t i = 0; i< set.moves.size(); i++)
+            *Z1 += set.moves[i].gain.length * set.variables[i];
+    }
+}
+
+void neighborhood_r::constructTurnsObjective() {
+    Z2 = new GRBLinExpr(0.0);
+    for (auto& set : reallocationSets){
+        for (std::size_t i = 0; i< set.moves.size(); i++)
+            *Z2 += set.moves[i].gain.turns * set.variables[i];
+    }
+}
+
+void neighborhood_r::constructConstraints() {
+    constructCoverageConstraints();
+    constructReallocationConstraints();
+    constructLengthConstraints();
+}
+
+void neighborhood_r::constructCoverageConstraints() {
+    setRemovalCoverage();
+    coverage.unsatisfied_cells(solution, unsatisfiedCells);
+    std::vector<GRBLinExpr> rhs(geometry.n_rows*geometry.n_cols, 0.0);
+    for (int i : reallocationSelection){
+        for (int k =0; k<reallocationSets[i].moves.size(); k++){
+            segment non_oriented = geometry.getNonOriented(reallocationSets[i].moves[k].s);
+            int u = non_oriented.source;
+            int v = non_oriented.target;
+            if (!path_engine::is_node(v)) v = non_oriented.source;
+            for (int n = u; n <= v; n++){
+                for (Eigen::SparseMatrix<double>::InnerIterator c(problem.s_pod, n); c; ++c)
+                    rhs[c.index()] += reallocationSets[i].variables[k] * c.value();
+            }
+        }
+    }
+    for (int c : unsatisfiedCells)
+        coverageConstraints[c] = model->addConstr(rhs[c] >= problem.req[c] - solution.coverage[c]);
+}
+
+void neighborhood_r::setRemovalCoverage() {
+    for (int i : reallocationSelection)
+        coverage.remove(solution, solution.path[i]);
+}
+
+void neighborhood_r::constructReallocationConstraints() {
+    reallocationConstraints.resize(solution.path.size());
+    for (int i : reallocationSelection){
+        GRBLinExpr select_unit = 0.0;
+        for (auto& var : reallocationSets[i].variables)
+            select_unit += var;
+        reallocationConstraints[i] = model->addConstr(select_unit <= 1);
+    }
+}
+
+void neighborhood_r::constructLengthConstraints() {
+    pathLengthConstraint = model->addConstr(*Z1 <= solution.cost.length);
+}
+
+void neighborhood_r::columnGeneration() {
+    while (!columnGenerationHasConverged())
+        runColumnGenerationIteration();
+}
+
+void neighborhood_r::runColumnGenerationIteration() {
+    runColumnGenerationFirstStage();
+    runColumnGenerationSecondStage();
+}
+
+void neighborhood_r::runColumnGenerationFirstStage() {
+    model->setObjective(*Z1, GRB_MINIMIZE);
+    model->set(GRB_DoubleParam_TimeLimit, remaining_time());
+    model->update();
+    model->optimize();
+    throwIfLpTimedOut();
+    PricingSolution reallocation = solvePricingSubproblem<FirstStageMinimumPrice>();
+    if (reallocation.value < -1e-6)
+        generateColumn(reallocation);
+    else
+        columnGenerationConvergedFlag = true;
+}
+
+void neighborhood_r::runColumnGenerationSecondStage() {
+    double optimal_length = model->get(GRB_DoubleAttr_ObjVal);
+    pathLengthConstraint.set(GRB_DoubleAttr_RHS, optimal_length);
+    model->setObjective(*Z2, GRB_MINIMIZE);
+    model->set(GRB_DoubleParam_TimeLimit, remaining_time());
+    model->update();
+    model->optimize();
+    throwIfLpTimedOut();
+    PricingSolution reallocation = solvePricingSubproblem<SecondStageMinimumPrice>();
+    if (reallocation.value < -1e-6) {
+        generateColumn(reallocation);
+        columnGenerationConvergedFlag = false;
+    }
+}
+
+bool neighborhood_r::columnGenerationHasConverged() const {
+    return columnGenerationConvergedFlag;
+}
+
+void neighborhood_r::setLexicographicBinaryProgram() {
+    model->setObjective(GRBLinExpr(0.0));
+    model->setObjectiveN(*Z1, 0, 2);
+    model->setObjectiveN(*Z2, 1, 1);
+
+    for (auto& set : reallocationSets){
+        for (auto& var : set.variables)
             var.set(GRB_CharAttr_VType, GRB_BINARY);
     }
+    model->remove(pathLengthConstraint);
+}
 
-    // Reset gamma constraint to original incumbent before the binary solve.
-    constraints.back().set(GRB_DoubleAttr_RHS, init_cost.length);
-
-    t = remaining_time();
-    if (t < 0.0) {
-        // Remaining time too low, skip this optimization, restore solution
-        coverage.reset(solution);
-        return false;  // or break/return from local_search
+void neighborhood_r::setReallocationModelWarmStart() {
+    for (auto& set : reallocationSets){
+        if (!set.variables.empty()) {
+            set.variables[0].set(GRB_DoubleAttr_Start, 1.0);
+            for (int i = 1; i < set.variables.size(); ++i)
+                set.variables[i].set(GRB_DoubleAttr_Start, 0.0);
+        }
     }
-    model.set(GRB_DoubleParam_TimeLimit, t + 1.0);
-    set_warm_start(replacements);
-    model.update();
-    model.optimize();
-    //Retrieve solution
-    int status = model.get(GRB_IntAttr_Status);
+}
+
+void neighborhood_r::retrieveSolution() {
+    int status = model->get(GRB_IntAttr_Status);
     if (status == GRB_OPTIMAL || status == GRB_SUBOPTIMAL) {
         // A feasible solution exists, safe to retrieve
-        retrieve_solution(replacements);
+        safeSolutionRetrieve();
+        reset();
     } else if (status == GRB_INF_OR_UNBD || status == GRB_INFEASIBLE) {
         // No feasible solution found
+        reset();
         std::cerr << "[Error] Model infeasible or unbounded\n";
         throw std::runtime_error("Infeasibility or unboundedness found in reallocation model.\n");
     } else {
         // Possibly interrupted due to TimeLimit
+        reset();
         std::cerr << "[Warning] Optimization interrupted in reallocation model, using best solution so far\n";
         coverage.reset(solution);
     }
-    return solution.cost < init_cost;
 }
 
-void neighborhood_r::retrieve_solution(std::vector<replacement_set> &R) {
-    std::vector<segment> new_sol;
-    new_sol.reserve(solution.path.size());
-    int i=0;
-    int r=0;
-    for (; i < solution.path.size(); ++i){
-        if ( r< R.size() && i==R[r].r){
-            for (int j=0; j< R[r].variables.size(); j++){
-                double val = R[r].variables[j].get(GRB_DoubleAttr_X);
-                if (val > 0.5){
-                    new_sol.push_back(R[r].candidates[j]);
-                    coverage.insert(solution, new_sol.back());
-                    break;
-                }
-            }
-            ++r;
-        } else {
-            new_sol.push_back(solution.path[i]);
+void neighborhood_r::throwIfLpTimedOut() {
+    int status = model->get(GRB_IntAttr_Status);
+    if (status != GRB_OPTIMAL)
+        throw TimeOutError("[WARNING] : Reallocation LP encountered a timeout.\n");
+}
+
+void neighborhood_r::safeSolutionRetrieve() {
+    int j =0;
+    for (int i=1; i< solution.path.size(); ++i){
+        if (j < reallocationSelection.size() && reallocationSelection[j] == i) {
+            solution.path[i] = reallocation(i);
+            ++j;
         }
     }
-    solution.path.swap(new_sol);
+    auto nullSegment = [&](const segment& s){ return !path_engine::is_node(s.source); };
+    std::erase_if(solution.path, nullSegment);
+    coverage.reset(solution);
     solution.cost = geometry.cost(solution);
 }
 
-void neighborhood_r::extract_duals(std::vector<GRBConstr>& constraints,
-                                   std::vector<double>& coverage_duals,
-                                   std::vector<double>& R_duals) {
-    for (int i=0; i < geometry.n_cols * geometry.n_rows; i++)
-        coverage_duals[i] = constraints[i].get(GRB_DoubleAttr_Pi);
-
-    int offset = geometry.n_cols * geometry.n_rows;
-    for (int i = 0; i< R_duals.size(); i++)
-        R_duals[i] = constraints[i + offset].get(GRB_DoubleAttr_Pi);
+segment neighborhood_r::reallocation(int index) {
+    segment replacement = {path_engine::NULL_NODE, path_engine::NULL_NODE};
+    const auto& set = reallocationSets[index];
+    for (int i=0; i< set.moves.size(); ++i)
+    {
+        double move_val = set.variables[i].get(GRB_DoubleAttr_X);
+        if (move_val > 0.5) replacement = set.moves[i].s;
+    }
+    return replacement;
 }
 
-void neighborhood_r::set_constraints(std::vector<replacement_set> &R,
-                                     std::vector<GRBConstr>& constraints,
-                                     GRBModel &model) {
-    for (auto& r: R)
-        coverage.remove(solution,solution.path[r.r]);
-
-    std::vector<GRBLinExpr> lin_expr_set(geometry.n_rows*geometry.n_cols,0);
-    constraints.clear();
-    constraints.reserve(geometry.n_rows*geometry.n_cols + R.size() + 1);
-
-    //coverage_constraints lhs
-    for (auto& r : R){
-        for (int i=0; i< r.candidates.size(); i++){
-            auto add_coverage_coef = [&](
-                    cppied_solution& solution, int v){
-                for (SMdIt c(problem.s_pod, v); c; ++c){
-                    lin_expr_set[c.index()] += r.variables[i] * c.value();
-                }
-            };
-            coverage.apply(solution, r.candidates[i], add_coverage_coef);
-        }
+template<typename PricingPhaseSolver>
+PricingSolution neighborhood_r::solvePricingSubproblem() {
+    setDualVariables();
+    setVertexPrices();
+    Reallocation argmin{{path_engine::NULL_NODE, path_engine::NULL_NODE}, MAX_INT, -1, {0, 0}};
+    for (int r : reallocationSelection){
+        PricingPhaseSolver solver(vertexCoveragePrices, reallocationDuals(r), lengthDual,
+                                  problem, coverage, geometry, solution, r);
+        Reallocation reallocation = solver.solve();
+        if (reallocation.value < argmin.value) argmin = reallocation;
     }
-
-    //Coverage constraints rhs
-    for (int i=0; i< lin_expr_set.size(); i++){
-        GRBLinExpr rhs = problem.req(i) - solution.coverage(i);
-        constraints.push_back(model.addConstr(lin_expr_set[i],
-                                              GRB_GREATER_EQUAL,
-                                              rhs));
-    }
-
-    //Capacity constraints
-    for (auto & i : R){
-        GRBLinExpr rhs = 1;
-        GRBLinExpr lhs = 0;
-        for (auto& var : i.variables)
-            lhs += var;
-        constraints.push_back(model.addConstr(lhs, GRB_LESS_EQUAL, rhs));
-    }
-
-    //Objective constraint
-    model.update();
-    cost_t acc{0,0};
-    auto func = [&](cost_t reduction, const replacement_set& rep){
-        return reduction + replacement_cost(std::next(solution.path.cbegin(), rep.r), rep.candidates.front());
-    };
-    acc = std::accumulate(R.begin(), R.end(), acc, func);
-    GRBLinExpr rhs = acc.length;
-    GRBLinExpr lhs = 0;
-    for(auto & i : R) {
-        for (auto &var: i.variables)
-            lhs += var.get(GRB_DoubleAttr_Obj) * var;
-    }
-    constraints.push_back(model.addConstr(lhs, GRB_LESS_EQUAL, rhs));
+    cost_t costs{0, 0};
+    if (path_engine::is_node(argmin.S.source))
+        costs = replacementGain(argmin.R, argmin.S);
+    PricingSolution sol{argmin.S, argmin.value, argmin.R, costs};
+    return sol;
 }
 
-void neighborhood_r::select(std::vector<int> &selection) {
-    std::vector<cost_t> gains(solution.path.size(), cost_t{0,0});
+void neighborhood_r::setDualVariables() {
+    setCoverageDuals();
+    setReallocationDuals();
+    setLengthDual();
+}
 
-    int i=1;
-    auto path_it = std::next(solution.path.begin());
-    for(; i< solution.path.size()-1; ++i, ++path_it)
-        gains[i] = gain(path_it);
+void neighborhood_r::setCoverageDuals() {
+    for (int i : unsatisfiedCells)
+        coverageDuals(i) = coverageConstraints[i].get(GRB_DoubleAttr_Pi);
+}
 
-    std::vector<int> candidates(solution.path.size() - 2);
-    std::iota(candidates.begin(), candidates.end(), 1);
+void neighborhood_r::setReallocationDuals() {
+    for (int r : reallocationSelection)
+        reallocationDuals(r) = reallocationConstraints[r].get(GRB_DoubleAttr_Pi);
+}
 
-    auto splitter = [&](int i){
-        return i % 2 == 0;
-    };
+void neighborhood_r::setLengthDual() {
+    lengthDual = pathLengthConstraint.get(GRB_DoubleAttr_Pi);
+}
 
-    std::vector<int> odds;
-    odds.reserve(candidates.size() / 2 + 1);
-    std::vector<int> evens;
-    evens.reserve(candidates.size() / 2 + 1);
-    std::partition_copy(candidates.begin(),candidates.end(),
-                        std::back_inserter(evens),
-                        std::back_inserter(odds),
-                        splitter);
-    std::vector<cost_t> cumulative_gains(2, cost_t{0,0});
-    auto func = [&](cost_t acc, int i){
-        return acc + gains[i];
-    };
-    cumulative_gains[0] = std::accumulate(evens.begin(), evens.end(),
-                cumulative_gains[0], func);
-    cumulative_gains[1] = std::accumulate(odds.begin(), odds.end(),
-                cumulative_gains[1], func);
+void neighborhood_r::setVertexPrices() {
+    for (int u=0; u<geometry.n_vertex; ++u){
+        vertexCoveragePrices(u) = 0.0;
+        for (Eigen::SparseMatrix<double>::InnerIterator c(problem.s_pod, u); c; ++c)
+            vertexCoveragePrices(u) += coverageDuals(c.index()) * c.value();
+    }
+}
 
-    int s = ris_heuristic::softmaxSample(cumulative_gains, rng);
-    if (s)
-        selection.swap(evens);
+cost_t neighborhood_r::removalGain(int index) {
+    auto current_segment = std::next(solution.path.begin(), index);
+    cost_t gain = geometry.removal_gain(solution, current_segment);
+    return gain;
+}
+
+cost_t neighborhood_r::replacementGain(int index, const segment &s) {
+    cost_t cost{0,0};
+    if (index == static_cast<int>(solution.path.size()) - 1)
+        cost = geometry.insert_tail_gain(*std::prev(solution.path.end(), 2), s);
     else
-        selection.swap(odds);
+        cost = geometry.insert_between_gain(*std::next(solution.path.begin(), index - 1),
+                                               s,
+                                               *std::next(solution.path.begin(),index + 1));
+    return cost;
 }
 
-void neighborhood_r::set_initial_replacements(std::vector<int> &selection,
-                                              std::vector<replacement_set> &rep,
-                                              GRBModel& model) {
-    rep.clear();
-    rep.reserve(selection.size());
-    for (int i: selection){
-        rep.push_back({i, {solution.path[i]}, {}});
-        add_replacements(rep.back().candidates);
-        rep.back().variables.reserve(rep.back().candidates.size());
-        for (auto& r : rep.back().candidates){
-            segment other = geometry.flip_segment(r);
-            cost_t costs = replacement_cost(solution.path.cbegin() + i, r);
-            cost_t costs_others = replacement_cost(solution.path.cbegin() + i, other);
-            if (costs_others < costs) {
-                r = other;
-                costs = costs_others;
-            }
-            rep.back().variables.push_back(model.addVar(0.0,
-                                                        1.0,
-                                                        costs.length,
-                                                        GRB_CONTINUOUS));
-            Z1 += costs.length * rep.back().variables.back();
-            Z2 += costs.turns * rep.back().variables.back();
+void neighborhood_r::generateColumn(PricingSolution &pricingSolution) {
+    GRBColumn column;
+    segment non_oriented = geometry.getNonOriented(pricingSolution.s);
+    int u = non_oriented.source;
+    int v = std::max(u, non_oriented.target);
+    for (int n = u; n<= v; ++n) {
+        for (Eigen::SparseMatrix<double>::InnerIterator c(problem.s_pod, n); c; ++c){
+            if (solution.coverage(c.index()) < problem.req(c.index()))
+                column.addTerm(c.value(), coverageConstraints[c.index()]);
         }
     }
-}
-
-void neighborhood_r::add_replacements(std::vector<segment> &candidates) {
-    coverage.remove(solution, candidates.front());
-    std::vector<int> unsat;
-    coverage.unsatisfied_cells(solution, candidates.front(), unsat);
-    iRectangle box;
-    if (!unsat.empty()) {
-        coverage.unsatisfied_rectangle(unsat, box);
-        auto segment_select = [&](segment &s) {
-            if (coverage.insertion_satisfies(solution, s, unsat))
-                candidates.push_back(s);
-
-        };
-        segment dummy{path_engine::NULL_NODE, path_engine::NULL_NODE};
-        for_each_segment(box, dummy, segment_select);
-    }
-    coverage.insert(solution, candidates.front());
-}
-
-cost_t neighborhood_r::gain(neighborhood::sVecIt source) {
-    return geometry.removal_gain(solution, source);
-}
-
-cost_t neighborhood_r::replacement_cost(neighborhood::sVecIt source,
-                                        segment target) {
-    cost_t c{0,0};
-    if (source == std::prev(solution.path.cend()))
-        c = geometry.insert_tail_gain(*std::prev(source), target);
-    else
-        c = geometry.insert_between_gain(*std::prev(source), target, *std::next(source));
-    return c;
-}
-
-std::pair<segment, double> neighborhood_r::dag_heuristic(int u, int v,
-                                                         std::vector<double> &coverage_duals, int r, double r_dual,
-                                                         double gamma_dual, const std::function<double(cost_t)> &f) {
-    std::pair<segment, double> candidate = null_dag_heuristic(u, v, coverage_duals, r, r_dual, gamma_dual, f);
-    std::pair<segment, double> other_candidate = reversed_dag_heuristic(u, v, coverage_duals, r, r_dual, gamma_dual, f);
-    if (candidate.second <= other_candidate.second)
-        return candidate;
-    return other_candidate;
-}
-
-std::pair<segment, double> neighborhood_r::null_dag_heuristic(int first, int last,
-                                      std::vector<double> &coverage_duals,
-                                      int r, double r_dual,
-                                      double gamma_dual,
-                                      const std::function<double(cost_t)>& f) {
-    std::vector<double> D(last - first + 3,
-                          std::numeric_limits<double>::infinity());
-    cost_t c_gain{0,0};
-    if (r < solution.path.size()-1)
-        c_gain = geometry.dist(solution.path[r-1], solution.path[r+1]);
-    D[0] = 0.0;
-    std::vector<int> P(last - first + 3,0);
-    for (int v = first; v<= last; v++){
-        segment dummy = {v, path_engine::NULL_NODE};
-        cost_t c = geometry.dist(solution.path[r-1], dummy);
-        double rc = f(c) - coverage_duals[v] - gamma_dual * c.length;
-        D[v - first + 1] = rc;
-    }
-    for (int v = first; v<last; v++){
-        double cost = D[v - first + 1] + f(cost_t{1,0}) - coverage_duals[v+1] - (gamma_dual * 1.0);
-        if (D[v - first + 2] > cost) {
-            D[v - first + 2] = cost;
-            P[v - first + 2] = v - first + 1;
-        }
-    }
-    double ac;
-    for (int v = first; v<last; v++){
-        segment dummy = {v, path_engine::NULL_NODE};
-        if (r < solution.path.size() - 1){
-            cost_t c = geometry.dist(dummy, solution.path[r+1]);
-            ac = f(c) - f(c_gain) - (gamma_dual*(c.length - c_gain.length));
-        }
-        else
-            ac = 0.0;
-        if (D.back() > D[v - first + 1] + ac) {
-            P.back() = v - first + 1;
-            D.back() = D[v - first + 1] + ac;
-        }
-    }
-    if (D.back() - r_dual >=0)
-        return {segment{path_engine::NULL_NODE, path_engine::NULL_NODE}, D.back() - r_dual};
-
-    //Backtrack
-    int v = P.back();
-    int u = v;
-
-    while (P[u] != 0)
-        u = P[u];
-
-    u += first-1;
-    v += first - 1;
-    std::pair<segment, double> candidate = {
-            {v, path_engine::NULL_NODE},
-            D.back() - r_dual};
-    if (u != v)
-        candidate.first = {u,v};
-    return candidate;
-}
-
-std::pair<segment, double> neighborhood_r::reversed_dag_heuristic(int first, int last,
-                                                              std::vector<double> &coverage_duals,
-                                                              int r, double r_dual,
-                                                              double gamma_dual,
-                                                              const std::function<double(cost_t)>& f) {
-    std::vector<double> D(last - first + 3,
-                          std::numeric_limits<double>::infinity());
-    cost_t c_gain{0,0};
-
-    if (r < solution.path.size()-1)
-        c_gain = geometry.dist(solution.path[r-1], solution.path[r+1]);
-    D[0] = 0.0;
-    std::vector<int> P(last - first + 3,0);
-
-    for (int v = last; v>= first; v--){
-        segment dummy = {v, path_engine::REVERSED_NULL_NODE};
-        cost_t c = geometry.dist(solution.path[r-1], dummy);
-        double rc = f(c) - coverage_duals[v] - gamma_dual * c.length;
-        const int idx = last - v + 1;
-        D[idx] = rc;
-    }
-
-    for (int v = last; v>first; v--){
-        const int idx = last - v + 1;
-        double cost = D[idx] + f(cost_t{1,0}) - coverage_duals[v+1] - (gamma_dual * 1.0);
-        if (D[idx + 1] > cost) {
-            D[idx + 1] = cost;
-            P[idx + 1] = idx;
-        }
-    }
-
-    double ac;
-    for (int v = last; v>first; v--){
-        segment dummy = {v, path_engine::REVERSED_NULL_NODE};
-        if (r < solution.path.size() - 1){
-            cost_t c = geometry.dist(dummy, solution.path[r+1]);
-            ac = f(c) - f(c_gain) - (gamma_dual*(c.length - c_gain.length));
-        }
-        else
-            ac = 0.0;
-        const int idx = last - v + 1;
-        if (D.back() > D[idx] + ac) {
-            P.back() = idx;
-            D.back() = D[idx] + ac;
-        }
-    }
-
-    if (D.back() - r_dual >=0)
-        return {segment{path_engine::NULL_NODE, path_engine::NULL_NODE}, D.back() - r_dual};
-
-    //Backtrack
-    int v = P.back();
-    int u = v;
-
-    while (P[u] != 0)
-        u = P[u];
-
-    u = last - u + 1;
-    v = last - v + 1;
-    std::pair<segment, double> candidate = {
-            {v, path_engine::REVERSED_NULL_NODE},
-            D.back() - r_dual};
-    if (u != v)
-        candidate.first = {u,v};
-    return candidate;
-}
-
-void neighborhood_r::positions_coverage_rcs(std::vector<double> &pRC,
-                                            std::vector<double> &coverage_duals) {
-    pRC.resize(problem.vertex.size(), 0.0);
-    for (int v=0; v< pRC.size(); v++){
-        for (SMdIt c(problem.s_pod, v); c; ++c)
-            pRC[v] += c.value() * coverage_duals[c.index()];
-    }
-}
-
-bool neighborhood_r::add_stage_columns(std::vector<GRBConstr>& constraints,
-                                             std::vector<replacement_set>& R,
-                                             GRBModel& model,
-                                             int stage) {
-    std::vector<double> coverage_duals(geometry.n_rows*geometry.n_cols, 0.0);
-    std::vector<double> r_duals(R.size(), 0.0);
-    extract_duals(constraints, coverage_duals, r_duals);
-
-    std::function<double(cost_t)> cost_func;
-    double gamma = 0.0;
-    if (stage == 1){
-        cost_func = [](cost_t c){
-            return static_cast<double>(c.length);
-        };
-    } else{
-        cost_func = [](cost_t c){
-            return static_cast<double>(c.turns);
-        };
-        gamma = constraints.back().get(GRB_DoubleAttr_Pi);
-    }
-
-    std::vector<double> positions_rcs;
-    positions_coverage_rcs(positions_rcs, coverage_duals);
-
-    bool negative_rcs = false;
-
-    int i=0;
-    for (; i< R.size(); i++){
-        std::pair<segment, double> best = {{path_engine::NULL_NODE, path_engine::NULL_NODE}, 0.0};
-        for (int v = 0; v<geometry.horizontal_bound; v+= geometry.n_cols){
-            std::pair<segment, double> candidate = dag_heuristic(v,
-                                                                 v+ geometry.n_cols -1,
-                                                                 positions_rcs,
-                                                                 R[i].r,
-                                                                 r_duals[i],
-                                                                 gamma,
-                                                                 cost_func);
-            if (candidate.second < best.second &&
-                std::find(R[i].candidates.begin(),
-                          R[i].candidates.end(),
-                          candidate.first) == R[i].candidates.end())
-                best = candidate;
-        }
-        for (int v= geometry.horizontal_bound; v<problem.vertex.size(); v+=geometry.n_rows){
-            std::pair<segment, double> candidate = dag_heuristic(v,
-                                                                 v+ geometry.n_rows -1,
-                                                                 positions_rcs,
-                                                                 R[i].r,
-                                                                 r_duals[i],
-                                                                 gamma,
-                                                                 cost_func);
-            if (candidate.second < best.second&&
-                std::find(R[i].candidates.begin(),
-                          R[i].candidates.end(),
-                          candidate.first) == R[i].candidates.end())
-                best = candidate;
-        }
-        if (best.second < 0.0){
-            cost_t obj_values = replacement_cost(std::next(solution.path.cbegin(), R[i].r),
-                                                 best.first);
-
-            R[i].candidates.push_back(best.first);
-            R[i].variables.push_back(model.addVar(0.0, 1.0,
-                                                  obj_values.length,
-                                                  GRB_CONTINUOUS));
-            Z1 += obj_values.length * R[i].variables.back();
-            Z2 += obj_values.turns * R[i].variables.back();
-            add_stage_column(constraints, R[i], i, model);
-            negative_rcs = true;
-        }
-    }
-    return !negative_rcs;
-}
-
-void neighborhood_r::add_stage_column(std::vector<GRBConstr> &constraints,
-                                            replacement_set &R,
-                                            int r_ctr,
-                                            GRBModel &model) {
-    segment new_seg = R.candidates.back();
-    auto chg_coeff = [&](
-            cppied_solution &, int v){
-        for (SMdIt c(problem.s_pod, v); c; ++c)
-            model.chgCoeff(constraints[c.index()],
-                           R.variables.back(),
-                           c.value());
-    };
-    coverage.apply(solution, new_seg, chg_coeff);
-    cost_t rep_c = replacement_cost(std::next(solution.path.cbegin(), R.r),
-                                    new_seg);
-    int ctr_idx = geometry.n_rows*geometry.n_cols + r_ctr;
-    model.chgCoeff(constraints[ctr_idx], R.variables.back(), 1.0);
-    double length_val = rep_c.length;
-    model.chgCoeff(constraints.back(), R.variables.back(), length_val);
-}
-
-void neighborhood_r::set_warm_start(std::vector<replacement_set> &R) {
-    for (auto& r : R){
-        r.variables[0].set(GRB_DoubleAttr_Start, 1.0);
-        for (int i=1; i<r.variables.size();  ++i)
-            r.variables[i].set(GRB_DoubleAttr_Start, 0.0);
-    }
+    column.addTerm(1.0, reallocationConstraints[pricingSolution.R]);
+    column.addTerm(pricingSolution.costs.length, pathLengthConstraint);
+    reallocationSets[pricingSolution.R].variables.push_back(
+            model->addVar(0.0, 1.0, 0.0, GRB_CONTINUOUS, column, nullptr));
+    reallocationSets[pricingSolution.R].moves.push_back({pricingSolution.s, pricingSolution.costs});
+    *Z1 += pricingSolution.costs.length * reallocationSets[pricingSolution.R].variables.back();
+    *Z2 += pricingSolution.costs.turns * reallocationSets[pricingSolution.R].variables.back();
 }

@@ -1,7 +1,7 @@
 NAME=smallexample_c11111111111
-TIME=600
-SOLVER=GUROBI
-ALGORITHM_CONFIG=c11
+TIME=60
+SOLVER=ILS
+ALGORITHM_CONFIG=c11111111111
 WORKING_DIRECTORY=/Users/dominikrichard/Workspace/Doctorat/Cppied/example/small_example
 SEABED_FILE=/Users/dominikrichard/Workspace/Doctorat/Cppied/example/small_example/cppied_problem.txt
 POD_FILE=/Users/dominikrichard/Workspace/Doctorat/Cppied/example/small_example/cppied_pod.txt

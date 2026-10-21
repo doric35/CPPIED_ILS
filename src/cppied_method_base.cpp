@@ -46,11 +46,11 @@ void cppied_method_base::validate_solution(cppied_solution &pSolution) {
         throw algo_exception("Wrong path length computation");
 }
 
-int cppied_method_base::remaining_time() {
+int cppied_method_base::remaining_time() const {
     auto current_time = std::chrono::high_resolution_clock::now();
     auto elapsed = current_time - ctx.start_time;
     int elapsed_sec = static_cast<int>(
             std::chrono::duration_cast<std::chrono::seconds>(elapsed).count()
     );
-    return ctx.max_time - elapsed_sec;
+    return std::max(0, ctx.max_time - elapsed_sec);
 }

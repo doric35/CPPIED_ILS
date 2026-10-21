@@ -14,20 +14,59 @@ public:
     using neighborhood::coverage;
     using neighborhood::problem;
 
-    using neighborhood_r::select;
-    using neighborhood_r::set_initial_replacements;
-    using neighborhood_r::add_replacements;
-    using neighborhood_r::set_constraints;
-    using neighborhood_r::retrieve_solution;
-    using neighborhood_r::extract_duals;
-    using neighborhood_r::gain;
-    using neighborhood_r::replacement_cost;
-    using neighborhood_r::add_stage_columns;
-    using neighborhood_r::add_stage_column;
-    using neighborhood_r::dag_heuristic;
-    using neighborhood_r::positions_coverage_rcs;
+    using neighborhood_r::removalGain;
+    using neighborhood_r::replacementGain;
+    using neighborhood_r::getRemovalGains;
+    using neighborhood_r::setSelectReallocations;
+    using neighborhood_r::pushInitialSegmentReallocation;
+    using neighborhood_r::constructGurobiModel;
+    using neighborhood_r::retrieveSolution;
+    using neighborhood_r::setDualVariables;
+    using neighborhood_r::setVertexPrices;
+    using neighborhood_r::reset;
+    using neighborhood_r::setInitialReallocationSets;
+    using neighborhood_r::setRemovalCoverage;
+    using neighborhood_r::initializeGurobiEnvironment;
+    using neighborhood_r::initializeGurobiModel;
+    using neighborhood_r::constructLinearProgram;
+    using neighborhood_r::constructInitialVariables;
+    using neighborhood_r::constructReallocationSetVariables;
+    using neighborhood_r::constructObjectives;
+    using neighborhood_r::constructLengthObjective;
+    using neighborhood_r::constructTurnsObjective;
+    using neighborhood_r::constructConstraints;
+    using neighborhood_r::constructCoverageConstraints;
+    using neighborhood_r::constructReallocationConstraints;
+    using neighborhood_r::constructLengthConstraints;
+    using neighborhood_r::columnGeneration;
+    using neighborhood_r::runColumnGenerationIteration;
+    using neighborhood_r::runColumnGenerationFirstStage;
+    using neighborhood_r::runColumnGenerationSecondStage;
+    using neighborhood_r::generateColumn;
+    using neighborhood_r::columnGenerationHasConverged;
+    using neighborhood_r::solvePricingSubproblem;
+    using neighborhood_r::setCoverageDuals;
+    using neighborhood_r::setReallocationDuals;
+    using neighborhood_r::setLengthDual;
+    using neighborhood_r::setLexicographicBinaryProgram;
+    using neighborhood_r::setReallocationModelWarmStart;
+    using neighborhood_r::safeSolutionRetrieve;
+    using neighborhood_r::reallocation;
+    using neighborhood_r::throwIfLpTimedOut;
 
     // Protected members — exposed for direct inspection
+    using neighborhood_r::env;
+    using neighborhood_r::lengthDual;
+    using neighborhood_r::model;
+    using neighborhood_r::coverageConstraints;
+    using neighborhood_r::reallocationConstraints;
+    using neighborhood_r::pathLengthConstraint;
+    using neighborhood_r::reallocationSelection;
+    using neighborhood_r::unsatisfiedCells;
+    using neighborhood_r::reallocationSets;
+    using neighborhood_r::vertexCoveragePrices;
+    using neighborhood_r::coverageDuals;
+    using neighborhood_r::reallocationDuals;
     using neighborhood_r::Z1;
     using neighborhood_r::Z2;
 };
@@ -57,90 +96,93 @@ protected:
         sol.cost = n->geometry.cost(sol);
         ctx.start_time = std::chrono::high_resolution_clock::now();
     }
+
+    // Frees any Gurobi model/environment left allocated by a test.
+    void TearDown() override {
+        n->reset();
+    }
 };
 
 // ============================================================================
-// gain
+// removalGain
 // ============================================================================
 
 TEST_F(neighborhood_r_fixture, GainEqualsRemovalGainAtSameIterator) {
     auto it = std::next(sol.path.cbegin(), 2);
-    EXPECT_EQ(n->gain(it), n->geometry.removal_gain(sol, it));
+    EXPECT_EQ(n->removalGain(2), n->geometry.removal_gain(sol, it));
 }
 
 TEST_F(neighborhood_r_fixture, GainNonNegativeForAllPositions) {
     for (int k = 1; k < (int)sol.path.size(); ++k) {
-        cost_t g = n->gain(std::next(sol.path.cbegin(), k));
+        cost_t g = n->removalGain(k);
         EXPECT_GE(g.length, 0) << "negative length gain at position " << k;
     }
 }
 
 // ============================================================================
-// replacement_cost
+// replacementGain
 // ============================================================================
 
 // Replacing a segment by itself must produce a non-negative differential cost.
 TEST_F(neighborhood_r_fixture, ReplacementCostSelfIsNonNegative) {
     for (int k = 1; k < (int)sol.path.size(); ++k) {
-        auto it = std::next(sol.path.cbegin(), k);
-        cost_t c = n->replacement_cost(it, *it);
+        cost_t c = n->replacementGain(k, sol.path[k]);
         EXPECT_GE(c.length, 0) << "negative self-replacement cost at position " << k;
     }
 }
 
-// replacement_cost must be symmetric under segment flip when the flip has
+// replacementGain must be symmetric under segment flip when the flip has
 // the same geometric length as the original.
 TEST_F(neighborhood_r_fixture, ReplacementCostFlipConsistentWithGeometry) {
-    auto it = std::next(sol.path.cbegin(), 2);
-    segment seg  = *it;
+    segment seg  = sol.path[2];
     segment flip = n->geometry.flip_segment(seg);
-    cost_t c1 = n->replacement_cost(it, seg);
-    cost_t c2 = n->replacement_cost(it, flip);
+    cost_t c1 = n->replacementGain(2, seg);
+    cost_t c2 = n->replacementGain(2, flip);
     // Both are valid costs; we only verify they are non-negative.
     EXPECT_GE(c1.length, 0);
     EXPECT_GE(c2.length, 0);
 }
 
 // ============================================================================
-// add_replacements
+// pushInitialSegmentReallocation
 // ============================================================================
 
-// candidates[0] must be unchanged (the original segment is always first).
+// moves[0] must be the original segment: setReallocationModelWarmStart sets
+// variables[0] to 1 assuming it is the original (identity) reallocation.
 TEST_F(neighborhood_r_fixture, AddReplacementsKeepsOriginalAsFirst) {
-    std::vector<segment> candidates = {sol.path[2]};
-    segment original = candidates[0];
-    n->add_replacements(candidates);
-    EXPECT_EQ(candidates[0].source, original.source);
-    EXPECT_EQ(candidates[0].target, original.target);
+    segment original = sol.path[2];
+    n->reallocationSets.resize(sol.path.size());
+    n->pushInitialSegmentReallocation(2);
+    ASSERT_FALSE(n->reallocationSets[2].moves.empty());
+    EXPECT_EQ(n->reallocationSets[2].moves[0].s.source, original.source);
+    EXPECT_EQ(n->reallocationSets[2].moves[0].s.target, original.target);
 }
 
-// add_replacements internally calls coverage.remove then coverage.insert for
-// candidates[0]. The net effect on pSol.coverage must be zero.
+// Building the initial reallocation set must not alter pSol.coverage.
 TEST_F(neighborhood_r_fixture, AddReplacementsRestoresCoverage) {
     Eigen::VectorXd saved = sol.coverage;
-    std::vector<segment> candidates = {sol.path[2]};
-    n->add_replacements(candidates);
+    n->reallocationSets.resize(sol.path.size());
+    n->pushInitialSegmentReallocation(2);
     EXPECT_TRUE(sol.coverage.isApprox(saved, 1e-9))
-        << "coverage must be unchanged after add_replacements";
+        << "coverage must be unchanged after pushInitialSegmentReallocation";
 }
 
-// Every extra candidate added must have a valid source vertex.
+// Every move added must have a valid source vertex.
 TEST_F(neighborhood_r_fixture, AddReplacementsProducesValidSegments) {
-    std::vector<segment> candidates = {sol.path[2]};
-    n->add_replacements(candidates);
-    for (const auto& s : candidates)
-        EXPECT_NE(s.source, path_engine::NULL_NODE) << "path_engine::NULL_NODE source in replacement candidates";
+    n->reallocationSets.resize(sol.path.size());
+    n->pushInitialSegmentReallocation(2);
+    for (const auto& move : n->reallocationSets[2].moves)
+        EXPECT_NE(move.s.source, path_engine::NULL_NODE) << "path_engine::NULL_NODE source in reallocation moves";
 }
 
 // ============================================================================
-// select
+// setSelectReallocations
 // ============================================================================
 
-// Indices returned by select must be in [1, path.size()-1].
+// Selected indices must be in [1, path.size()-1].
 TEST_F(neighborhood_r_fixture, SelectIndicesInValidRange) {
-    std::vector<int> selection;
-    n->select(selection);
-    for (int idx : selection) {
+    n->setSelectReallocations();
+    for (int idx : n->reallocationSelection) {
         EXPECT_GE(idx, 1)                    << "selected index " << idx << " < 1";
         EXPECT_LT(idx, (int)sol.path.size()) << "selected index " << idx << " >= path.size()";
     }
@@ -149,28 +191,28 @@ TEST_F(neighborhood_r_fixture, SelectIndicesInValidRange) {
 // Index 0 (first segment) must never appear in the selection.
 TEST_F(neighborhood_r_fixture, SelectNeverSelectsFirstSegment) {
     for (int trial = 0; trial < 20; ++trial) {
-        std::vector<int> selection;
-        n->select(selection);
+        n->setSelectReallocations();
+        const auto& selection = n->reallocationSelection;
         EXPECT_FALSE(std::find(selection.begin(), selection.end(), 0)
                      != selection.end())
             << "trial " << trial << ": first segment (index 0) was selected";
     }
 }
 
-// select must produce a non-empty result for any non-trivial path.
+// The selection must be non-empty for any non-trivial path.
 TEST_F(neighborhood_r_fixture, SelectNonEmptyForNontrivialPath) {
-    std::vector<int> selection;
-    n->select(selection);
-    EXPECT_GT(selection.size(), 0u);
+    n->setSelectReallocations();
+    EXPECT_GT(n->reallocationSelection.size(), 0u);
 }
 
 TEST_F(neighborhood_r_fixture, SelectGainsIndexedAtCorrectPathPosition) {
     int N = (int)sol.path.size();
 
     // Compute correct gain for each path position [1..N-1].
-    std::vector<cost_t> correct_gains(N, {0, 0});
+    std::vector<cost_t> correct_gains = n->getRemovalGains();
+    ASSERT_EQ((int)correct_gains.size(), N);
     for (int k = 1; k < N; ++k)
-        correct_gains[k] = n->gain(std::next(sol.path.cbegin(), k));
+        EXPECT_EQ(correct_gains[k], n->removalGain(k)) << "getRemovalGains mismatch at position " << k;
 
     // Even candidates: {2,4,6,...}, odd candidates: {1,3,5,...}
     cost_t correct_even{0,0}, correct_odd{0,0};
@@ -191,112 +233,90 @@ TEST_F(neighborhood_r_fixture, SelectGainsIndexedAtCorrectPathPosition) {
 }
 
 // ============================================================================
-// Gurobi-based fixture — set_constraints + retrieve_solution
+// Gurobi-based fixture — constructGurobiModel + retrieveSolution
 // ============================================================================
 
 class neighborhood_r_gurobi_fixture : public neighborhood_r_fixture {
 protected:
-    GRBEnv genv{true};
-    std::unique_ptr<GRBModel> model;
-    std::vector<int>           selection;
-    std::vector<replacement_set> replacements;
-    std::vector<GRBConstr>     constraints;
-
     void SetUp() override {
         neighborhood_r_fixture::SetUp();
-        genv.set(GRB_IntParam_OutputFlag, 0);
-        genv.start();
-        model = std::make_unique<GRBModel>(genv);
 
-        n->select(selection);
-        ASSERT_FALSE(selection.empty()) << "select returned empty; cannot build model";
+        n->setSelectReallocations();
+        ASSERT_FALSE(n->reallocationSelection.empty())
+            << "setSelectReallocations returned empty; cannot build model";
 
-        n->set_initial_replacements(selection, replacements, *model);
-        n->set_constraints(replacements, constraints, *model);
-        model->set(GRB_IntAttr_ModelSense, GRB_MINIMIZE);
-        model->update();
+        n->constructGurobiModel();
+        ASSERT_NE(n->model, nullptr);
     }
 };
 
-// ─── set_constraints ────────────────────────────────────────────────────────
+// ─── constructConstraints ───────────────────────────────────────────────────
 
 // Total constraint count must be:
-//   n_rows*n_cols  (one per coverage cell)
-// + R.size()       (one per replacement set: sum_j x_j <= 1)
-// + 1              (gamma: total length <= incumbent)
-//
-// Bug: the coverage loop uses `lin_expr_set.size() - R.size()` as the bound,
-// producing only n_rows*n_cols - R.size() + R.size() + 1 = n_rows*n_cols + 1
-// constraints — the last R.size() coverage cells are never constrained.
+//   |unsatisfiedCells|          (one per cell left unsatisfied after removal)
+// + |reallocationSelection|     (one per reallocation set: sum_j x_j <= 1)
+// + 1                           (total length <= incumbent)
 TEST_F(neighborhood_r_gurobi_fixture, SetConstraintsTotalConstraintCount) {
-    int n_cells = n->geometry.n_rows * n->geometry.n_cols;
-    int expected = n_cells + (int)replacements.size() + 1;
-    EXPECT_EQ((int)constraints.size(), expected)
-        << "Bug: coverage loop bound is `lin_expr_set.size() - R.size()` "
-           "instead of `lin_expr_set.size()`. "
-           << (int)replacements.size() << " coverage cell(s) have no constraint.";
+    int expected = (int)n->unsatisfiedCells.size()
+                 + (int)n->reallocationSelection.size() + 1;
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumConstrs), expected)
+        << "expected one coverage constraint per unsatisfied cell, one reallocation "
+           "constraint per selected position and one length constraint";
 }
 
-// The first n_cells constraints must be coverage constraints (RHS = req - coverage).
-// The next R.size() constraints must be replacement constraints (RHS = 1).
-// Bug in add_stage_column: uses constraints[r_ctr] (a coverage constraint)
-// instead of constraints[n_cells + r_ctr] (the correct replacement constraint).
+// Reallocation constraints must be stored at their path index (RHS = 1),
+// coverage constraints at their cell index (RHS = req - coverage).
 TEST_F(neighborhood_r_gurobi_fixture, SetConstraintsReplacementConstraintsAtCorrectOffset) {
-    int n_cells = n->geometry.n_rows * n->geometry.n_cols;
-    if ((int)constraints.size() < n_cells + (int)replacements.size() + 1)
-        GTEST_SKIP() << "insufficient constraints (set_constraints coverage-loop bug active)";
-
-    // Replacement constraint for R[k] must be at index n_cells + k, with RHS = 1.
-    for (int k = 0; k < (int)replacements.size(); ++k) {
-        EXPECT_DOUBLE_EQ(constraints[n_cells + k].get(GRB_DoubleAttr_RHS), 1.0)
-            << "constraints[n_cells+" << k << "] should be a replacement constraint (RHS=1); "
-               "add_stage_column uses constraints[r_ctr] instead of constraints[n_cells+r_ctr]";
+    for (int i : n->reallocationSelection) {
+        EXPECT_DOUBLE_EQ(n->reallocationConstraints[i].get(GRB_DoubleAttr_RHS), 1.0)
+            << "reallocationConstraints[" << i << "] should be a reallocation constraint (RHS=1)";
     }
-    // Index 0 must remain a coverage constraint (RHS != 1 for typical problems).
-    EXPECT_NE(constraints[0].get(GRB_DoubleAttr_RHS), 1.0)
-        << "constraints[0] must be a coverage constraint, not a replacement constraint";
+    for (int c : n->unsatisfiedCells) {
+        EXPECT_NEAR(n->coverageConstraints[c].get(GRB_DoubleAttr_RHS),
+                    P.req[c] - sol.coverage[c], 1e-9)
+            << "coverageConstraints[" << c << "] must be the coverage constraint of cell " << c;
+    }
 }
 
-// Each replacement set must carry exactly as many variables as candidates.
+// Each reallocation set must carry exactly as many variables as moves.
 TEST_F(neighborhood_r_gurobi_fixture, ReplacementVariableCountMatchesCandidates) {
-    for (int k = 0; k < (int)replacements.size(); ++k)
-        EXPECT_EQ(replacements[k].variables.size(), replacements[k].candidates.size())
-            << "R[" << k << "]: variables.size() != candidates.size()";
+    for (int k = 0; k < (int)n->reallocationSets.size(); ++k)
+        EXPECT_EQ(n->reallocationSets[k].variables.size(), n->reallocationSets[k].moves.size())
+            << "reallocationSets[" << k << "]: variables.size() != moves.size()";
 }
 
-// candidates[0] of every replacement set must be the original path segment.
+// moves[0] of every selected reallocation set must be the original path segment.
 TEST_F(neighborhood_r_gurobi_fixture, ReplacementCandidatesZeroIsOriginalSegment) {
-    for (int k = 0; k < (int)replacements.size(); ++k) {
-        int pos = replacements[k].r;
-        ASSERT_FALSE(replacements[k].candidates.empty());
-        EXPECT_EQ(replacements[k].candidates[0].source, sol.path[pos].source)
-            << "R[" << k << "].candidates[0] must be the original segment at path[" << pos << "]";
-        EXPECT_EQ(replacements[k].candidates[0].target, sol.path[pos].target);
+    for (int pos : n->reallocationSelection) {
+        const auto& moves = n->reallocationSets[pos].moves;
+        ASSERT_FALSE(moves.empty());
+        EXPECT_EQ(moves[0].s.source, sol.path[pos].source)
+            << "reallocationSets[" << pos << "].moves[0] must be the original segment at path[" << pos << "]";
+        EXPECT_EQ(moves[0].s.target, sol.path[pos].target);
     }
 }
 
-// ─── retrieve_solution ──────────────────────────────────────────────────────
+// ─── retrieveSolution ───────────────────────────────────────────────────────
 
 class neighborhood_r_solved_fixture : public neighborhood_r_gurobi_fixture {
 protected:
     void SetUp() override {
         neighborhood_r_gurobi_fixture::SetUp();
-        model->setObjective(n->Z1, GRB_MINIMIZE);
-        model->update();
-        model->optimize();
-        ASSERT_EQ(model->get(GRB_IntAttr_Status), GRB_OPTIMAL)
+        n->model->setObjective(*n->Z1, GRB_MINIMIZE);
+        n->model->update();
+        n->model->optimize();
+        ASSERT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL)
             << "Gurobi did not find an optimal solution; test cannot proceed";
     }
 };
 
 // Non-selected path positions must appear in the output path.
-// Bug: same missing else-clause — non-selected segments are silently dropped.
 TEST_F(neighborhood_r_solved_fixture, RetrieveSolutionNonSelectedSegmentsPreserved) {
     std::vector<segment> original = sol.path;
-    std::set<int>        selected_pos;
-    for (auto& rs : replacements) selected_pos.insert(rs.r);
+    std::set<int>        selected_pos(n->reallocationSelection.begin(),
+                                      n->reallocationSelection.end());
 
-    n->retrieve_solution(replacements);
+    n->retrieveSolution();
 
     for (int k = 0; k < (int)original.size(); ++k) {
         if (selected_pos.count(k)) continue;
@@ -311,70 +331,29 @@ TEST_F(neighborhood_r_solved_fixture, RetrieveSolutionNonSelectedSegmentsPreserv
     }
 }
 
-// When r reaches R.size() the remaining iterations must not access R[r].r.
-// Bug: no guard `r < R.size()` before the condition `i == R[r].r`.
+// retrieveSolution must only read reallocation sets that were built.
 TEST_F(neighborhood_r_solved_fixture, RetrieveSolutionNoOutOfBoundsAfterRExhausted) {
-    EXPECT_NO_FATAL_FAILURE(n->retrieve_solution(replacements))
-        << "retrieve_solution accessed R[r].r with r >= R.size() (out-of-bounds). "
-           "Fix: guard with `if (r < (int)R.size() && i == R[r].r)`.";
+    EXPECT_NO_FATAL_FAILURE(n->retrieveSolution())
+        << "retrieveSolution accessed a reallocation set out-of-bounds.";
 }
 
-// ─── extract_duals / add_stage_columns sizing ────────────────────────────────
+// ─── setDualVariables sizing ─────────────────────────────────────────────────
 
-// add_stage_columns constructs coverage_duals and r_duals as empty vectors,
-// then calls extract_duals which uses their .size() as loop bounds.
-// With size=0, no duals are extracted and r_duals[i] accesses out-of-bounds.
-//
-// This test verifies that extract_duals correctly populates duals when the
-// vectors are pre-sized (the fix is to pre-size them before the call).
+// setCoverageDuals / setReallocationDuals index coverageDuals and
+// reallocationDuals directly; they must be pre-sized before the call.
+// This test verifies that setDualVariables correctly populates duals when the
+// vectors are pre-sized.
 TEST_F(neighborhood_r_solved_fixture, ExtractDualsPopulatesVectorsWhenPresized) {
     int n_cells = n->geometry.n_rows * n->geometry.n_cols;
-    std::vector<double> cov_duals(n_cells, 0.0);
-    std::vector<double> r_duals(replacements.size(), 0.0);
+    n->coverageDuals     = Eigen::VectorXd::Zero(n_cells);
+    n->reallocationDuals = Eigen::VectorXd::Zero((int)n->reallocationSets.size());
 
-    EXPECT_NO_THROW(n->extract_duals(constraints, cov_duals, r_duals));
+    EXPECT_NO_THROW(n->setDualVariables());
 
-    EXPECT_EQ((int)cov_duals.size(), n_cells)
-        << "coverage_duals must have one entry per coverage cell";
-    EXPECT_EQ((int)r_duals.size(), (int)replacements.size())
-        << "r_duals must have one entry per replacement set";
-}
-
-// ============================================================================
-// dag_heuristic — backtracking vertex coordinates
-// ============================================================================
-
-// Bug: `int v = P.back()` gives a D/P index (relative offset from source).
-// `int u = v - first + 1` then subtracts `first` a second time.
-// The returned segment must contain valid vertex IDs in [first, last], not
-// shifted D/P indices.
-TEST_F(neighborhood_r_fixture, DagHeuristicReturnedSegmentVerticesInRange) {
-    int n_cells = n->geometry.n_rows * n->geometry.n_cols;
-    std::vector<double> cov_duals(n_cells, 1.0);   // uniform positive duals
-    int first = 0;
-    int last  = n->geometry.n_cols - 1;
-
-    auto cost_func = [](cost_t c) { return (double)c.length; };
-
-    // r=1: compute dag for the second segment replacement.
-    auto [seg, rc] = n->dag_heuristic(first, last,
-                                      cov_duals,
-                                      /*r=*/1, /*r_dual=*/0.0,
-                                      /*gamma=*/0.0,
-                                      cost_func);
-
-    if (path_engine::is_node(seg.source)) {
-        EXPECT_GE(seg.source, first)
-            << "returned source vertex < first (likely a raw D/P index, not a vertex coordinate)";
-        EXPECT_LE(seg.source, last)
-            << "returned source vertex > last";
-    }
-    if (path_engine::is_node(seg.target)) {
-        EXPECT_GE(seg.target, first)
-            << "returned target vertex < first";
-        EXPECT_LE(seg.target, last)
-            << "returned target vertex > last";
-    }
+    EXPECT_EQ((int)n->coverageDuals.size(), n_cells)
+        << "coverageDuals must have one entry per coverage cell";
+    EXPECT_EQ((int)n->reallocationDuals.size(), (int)n->reallocationSets.size())
+        << "reallocationDuals must have one entry per reallocation set";
 }
 
 // ============================================================================
@@ -637,4 +616,819 @@ TEST_F(neighborhood_r_fixture, SpecialCaseNoInvalidNode){
     sol.cost = n->geometry.cost(sol);
     ctx.max_time = 600;
     EXPECT_NO_THROW(n->local_search());
+}
+
+// ============================================================================
+// Helpers for the per-function tests below
+// ============================================================================
+
+namespace {
+
+int totalMoves(const neighborhood_r_accessor& n) {
+    int total = 0;
+    for (const auto& set : n.reallocationSets) total += (int)set.moves.size();
+    return total;
+}
+
+bool isSelected(const neighborhood_r_accessor& n, int i) {
+    return std::find(n.reallocationSelection.begin(), n.reallocationSelection.end(), i)
+           != n.reallocationSelection.end();
+}
+
+// Path implied by the current Gurobi solution: a selected position takes the
+// move whose variable is 1 (or is removed when none is), others are kept.
+std::vector<segment> expectedPathFromSolution(neighborhood_r_accessor& n,
+                                              const std::vector<segment>& path) {
+    std::vector<segment> expected;
+    for (int i = 0; i < (int)path.size(); ++i) {
+        if (!isSelected(n, i)) { expected.push_back(path[i]); continue; }
+        const auto& set = n.reallocationSets[i];
+        for (int k = 0; k < (int)set.moves.size(); ++k)
+            if (set.variables[k].get(GRB_DoubleAttr_X) > 0.5) { expected.push_back(set.moves[k].s); break; }
+    }
+    return expected;
+}
+
+// Sum of the POD coefficients of cell c over the vertices of s.
+double segmentCellPod(neighborhood_r_accessor& n, const segment& s, int c) {
+    segment no = n.geometry.getNonOriented(s);
+    int u = no.source;
+    int v = path_engine::is_node(no.target) ? no.target : u;
+    double sum = 0.0;
+    for (int w = u; w <= v; ++w) sum += n.problem.s_pod.coeff(c, w);
+    return sum;
+}
+
+} // namespace
+
+// ============================================================================
+// reset
+// ============================================================================
+
+TEST_F(neighborhood_r_fixture, ResetOnFreshObjectIsSafe) {
+    EXPECT_NO_THROW(n->reset());
+    EXPECT_NO_THROW(n->reset());
+    EXPECT_EQ(n->model, nullptr);
+    EXPECT_EQ(n->env, nullptr);
+    EXPECT_FALSE(n->columnGenerationHasConverged());
+}
+
+TEST_F(neighborhood_r_fixture, ResetReleasesModelAndClearsState) {
+    n->setSelectReallocations();
+    n->constructGurobiModel();
+    n->reallocationDuals = Eigen::VectorXd::Ones((int)n->reallocationSets.size());
+    n->coverageDuals.setOnes();
+    n->lengthDual = 3.0;
+
+    n->reset();
+
+    EXPECT_EQ(n->Z1, nullptr);
+    EXPECT_EQ(n->Z2, nullptr);
+    EXPECT_EQ(n->model, nullptr);
+    EXPECT_EQ(n->env, nullptr);
+    EXPECT_TRUE(n->reallocationSelection.empty());
+    EXPECT_TRUE(n->reallocationSets.empty());
+    EXPECT_TRUE((n->coverageDuals.array() == 0.0).all());
+    EXPECT_TRUE((n->reallocationDuals.array() == 0.0).all());
+    EXPECT_EQ(n->lengthDual, 0.0);
+    EXPECT_FALSE(n->columnGenerationHasConverged());
+}
+
+// ============================================================================
+// removalGain / replacementGain / getRemovalGains — edge cases
+// ============================================================================
+
+TEST_F(neighborhood_r_fixture, GetRemovalGainsFirstEntryIsZero) {
+    std::vector<cost_t> gains = n->getRemovalGains();
+    ASSERT_EQ(gains.size(), sol.path.size());
+    EXPECT_EQ(gains[0], (cost_t{0, 0})) << "the start segment is never removable";
+}
+
+// The last segment has no successor: its gain is a tail insertion.
+TEST_F(neighborhood_r_fixture, ReplacementGainLastSegmentIsTailInsertion) {
+    int last = (int)sol.path.size() - 1;
+    segment s = n->geometry.flip_segment(sol.path[last]);
+    EXPECT_EQ(n->replacementGain(last, s), n->geometry.insert_tail_gain(sol.path[last - 1], s));
+}
+
+TEST_F(neighborhood_r_fixture, ReplacementGainInteriorSegmentIsBetweenInsertion) {
+    segment s = n->geometry.flip_segment(sol.path[3]);
+    EXPECT_EQ(n->replacementGain(3, s), n->geometry.insert_between_gain(sol.path[2], s, sol.path[4]));
+}
+
+// ============================================================================
+// setSelectReallocations — edge cases
+// ============================================================================
+
+// The selection is a complete parity group of [1, N).
+TEST_F(neighborhood_r_fixture, SelectIsCompleteParityGroup) {
+    const int N = (int)sol.path.size();
+    std::vector<int> even, odd;
+    for (int i = 1; i < N; ++i) (i % 2 == 0 ? even : odd).push_back(i);
+    for (int trial = 0; trial < 20; ++trial) {
+        n->setSelectReallocations();
+        EXPECT_TRUE(n->reallocationSelection == even || n->reallocationSelection == odd)
+            << "trial " << trial << ": selection is not a complete parity group";
+    }
+}
+
+TEST_F(neighborhood_r_fixture, SelectOnSingleSegmentPathIsEmpty) {
+    sol.path = {{6, 11}};
+    n->setSelectReallocations();
+    EXPECT_TRUE(n->reallocationSelection.empty());
+}
+
+TEST_F(neighborhood_r_fixture, SelectOnTwoSegmentPathIsSubsetOfLast) {
+    sol.path = {{6, 11}, {23, 18}};
+    for (int trial = 0; trial < 20; ++trial) {
+        n->setSelectReallocations();
+        EXPECT_TRUE(n->reallocationSelection.empty() || n->reallocationSelection == std::vector<int>{1});
+    }
+}
+
+// ============================================================================
+// pushInitialSegmentReallocation / setInitialReallocationSets
+// ============================================================================
+
+// Every move carries its replacement gain at that position, including the last one.
+TEST_F(neighborhood_r_fixture, PushInitialMovesCarryReplacementGain) {
+    n->reallocationSets.resize(sol.path.size());
+    for (int index : {1, (int)sol.path.size() - 1}) {
+        n->pushInitialSegmentReallocation(index);
+        const auto& moves = n->reallocationSets[index].moves;
+        ASSERT_FALSE(moves.empty());
+        EXPECT_LE(moves.size(), 2u) << "at most the original and one MaximumReplacement move";
+        EXPECT_EQ(moves[0].s, sol.path[index]);
+        for (const auto& move : moves)
+            EXPECT_EQ(move.gain, n->replacementGain(index, move.s)) << "index " << index;
+    }
+}
+
+TEST_F(neighborhood_r_fixture, SetInitialReallocationSetsOnlyFillsSelected) {
+    n->setSelectReallocations();
+    n->setInitialReallocationSets();
+    ASSERT_EQ(n->reallocationSets.size(), sol.path.size());
+    for (int i = 0; i < (int)sol.path.size(); ++i) {
+        if (isSelected(*n, i)) {
+            ASSERT_FALSE(n->reallocationSets[i].moves.empty()) << "selected set " << i << " is empty";
+            EXPECT_EQ(n->reallocationSets[i].moves[0].s, sol.path[i]);
+        } else {
+            EXPECT_TRUE(n->reallocationSets[i].moves.empty()) << "non-selected set " << i << " has moves";
+        }
+        EXPECT_TRUE(n->reallocationSets[i].variables.empty()) << "variables are created later";
+    }
+}
+
+// ============================================================================
+// setRemovalCoverage
+// ============================================================================
+
+TEST_F(neighborhood_r_fixture, SetRemovalCoverageRemovesSelectedSegments) {
+    n->setSelectReallocations();
+    cppied_solution reduced = sol;
+    reduced.path.clear();
+    for (int i = 0; i < (int)sol.path.size(); ++i)
+        if (!isSelected(*n, i)) reduced.path.push_back(sol.path[i]);
+    n->coverage.reset(reduced);
+
+    n->setRemovalCoverage();
+    EXPECT_TRUE(sol.coverage.isApprox(reduced.coverage, 1e-9))
+        << "coverage must equal the coverage of the path without the selected segments";
+}
+
+TEST_F(neighborhood_r_fixture, SetRemovalCoverageEmptySelectionKeepsCoverage) {
+    Eigen::VectorXd saved = sol.coverage;
+    n->reallocationSelection.clear();
+    n->setRemovalCoverage();
+    EXPECT_TRUE(sol.coverage.isApprox(saved, 1e-9));
+}
+
+// ============================================================================
+// Staged model construction — each construct* step called directly
+// ============================================================================
+
+class neighborhood_r_staged_fixture : public neighborhood_r_fixture {
+protected:
+    void SetUp() override {
+        neighborhood_r_fixture::SetUp();
+        n->setSelectReallocations();
+        ASSERT_FALSE(n->reallocationSelection.empty());
+        n->initializeGurobiEnvironment();
+        n->initializeGurobiModel();
+        n->setInitialReallocationSets();
+    }
+};
+
+TEST_F(neighborhood_r_staged_fixture, InitializeGurobiEnvironmentSetsParameters) {
+    ASSERT_NE(n->env, nullptr);
+    EXPECT_EQ(n->env->get(GRB_IntParam_OutputFlag), 0);
+    EXPECT_EQ(n->env->get(GRB_IntParam_LogToConsole), 0);
+    EXPECT_EQ(n->env->get(GRB_IntParam_ThreadLimit), 1);
+    std::filesystem::path expected = std::filesystem::path(ctx.config.at("WORKING_DIRECTORY")) / "reallocation.log";
+    EXPECT_EQ(n->env->get(GRB_StringParam_LogFile), expected.string());
+}
+
+TEST_F(neighborhood_r_staged_fixture, InitializeGurobiModelCreatesEmptyModel) {
+    ASSERT_NE(n->model, nullptr);
+    n->model->update();
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumVars), 0);
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumConstrs), 0);
+}
+
+TEST_F(neighborhood_r_staged_fixture, ConstructReallocationSetVariablesOnePerMove) {
+    int index = n->reallocationSelection.front();
+    n->constructReallocationSetVariables(index);
+    n->model->update();
+    const auto& set = n->reallocationSets[index];
+    ASSERT_EQ(set.variables.size(), set.moves.size());
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumVars), (int)set.moves.size());
+    for (const auto& var : set.variables) {
+        EXPECT_EQ(var.get(GRB_CharAttr_VType), GRB_CONTINUOUS) << "the restricted master must be an LP";
+        EXPECT_EQ(var.get(GRB_DoubleAttr_LB), 0.0);
+        EXPECT_EQ(var.get(GRB_DoubleAttr_UB), 1.0);
+    }
+}
+
+// A non-selected position has no moves, so no variable is created.
+TEST_F(neighborhood_r_staged_fixture, ConstructReallocationSetVariablesOnEmptySetAddsNothing) {
+    n->constructReallocationSetVariables(0);
+    n->model->update();
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumVars), 0);
+    EXPECT_TRUE(n->reallocationSets[0].variables.empty());
+}
+
+TEST_F(neighborhood_r_staged_fixture, ConstructInitialVariablesCoversAllSelectedMoves) {
+    n->constructInitialVariables();
+    n->model->update();
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumVars), totalMoves(*n));
+    for (const auto& set : n->reallocationSets)
+        EXPECT_EQ(set.variables.size(), set.moves.size());
+}
+
+TEST_F(neighborhood_r_staged_fixture, LengthAndTurnsObjectivesUseMoveGains) {
+    n->constructInitialVariables();
+    n->constructLengthObjective();
+    n->constructTurnsObjective();
+    n->model->update();
+    ASSERT_NE(n->Z1, nullptr);
+    ASSERT_NE(n->Z2, nullptr);
+    EXPECT_EQ((int)n->Z1->size(), totalMoves(*n));
+    EXPECT_EQ((int)n->Z2->size(), totalMoves(*n));
+
+    n->model->setObjective(*n->Z1);
+    n->model->update();
+    for (const auto& set : n->reallocationSets)
+        for (size_t k = 0; k < set.moves.size(); ++k)
+            EXPECT_DOUBLE_EQ(set.variables[k].get(GRB_DoubleAttr_Obj), set.moves[k].gain.length);
+
+    n->model->setObjective(*n->Z2);
+    n->model->update();
+    for (const auto& set : n->reallocationSets)
+        for (size_t k = 0; k < set.moves.size(); ++k)
+            EXPECT_DOUBLE_EQ(set.variables[k].get(GRB_DoubleAttr_Obj), set.moves[k].gain.turns);
+}
+
+TEST_F(neighborhood_r_staged_fixture, ConstructObjectivesBuildsBothObjectives) {
+    n->constructInitialVariables();
+    n->constructObjectives();
+    EXPECT_NE(n->Z1, nullptr);
+    EXPECT_NE(n->Z2, nullptr);
+}
+
+// Coverage rows: one per cell left unsatisfied after removal, RHS = req - coverage,
+// coefficient of each move = POD of the cell summed over the move's vertices.
+TEST_F(neighborhood_r_staged_fixture, ConstructCoverageConstraintsRowsAndCoefficients) {
+    n->constructInitialVariables();
+    n->constructCoverageConstraints();
+    n->model->update();
+
+    std::vector<int> unsat;
+    n->coverage.unsatisfied_cells(sol, unsat);
+    EXPECT_EQ(n->unsatisfiedCells, unsat) << "unsatisfiedCells must be computed after removing the selection";
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumConstrs), (int)unsat.size());
+
+    for (int c : n->unsatisfiedCells) {
+        EXPECT_NEAR(n->coverageConstraints[c].get(GRB_DoubleAttr_RHS), P.req[c] - sol.coverage[c], 1e-9);
+        EXPECT_EQ(n->coverageConstraints[c].get(GRB_CharAttr_Sense), GRB_GREATER_EQUAL);
+        for (int i : n->reallocationSelection) {
+            const auto& set = n->reallocationSets[i];
+            for (size_t k = 0; k < set.moves.size(); ++k)
+                EXPECT_NEAR(n->model->getCoeff(n->coverageConstraints[c], set.variables[k]),
+                            segmentCellPod(*n, set.moves[k].s, c), 1e-9)
+                    << "cell " << c << ", set " << i << ", move " << k;
+        }
+    }
+}
+
+TEST_F(neighborhood_r_staged_fixture, ConstructReallocationConstraintsSelectAtMostOne) {
+    n->constructInitialVariables();
+    n->constructReallocationConstraints();
+    n->model->update();
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumConstrs), (int)n->reallocationSelection.size());
+    for (int i : n->reallocationSelection) {
+        const GRBConstr& row = n->reallocationConstraints[i];
+        EXPECT_EQ(row.get(GRB_CharAttr_Sense), GRB_LESS_EQUAL);
+        EXPECT_DOUBLE_EQ(row.get(GRB_DoubleAttr_RHS), 1.0);
+        EXPECT_EQ(n->model->getRow(row).size(), n->reallocationSets[i].variables.size());
+        for (const auto& var : n->reallocationSets[i].variables)
+            EXPECT_DOUBLE_EQ(n->model->getCoeff(row, var), 1.0);
+    }
+}
+
+TEST_F(neighborhood_r_staged_fixture, ConstructLengthConstraintsBoundsZ1ByIncumbent) {
+    n->constructInitialVariables();
+    n->constructObjectives();
+    n->constructLengthConstraints();
+    n->model->update();
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumConstrs), 1);
+    EXPECT_EQ(n->pathLengthConstraint.get(GRB_CharAttr_Sense), GRB_LESS_EQUAL);
+    EXPECT_DOUBLE_EQ(n->pathLengthConstraint.get(GRB_DoubleAttr_RHS), sol.cost.length);
+    for (const auto& set : n->reallocationSets)
+        for (size_t k = 0; k < set.moves.size(); ++k)
+            EXPECT_DOUBLE_EQ(n->model->getCoeff(n->pathLengthConstraint, set.variables[k]),
+                             set.moves[k].gain.length);
+}
+
+TEST_F(neighborhood_r_staged_fixture, ConstructConstraintsBuildsAllRows) {
+    n->constructInitialVariables();
+    n->constructObjectives();
+    n->constructConstraints();
+    n->model->update();
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumConstrs),
+              (int)n->unsatisfiedCells.size() + (int)n->reallocationSelection.size() + 1);
+}
+
+TEST_F(neighborhood_r_staged_fixture, ConstructLinearProgramBuildsVariablesObjectivesAndRows) {
+    n->constructLinearProgram();
+    n->model->update();
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumVars), totalMoves(*n));
+    EXPECT_NE(n->Z1, nullptr);
+    EXPECT_NE(n->Z2, nullptr);
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumConstrs),
+              (int)n->unsatisfiedCells.size() + (int)n->reallocationSelection.size() + 1);
+}
+
+// ============================================================================
+// Dual extraction (LP solved on Z1)
+// ============================================================================
+
+TEST_F(neighborhood_r_solved_fixture, SetCoverageDualsMatchesPiAndSign) {
+    n->setCoverageDuals();
+    for (int c = 0; c < (int)n->coverageDuals.size(); ++c) {
+        if (std::find(n->unsatisfiedCells.begin(), n->unsatisfiedCells.end(), c) != n->unsatisfiedCells.end()) {
+            EXPECT_NEAR(n->coverageDuals(c), n->coverageConstraints[c].get(GRB_DoubleAttr_Pi), 1e-12);
+            EXPECT_GE(n->coverageDuals(c), -1e-9) << ">= row of a minimisation must have a non-negative dual";
+        } else {
+            EXPECT_EQ(n->coverageDuals(c), 0.0) << "cell " << c << " has no row; its dual must stay 0";
+        }
+    }
+}
+
+TEST_F(neighborhood_r_solved_fixture, SetReallocationDualsMatchesPiAndSign) {
+    n->reallocationDuals = Eigen::VectorXd::Zero((int)n->reallocationSets.size());
+    n->setReallocationDuals();
+    for (int i = 0; i < (int)n->reallocationDuals.size(); ++i) {
+        if (isSelected(*n, i)) {
+            EXPECT_NEAR(n->reallocationDuals(i), n->reallocationConstraints[i].get(GRB_DoubleAttr_Pi), 1e-12);
+            EXPECT_LE(n->reallocationDuals(i), 1e-9) << "<= row of a minimisation must have a non-positive dual";
+        } else {
+            EXPECT_EQ(n->reallocationDuals(i), 0.0);
+        }
+    }
+}
+
+TEST_F(neighborhood_r_solved_fixture, SetLengthDualMatchesPiAndSign) {
+    n->setLengthDual();
+    EXPECT_NEAR(n->lengthDual, n->pathLengthConstraint.get(GRB_DoubleAttr_Pi), 1e-12);
+    EXPECT_LE(n->lengthDual, 1e-9);
+}
+
+// ============================================================================
+// setVertexPrices
+// ============================================================================
+
+TEST_F(neighborhood_r_fixture, SetVertexPricesArePodWeightedDuals) {
+    for (int c = 0; c < (int)n->coverageDuals.size(); ++c) n->coverageDuals(c) = 0.1 * (c % 7) - 0.2;
+    n->setVertexPrices();
+    for (int u = 0; u < n->geometry.n_vertex; ++u) {
+        double expected = 0.0;
+        for (int c = 0; c < (int)n->coverageDuals.size(); ++c)
+            expected += n->problem.s_pod.coeff(c, u) * n->coverageDuals(c);
+        EXPECT_NEAR(n->vertexCoveragePrices(u), expected, 1e-9) << "vertex " << u;
+    }
+}
+
+TEST_F(neighborhood_r_fixture, SetVertexPricesZeroDualsGiveZeroPrices) {
+    n->vertexCoveragePrices.setOnes();
+    n->coverageDuals.setZero();
+    n->setVertexPrices();
+    EXPECT_TRUE((n->vertexCoveragePrices.array() == 0.0).all());
+}
+
+// ============================================================================
+// Column generation fixture — LP built, reallocation duals sized as in local_search
+// ============================================================================
+
+class neighborhood_r_cg_fixture : public neighborhood_r_gurobi_fixture {
+protected:
+    void SetUp() override {
+        neighborhood_r_gurobi_fixture::SetUp();
+        if (HasFatalFailure()) return;
+        n->reallocationDuals = Eigen::VectorXd::Zero((int)n->reallocationSets.size());
+    }
+
+    void buildBinaryProgram() {
+        n->columnGeneration();
+        n->setLexicographicBinaryProgram();
+        n->setReallocationModelWarmStart();
+        n->model->update();
+    }
+};
+
+// ─── solvePricingSubproblem ─────────────────────────────────────────────────
+
+// The pricing result is the best MinimumPrice solution over the selected
+// indices, evaluated with the duals of the current LP.
+template<typename Solver>
+void checkPricingIsBestOverSelection(neighborhood_r_accessor& n, cppied_solution& sol) {
+    PricingSolution pricing = n.solvePricingSubproblem<Solver>();
+
+    double best = std::numeric_limits<double>::max();
+    int best_r = -1;
+    for (int r : n.reallocationSelection) {
+        Reallocation candidate = Solver(n.vertexCoveragePrices, n.reallocationDuals(r), n.lengthDual,
+                                        n.problem, n.coverage, n.geometry, sol, r).solve();
+        if (candidate.value < best) { best = candidate.value; best_r = r; }
+    }
+    EXPECT_NEAR(pricing.value, best, 1e-9) << "pricing must return the minimum reduced cost over the selection";
+    EXPECT_EQ(pricing.R, best_r) << "R must be the path index of the reallocated segment";
+    EXPECT_TRUE(isSelected(n, pricing.R));
+    ASSERT_TRUE(path_engine::is_node(pricing.s.source));
+    EXPECT_EQ(pricing.costs, n.replacementGain(pricing.R, pricing.s));
+}
+
+TEST_F(neighborhood_r_cg_fixture, SolvePricingSubproblemFirstStageReturnsBestSelectedReallocation) {
+    n->model->setObjective(*n->Z1, GRB_MINIMIZE);
+    n->model->optimize();
+    ASSERT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL);
+    checkPricingIsBestOverSelection<FirstStageMinimumPrice>(*n, sol);
+}
+
+TEST_F(neighborhood_r_cg_fixture, SolvePricingSubproblemSecondStageReturnsBestSelectedReallocation) {
+    n->model->setObjective(*n->Z2, GRB_MINIMIZE);
+    n->model->optimize();
+    ASSERT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL);
+    checkPricingIsBestOverSelection<SecondStageMinimumPrice>(*n, sol);
+}
+
+// No selected index: no column may be produced and no gain may be evaluated.
+TEST_F(neighborhood_r_cg_fixture, SolvePricingSubproblemEmptySelectionReturnsNoColumn) {
+    n->model->setObjective(*n->Z1, GRB_MINIMIZE);
+    n->model->optimize();
+    ASSERT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL);
+    n->reallocationSelection.clear();
+
+    PricingSolution pricing = n->solvePricingSubproblem<FirstStageMinimumPrice>();
+    EXPECT_FALSE(path_engine::is_node(pricing.s.source)) << "no segment can be priced without a selection";
+    EXPECT_GE(pricing.value, -1e-6) << "an empty selection must not trigger a column";
+}
+
+// ─── generateColumn ─────────────────────────────────────────────────────────
+
+TEST_F(neighborhood_r_cg_fixture, GenerateColumnAddsVariableToAllRows) {
+    const int hb = n->geometry.horizontal_bound;
+    const std::vector<segment> columns = {
+        {0, 3}, {3, 0},                                   // horizontal, both orientations
+        {2, path_engine::NULL_NODE}, {2, path_engine::REVERSED_NULL_NODE}, // single vertex
+        {hb, hb + 2}};                                    // vertical
+    const int R = n->reallocationSelection.front();
+
+    for (const segment& s : columns) {
+        const size_t before = n->reallocationSets[R].moves.size();
+        PricingSolution pricing{s, -1.0, R, n->replacementGain(R, s)};
+        n->generateColumn(pricing);
+        n->model->update();
+
+        auto& set = n->reallocationSets[R];
+        ASSERT_EQ(set.moves.size(), before + 1);
+        ASSERT_EQ(set.variables.size(), before + 1);
+        EXPECT_EQ(set.moves.back().s, s);
+        EXPECT_EQ(set.moves.back().gain, pricing.costs);
+
+        GRBVar var = set.variables.back();
+        EXPECT_EQ(var.get(GRB_CharAttr_VType), GRB_CONTINUOUS);
+        EXPECT_EQ(var.get(GRB_DoubleAttr_LB), 0.0);
+        EXPECT_EQ(var.get(GRB_DoubleAttr_UB), 1.0);
+        EXPECT_DOUBLE_EQ(n->model->getCoeff(n->reallocationConstraints[R], var), 1.0);
+        EXPECT_DOUBLE_EQ(n->model->getCoeff(n->pathLengthConstraint, var), pricing.costs.length);
+        for (int c : n->unsatisfiedCells)
+            EXPECT_NEAR(n->model->getCoeff(n->coverageConstraints[c], var), segmentCellPod(*n, s, c), 1e-9)
+                << "cell " << c << " for column {" << s.source << "," << s.target << "}";
+
+        n->model->setObjective(*n->Z1);
+        n->model->update();
+        EXPECT_DOUBLE_EQ(var.get(GRB_DoubleAttr_Obj), pricing.costs.length);
+        n->model->setObjective(*n->Z2);
+        n->model->update();
+        EXPECT_DOUBLE_EQ(var.get(GRB_DoubleAttr_Obj), pricing.costs.turns);
+    }
+}
+
+// ─── column generation stages ───────────────────────────────────────────────
+
+TEST_F(neighborhood_r_cg_fixture, FirstStageEitherConvergesOrAddsOneColumn) {
+    EXPECT_FALSE(n->columnGenerationHasConverged());
+    const int before = totalMoves(*n);
+    n->runColumnGenerationFirstStage();
+    EXPECT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL);
+    const int added = totalMoves(*n) - before;
+    if (n->columnGenerationHasConverged()) {
+        EXPECT_EQ(added, 0) << "converged but a column was added";
+    } else {
+        ASSERT_EQ(added, 1) << "not converged but no column was added";
+        for (int i : n->reallocationSelection) {
+            const auto& set = n->reallocationSets[i];
+            EXPECT_EQ(set.variables.size(), set.moves.size());
+        }
+    }
+}
+
+TEST_F(neighborhood_r_cg_fixture, SecondStageBoundsLengthByFirstStageOptimum) {
+    n->runColumnGenerationFirstStage();
+    const double first_stage_length = n->model->get(GRB_DoubleAttr_ObjVal);
+    const bool first_converged = n->columnGenerationHasConverged();
+    const int before = totalMoves(*n);
+
+    n->runColumnGenerationSecondStage();
+    EXPECT_NEAR(n->pathLengthConstraint.get(GRB_DoubleAttr_RHS), first_stage_length, 1e-9);
+    EXPECT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL);
+    const int added = totalMoves(*n) - before;
+    EXPECT_LE(added, 1);
+    if (added == 1) EXPECT_FALSE(n->columnGenerationHasConverged());
+    else            EXPECT_EQ(n->columnGenerationHasConverged(), first_converged);
+}
+
+// Converged exactly when neither stage generated a column.
+TEST_F(neighborhood_r_cg_fixture, IterationConvergesIffNoColumnAdded) {
+    const int before = totalMoves(*n);
+    n->runColumnGenerationIteration();
+    EXPECT_EQ(n->columnGenerationHasConverged(), totalMoves(*n) == before);
+}
+
+TEST_F(neighborhood_r_cg_fixture, ColumnGenerationTerminatesWithConsistentSets) {
+    n->columnGeneration();
+    EXPECT_TRUE(n->columnGenerationHasConverged());
+    n->model->update();
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumVars), totalMoves(*n));
+    EXPECT_EQ((int)n->Z1->size(), totalMoves(*n));
+    for (int i = 0; i < (int)n->reallocationSets.size(); ++i) {
+        const auto& set = n->reallocationSets[i];
+        EXPECT_EQ(set.variables.size(), set.moves.size());
+        if (!isSelected(*n, i)) EXPECT_TRUE(set.moves.empty()) << "column added to non-selected set " << i;
+        for (const auto& move : set.moves) EXPECT_TRUE(path_engine::is_node(move.s.source));
+    }
+}
+
+// ─── binary program ─────────────────────────────────────────────────────────
+
+TEST_F(neighborhood_r_cg_fixture, SetLexicographicBinaryProgramConvertsModel) {
+    n->columnGeneration();
+    n->model->update();
+    const int rows_before = n->model->get(GRB_IntAttr_NumConstrs);
+
+    n->setLexicographicBinaryProgram();
+    n->model->update();
+
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumConstrs), rows_before - 1) << "the length row must be removed";
+    EXPECT_EQ(n->model->get(GRB_IntAttr_NumObj), 2);
+    for (const auto& set : n->reallocationSets)
+        for (const auto& var : set.variables) EXPECT_EQ(var.get(GRB_CharAttr_VType), GRB_BINARY);
+
+    n->model->set(GRB_IntParam_ObjNumber, 0);
+    EXPECT_EQ(n->model->get(GRB_IntAttr_ObjNPriority), 2) << "length must be the primary objective";
+    for (const auto& set : n->reallocationSets)
+        for (size_t k = 0; k < set.moves.size(); ++k)
+            EXPECT_DOUBLE_EQ(set.variables[k].get(GRB_DoubleAttr_ObjN), set.moves[k].gain.length);
+
+    n->model->set(GRB_IntParam_ObjNumber, 1);
+    EXPECT_EQ(n->model->get(GRB_IntAttr_ObjNPriority), 1);
+    for (const auto& set : n->reallocationSets)
+        for (size_t k = 0; k < set.moves.size(); ++k)
+            EXPECT_DOUBLE_EQ(set.variables[k].get(GRB_DoubleAttr_ObjN), set.moves[k].gain.turns);
+}
+
+TEST_F(neighborhood_r_cg_fixture, WarmStartSelectsOriginalSegments) {
+    buildBinaryProgram();
+    for (int i : n->reallocationSelection) {
+        const auto& set = n->reallocationSets[i];
+        ASSERT_FALSE(set.variables.empty());
+        EXPECT_EQ(set.moves[0].s, sol.path[i]) << "variables[0] must be the original segment";
+        EXPECT_EQ(set.variables[0].get(GRB_DoubleAttr_Start), 1.0);
+        for (size_t k = 1; k < set.variables.size(); ++k)
+            EXPECT_EQ(set.variables[k].get(GRB_DoubleAttr_Start), 0.0);
+    }
+}
+
+// ─── reallocation / safeSolutionRetrieve ────────────────────────────────────
+
+TEST_F(neighborhood_r_cg_fixture, ReallocationReturnsChosenMoveOrNull) {
+    buildBinaryProgram();
+    n->model->optimize();
+    ASSERT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL);
+
+    for (int i = 0; i < (int)sol.path.size(); ++i) {
+        segment expected{path_engine::NULL_NODE, path_engine::NULL_NODE};
+        const auto& set = n->reallocationSets[i];
+        for (size_t k = 0; k < set.moves.size(); ++k)
+            if (set.variables[k].get(GRB_DoubleAttr_X) > 0.5) expected = set.moves[k].s;
+        EXPECT_EQ(n->reallocation(i), expected) << "index " << i;
+        if (!isSelected(*n, i))
+            EXPECT_FALSE(path_engine::is_node(n->reallocation(i).source)) << "non-selected index " << i;
+    }
+}
+
+TEST_F(neighborhood_r_cg_fixture, SafeSolutionRetrieveAppliesSolution) {
+    buildBinaryProgram();
+    n->model->optimize();
+    ASSERT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL);
+    const std::vector<segment> expected = expectedPathFromSolution(*n, sol.path);
+    const segment start = sol.path[0];
+
+    n->safeSolutionRetrieve();
+
+    EXPECT_EQ(sol.path, expected);
+    EXPECT_EQ(sol.path[0], start) << "the start segment must never move";
+    for (const auto& s : sol.path) EXPECT_TRUE(path_engine::is_node(s.source)) << "NULL segment left in path";
+    EXPECT_EQ(sol.cost, n->geometry.cost(sol));
+    Eigen::VectorXd tracked = sol.coverage;
+    n->coverage.reset(sol);
+    EXPECT_TRUE(sol.coverage.isApprox(tracked, 1e-9));
+    EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all());
+}
+
+// ─── retrieveSolution status branches ───────────────────────────────────────
+
+TEST_F(neighborhood_r_cg_fixture, RetrieveSolutionInfeasibleThrowsAndReleasesModel) {
+    buildBinaryProgram();
+    GRBLinExpr all = 0.0;
+    for (const auto& var : n->reallocationSets[n->reallocationSelection.front()].variables) all += var;
+    n->model->addConstr(all >= 2.0);   // contradicts sum <= 1
+    n->model->optimize();
+    const int status = n->model->get(GRB_IntAttr_Status);
+    ASSERT_TRUE(status == GRB_INFEASIBLE || status == GRB_INF_OR_UNBD);
+
+    EXPECT_THROW(n->retrieveSolution(), std::runtime_error);
+    EXPECT_EQ(n->model, nullptr);
+    EXPECT_EQ(n->env, nullptr);
+}
+
+// Interrupted solve: the best incumbent (if any) must be applied.
+TEST_F(neighborhood_r_cg_fixture, RetrieveSolutionTimeLimitUsesBestIncumbent) {
+    buildBinaryProgram();
+    n->model->set(GRB_DoubleParam_TimeLimit, 0.0);
+    n->model->optimize();
+    if (n->model->get(GRB_IntAttr_Status) == GRB_OPTIMAL)
+        GTEST_SKIP() << "Gurobi proved optimality within a zero time limit";
+    const std::vector<segment> expected = n->model->get(GRB_IntAttr_SolCount) > 0
+                                          ? expectedPathFromSolution(*n, sol.path) : sol.path;
+
+    EXPECT_NO_THROW(n->retrieveSolution());
+    EXPECT_EQ(sol.path, expected);
+    EXPECT_EQ(sol.cost, n->geometry.cost(sol));
+    Eigen::VectorXd tracked = sol.coverage;
+    n->coverage.reset(sol);
+    EXPECT_TRUE(sol.coverage.isApprox(tracked, 1e-9));
+    EXPECT_EQ(n->model, nullptr);
+    EXPECT_EQ(n->env, nullptr);
+}
+
+// ─── throwIfLpTimedOut / TimeOutError ───────────────────────────────────────
+
+TEST_F(neighborhood_r_cg_fixture, ThrowIfLpTimedOutAcceptsOptimalLp) {
+    n->model->setObjective(*n->Z1, GRB_MINIMIZE);
+    n->model->optimize();
+    ASSERT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL);
+    EXPECT_NO_THROW(n->throwIfLpTimedOut());
+}
+
+TEST_F(neighborhood_r_cg_fixture, ThrowIfLpTimedOutThrowsOnTimeLimit) {
+    n->model->setObjective(*n->Z1, GRB_MINIMIZE);
+    n->model->set(GRB_DoubleParam_TimeLimit, 0.0);
+    n->model->optimize();
+    ASSERT_EQ(n->model->get(GRB_IntAttr_Status), GRB_TIME_LIMIT);
+    EXPECT_THROW(n->throwIfLpTimedOut(), TimeOutError);
+}
+
+TEST_F(neighborhood_r_cg_fixture, FirstStageThrowsTimeOutErrorWithNoTimeLeft) {
+    ctx.max_time = 0;
+    const int before = totalMoves(*n);
+    EXPECT_THROW(n->runColumnGenerationFirstStage(), TimeOutError);
+    EXPECT_EQ(totalMoves(*n), before) << "no column may be generated from an unsolved LP";
+}
+
+TEST_F(neighborhood_r_cg_fixture, SecondStageThrowsTimeOutErrorWithNoTimeLeft) {
+    n->runColumnGenerationFirstStage();
+    ctx.max_time = 0;
+    const int before = totalMoves(*n);
+    EXPECT_THROW(n->runColumnGenerationSecondStage(), TimeOutError);
+    EXPECT_EQ(totalMoves(*n), before) << "no column may be generated from an unsolved LP";
+}
+
+// ============================================================================
+// local_search — edge cases
+// ============================================================================
+
+// No time left: Gurobi gets a zero time limit and keeps the warm start.
+TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchWithNoTimeLeftKeepsSolution) {
+    ctx.max_time = 0;
+    const std::vector<segment> before = sol.path;
+    const cost_t cost_before = sol.cost;
+    bool improved = true;
+    EXPECT_NO_THROW(improved = n->local_search());
+    EXPECT_FALSE(improved);
+    EXPECT_EQ(sol.path, before);
+    EXPECT_EQ(sol.cost, cost_before);
+    Eigen::VectorXd tracked = sol.coverage;
+    n->coverage.reset(sol);
+    EXPECT_TRUE(sol.coverage.isApprox(tracked, 1e-9));
+}
+
+// The last segment can be reallocated: an over-extended last segment is shortened.
+TEST_F(neighborhood_r_fixture, LastSegmentIsReallocated) {
+    sol.path.back() = {60, 65};   // col_boundary 3, rows 0->5 (local optimum: {62,63})
+    n->coverage.reset(sol);
+    sol.cost = n->geometry.cost(sol);
+    ASSERT_TRUE((sol.coverage.array() >= P.req.array()).all());
+    const int last = (int)sol.path.size() - 1;
+    ASSERT_EQ(last % 2, 0) << "the even parity group must contain the last index";
+    const cost_t before = sol.cost;
+
+    // Same pipeline as local_search, with the parity group containing the last segment.
+    n->reset();
+    n->reallocationSelection = {2, 4, 6};
+    n->constructGurobiModel();
+    n->reallocationDuals = Eigen::VectorXd::Zero((int)n->reallocationSets.size());
+    n->columnGeneration();
+    n->setLexicographicBinaryProgram();
+    n->setReallocationModelWarmStart();
+    n->model->update();
+    n->model->optimize();
+    n->retrieveSolution();
+
+    EXPECT_LT(sol.cost.length, before.length) << "the over-extended last segment was not shortened";
+    EXPECT_NE(sol.path.back(), (segment{60, 65}));
+    EXPECT_EQ(sol.cost, n->geometry.cost(sol));
+    n->coverage.reset(sol);
+    EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all());
+}
+
+// Interrupted solve whose incumbent differs from the input: warm-start the binary
+// program with its own optimum, then stop after the first solution. The
+// incumbent must be applied.
+TEST_F(neighborhood_r_improvable_fixture, RetrieveSolutionInterruptedAppliesImprovingIncumbent) {
+    n->reset();
+    n->reallocationSelection = {2, 4, 6};   // index 2 is over-extended
+    n->constructGurobiModel();
+    n->reallocationDuals = Eigen::VectorXd::Zero((int)n->reallocationSets.size());
+    n->columnGeneration();
+    n->setLexicographicBinaryProgram();
+    n->setReallocationModelWarmStart();
+    n->model->update();
+    n->model->optimize();
+    ASSERT_EQ(n->model->get(GRB_IntAttr_Status), GRB_OPTIMAL);
+    const std::vector<segment> optimum = expectedPathFromSolution(*n, sol.path);
+    ASSERT_NE(optimum, sol.path) << "precondition: the optimum must differ from the input path";
+
+    for (const auto& set : n->reallocationSets)
+        for (auto var : set.variables) var.set(GRB_DoubleAttr_Start, var.get(GRB_DoubleAttr_X));
+    // Stop as soon as the warm start is accepted (TimeLimit = 0 stops before
+    // Gurobi even loads the MIP start).
+    n->model->reset();
+    n->model->set(GRB_IntParam_SolutionLimit, 1);
+    n->model->optimize();
+    if (n->model->get(GRB_IntAttr_Status) == GRB_OPTIMAL)
+        GTEST_SKIP() << "Gurobi reported optimality instead of an interruption";
+    ASSERT_GT(n->model->get(GRB_IntAttr_SolCount), 0) << "the warm start was not accepted as incumbent";
+    const std::vector<segment> expected = expectedPathFromSolution(*n, sol.path);
+
+    EXPECT_NO_THROW(n->retrieveSolution());
+    EXPECT_EQ(sol.path, expected) << "the incumbent found before the interruption must be applied";
+    EXPECT_EQ(sol.cost, n->geometry.cost(sol));
+    Eigen::VectorXd tracked = sol.coverage;
+    n->coverage.reset(sol);
+    EXPECT_TRUE(sol.coverage.isApprox(tracked, 1e-9));
+}
+
+// A timed-out call must not prevent a later call from running normally.
+TEST_F(neighborhood_r_e2e_fixture, E2ELocalSearchRecoversAfterTimeout) {
+    ctx.max_time = 0;
+    EXPECT_FALSE(n->local_search());
+    ctx.max_time = 600;
+    ctx.start_time = std::chrono::high_resolution_clock::now();
+    EXPECT_NO_THROW(n->local_search());
+    EXPECT_EQ(n->geometry.cost(sol), sol.cost);
+    Eigen::VectorXd tracked = sol.coverage;
+    n->coverage.reset(sol);
+    EXPECT_TRUE(sol.coverage.isApprox(tracked, 1e-9));
+    EXPECT_TRUE((sol.coverage.array() >= P.req.array()).all());
 }

@@ -39,7 +39,7 @@ public:
         callbacks = c;
     }
 
-    int remaining_time();
+    int remaining_time() const;
 
     void setCompleteSolution(cppied_solution& pSolution) {
         geometry.complete(pSolution);

@@ -1,8 +1,8 @@
-NAME : smallexample_c11111111111.23.tour
-COMMENT : Length = 23
-COMMENT : Found by LKH [Keld Helsgaun] Sat Oct 17 17:19:43 2026
+NAME : smallexample_c11111111111.18.tour
+COMMENT : Length = 18
+COMMENT : Found by LKH [Keld Helsgaun] Wed Oct 21 14:41:35 2026
 TYPE : TOUR
-DIMENSION : 27
+DIMENSION : 39
 TOUR_SECTION
 1
 2
@@ -10,26 +10,38 @@ TOUR_SECTION
 4
 5
 6
-22
-23
-24
-19
-20
-21
-18
-17
-16
-15
-14
-13
-27
-26
-25
 7
 8
 9
 10
 11
 12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
 -1
 EOF
