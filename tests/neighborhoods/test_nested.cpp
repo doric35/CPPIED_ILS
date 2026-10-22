@@ -1,7 +1,7 @@
 #include "../test_fixture.hpp"
 #include "../../include/neighborhoods/neighborhood_trim.hpp"
 #include "../../include/neighborhoods/neighborhood_nested.hpp"
-#include "../../include/algorithms/MinimumSegmentPairInsertion.hpp"
+#include "../../include/algorithms/MinimumSegmentInsertion.hpp"
 
 struct neighborhood_nested_accessor : public neighborhood_nested {
 public:
@@ -147,13 +147,10 @@ TEST_F(neighborhood_nested_fixture, SpecialCaseSelfReinsertionCostsRemovalGain){
     n->coverage.remove(reduced, reduced.path[idx]);
     reduced.path.erase(std::next(reduced.path.begin(), idx));
 
-    MinimumSegmentPairInsertion insertion(n->problem, n->coverage, n->geometry, reduced,
-                                          segment{30, 35},
-                                          segment{path_engine::NULL_NODE, path_engine::NULL_NODE},
-                                          cost_t{MAX_INT, MAX_INT});
-    Insertion best = insertion.solve();
-    EXPECT_EQ(best.cost, removal_gain)
-        << "single-segment move (NULL second segment) must cost its best single insertion";
+    MinimumSegmentInsertion insertion(n->problem, n->coverage, n->geometry, reduced, segment{30, 35});
+    SegmentInsertion best = insertion.solve();
+    EXPECT_EQ(best.insertion_cost, removal_gain)
+        << "single-segment move must cost its best single insertion";
 }
 
 TEST_F(neighborhood_nested_fixture, SpecialCaseCoverageUnsatfailure){

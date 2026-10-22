@@ -10,6 +10,7 @@ private:
 
 protected:
     void setIncumbentMove() override;
+    void applyNegativeGainsCorrection(std::vector<cost_t>& gains);
 
 public:
     //----Constructors & Destructors----
@@ -18,6 +19,7 @@ public:
         MaximumOneTwoReallocation(std::forward<Args>(args)...),
         rd(), rng(rd()){
             insertionCostBound = cost_t{MAX_INT, MAX_INT};
+            insertionAlgorithm.setBound(insertionCostBound);
         }
 
     //----Getters----

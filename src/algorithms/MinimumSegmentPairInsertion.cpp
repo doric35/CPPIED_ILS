@@ -1,125 +1,78 @@
 #include "../../include/algorithms/MinimumSegmentPairInsertion.hpp"
 
 Insertion MinimumSegmentPairInsertion::solve() {
-    if (solution.path.size() > 1 && path_engine::is_node(secondSegment.source)) {
-        solveDisjointInsertion();
-        solvePairedInsertion();
-    } else if (solution.path.size() > 1)
-        solveUnitaryInsertion();
-    else
-        solveUnitPathEdgeCase();
-
+    const SegmentPair key{firstSegment, secondSegment};
+    if (memoizedMinimalInsertions.contains(key))
+        updateIncumbent(memoizedMinimalInsertions.at(key));
+    else {
+        if (solution.path.size() > 1) {
+            solveDisjointInsertion();
+            solvePairedInsertion();
+        } else
+            solveUnitPathEdgeCase();
+    }
     correctIncumbentSegmentsOrder();
     return incumbent;
 }
 
 void MinimumSegmentPairInsertion::solveUnitPathEdgeCase() {
-    if (path_engine::is_node(secondSegment.source)) {
-        for (auto &pair: pairedKernels) {
-            cost_t cost = geometry.insert_tail_gain(solution.path.front(), pair.first);
-            cost += geometry.insert_tail_gain(pair.first, pair.second);
-            Insertion insertion{{1, 1}, cost, pair};
-            updateIncumbent(insertion);
-        }
-    } else {
-        cost_t cost = geometry.insert_tail_gain(solution.path.front(), firstSegment);
-        Insertion insertion{{1, -1}, cost, {firstSegment, secondSegment}};
-        updateIncumbent(insertion);
-        cost = geometry.insert_tail_gain(solution.path.front(), firstReversedSegment);
-        insertion = {{1, -1}, cost, {firstReversedSegment, secondSegment}};
+    for (auto &pair: pairedKernels) {
+        cost_t cost = geometry.insert_tail_gain(solution.path.front(), pair.first);
+        cost += geometry.insert_tail_gain(pair.first, pair.second);
+        Insertion insertion{{1, 1}, cost, pair};
         updateIncumbent(insertion);
     }
-}
-
-void MinimumSegmentPairInsertion::solveUnitaryInsertion() {
-    std::array<std::pair<int, cost_t>, 4> first_picks = getSegmentTopInsertions(firstSegment);
-    if (std::min(first_picks[0].second, first_picks[2].second) >= bound)
-        throw DominatedInsertion("Segments can't be inserted at cost lower than the bound.");
-    setIncumbentFromUnitaryInsertion(first_picks);
-}
-
-void MinimumSegmentPairInsertion::setIncumbentFromUnitaryInsertion(std::array<std::pair<int, cost_t>, 4> &pick) {
-    Insertion trial;
-    if (pick[0].second <= pick[2].second)
-        trial = {{pick[0].first, -1}, pick[0].second, {firstSegment, {path_engine::NULL_NODE, path_engine::NULL_NODE}}};
-    else
-        trial = {{pick[2].first, -1}, pick[2].second, {firstReversedSegment, {path_engine::NULL_NODE, path_engine::NULL_NODE}}};
-    updateIncumbent(trial);
 }
 
 void MinimumSegmentPairInsertion::solveDisjointInsertion() {
-    std::array<std::pair<int, cost_t>, 4> first_picks = getSegmentTopInsertions(firstSegment);
-    std::array<std::pair<int, cost_t>, 4> second_picks = getSegmentTopInsertions(secondSegment);
-    if (picksAreDominated(first_picks, second_picks))
-        throw DominatedInsertion("Segments can't be inserted at cost lower than the bound.");
-    setIncumbentFromDisjointInsertions(first_picks, second_picks);
-}
-
-bool MinimumSegmentPairInsertion::picksAreDominated(std::array<std::pair<int, cost_t>, 4> &firstPick,
-                                                    std::array<std::pair<int, cost_t>, 4> &secondPick) {
-    cost_t first_best_pick_cost = std::min(firstPick[0].second, firstPick[2].second);
-    cost_t second_best_pick_cost = std::min(secondPick[0].second, secondPick[2].second);
-    return std::max(first_best_pick_cost, second_best_pick_cost) >= bound;
-}
-
-std::array<std::pair<int, cost_t>, 4> MinimumSegmentPairInsertion::getSegmentTopInsertions(segment &s) {
-    std::array<std::pair<int, cost_t>, 4> top_k;
-
-    std::uint64_t segment_encoding = encodeSegment(s.source, s.target);
-    if (memoizedDisjointTopInsertions.contains(segment_encoding)){
-        top_k = memoizedDisjointTopInsertions.at(segment_encoding);
+    MinimumTopTwoInsertion insertion_algorithm(instance, coverage, geometry, solution, firstSegment);
+    TopTwoInsertion top2Insertions{};
+    auto non_oriented = geometry.getNonOriented(firstSegment);
+    auto key = encodeSegment(non_oriented.source, non_oriented.target);
+    if (!memoizedDisjointTopInsertions.contains(key)) {
+        top2Insertions = insertion_algorithm.solve();
+        memoizedDisjointTopInsertions.insert({key, top2Insertions});
+    }
+    else {
+        top2Insertions = memoizedDisjointTopInsertions.at(key);
+    }
+    TopTwoInsertion top2InsertionsOther{};
+    non_oriented = geometry.getNonOriented(secondSegment);
+    key = encodeSegment(non_oriented.source, non_oriented.target);
+    if (!memoizedDisjointTopInsertions.contains(key)) {
+        insertion_algorithm.resetSegment(secondSegment);
+        top2InsertionsOther = insertion_algorithm.solve();
+        memoizedDisjointTopInsertions.insert({key, top2InsertionsOther});
     } else {
-        segment reversed = geometry.flip_segment(s);
-        std::vector<std::pair<int,cost_t>> top_2 = geometry.get_top_k_insertion(solution, s, 2);
-        std::vector<std::pair<int,cost_t>> top_2_reversed = geometry.get_top_k_insertion(solution, reversed, 2);
-
-        top_k[0] = top_2[0];
-        top_k[1] = top_2[1];
-        top_k[2] = top_2_reversed[0];
-        top_k[3] = top_2_reversed[1];
-
-        memoizedDisjointTopInsertions.insert({segment_encoding, top_k});
+        top2InsertionsOther = memoizedDisjointTopInsertions.at(key);
     }
-    return top_k;
+    if (picksAreDominated(top2Insertions, top2InsertionsOther))
+        throw DominatedInsertion("Segments can't be inserted at cost lower than the bound.");
+    setIncumbentFromDisjointInsertions(top2Insertions, top2InsertionsOther);
 }
 
-void MinimumSegmentPairInsertion::setIncumbentFromDisjointInsertions(std::array<std::pair<int, cost_t>, 4> &first_pick,
-                                                                std::array<std::pair<int, cost_t>, 4> &second_pick) {
-    std::array<Insertion,16> pairs = getDisjointInsertionPairs(first_pick, second_pick);
-    setIncumbentFromDisjointInsertionPairs(pairs);
+bool MinimumSegmentPairInsertion::picksAreDominated(TopTwoInsertion& firstPick,
+                                                    TopTwoInsertion& secondPick) {
+    return std::max(firstPick.bestInsertion.insertion_cost, secondPick.bestInsertion.insertion_cost) >= bound;
 }
 
-std::array<Insertion,16> MinimumSegmentPairInsertion::getDisjointInsertionPairs(
-        std::array<std::pair<int, cost_t>, 4> &firstPick, std::array<std::pair<int, cost_t>, 4> &secondPick) {
-    std::array<Insertion,16> paired_insertions;
-    for (int i=0; i<4; i++){
-        for (int j=0; j<4; j++){
-            paired_insertions[(i*4) + j].indexes = {firstPick[i].first, secondPick[j].first};
-            paired_insertions[(i*4) + j].cost = firstPick[i].second + secondPick[j].second;
-            paired_insertions[(i*4) + j].segments.first = i >=2 ? firstReversedSegment : firstSegment;
-            paired_insertions[(i*4) + j].segments.second = j >=2 ? secondReversedSegment : secondSegment;
-        }
-    }
-    return paired_insertions;
+void MinimumSegmentPairInsertion::setIncumbentFromDisjointInsertions(TopTwoInsertion& first_pick,
+                                                                TopTwoInsertion& second_pick) {
+    if (first_pick.bestInsertion.index == second_pick.bestInsertion.index &&
+        first_pick.bestInsertion.insertion_cost + second_pick.backupInsertion.insertion_cost >
+        first_pick.backupInsertion.insertion_cost + second_pick.bestInsertion.insertion_cost){
+        std::swap(first_pick.bestInsertion, first_pick.backupInsertion);
+    } else if (first_pick.bestInsertion.index == second_pick.bestInsertion.index)
+        std::swap(second_pick.bestInsertion, second_pick.backupInsertion);
+    Insertion trial{{first_pick.bestInsertion.index, second_pick.bestInsertion.index},
+                    first_pick.bestInsertion.insertion_cost + second_pick.bestInsertion.insertion_cost,
+                    {first_pick.bestInsertion.s, second_pick.bestInsertion.s}};
+    updateIncumbent(trial);
 }
 
-void MinimumSegmentPairInsertion::setIncumbentFromDisjointInsertionPairs(std::array<Insertion, 16> insertionPairs) {
-    auto cmpInsertions = [&](const Insertion& a, const Insertion& b){
-        bool a_lower;
-        const bool a_valid = a.indexes.first != a.indexes.second;
-        const bool b_valid = b.indexes.first != b.indexes.second;
-        if (a_valid == b_valid)
-            a_lower = a.cost < b.cost;
-        else
-            a_lower = a_valid;
-        return a_lower;
-    };
-    auto trial = std::min_element(insertionPairs.begin(), insertionPairs.end(), cmpInsertions);
-    updateIncumbent(*trial);
-}
 
 void MinimumSegmentPairInsertion::solvePairedInsertion() {
-    for (int i=1; i<= solution.path.size(); i++)
+    for (int i = 1; i <= solution.path.size(); i++)
         pairedInsertionKernel(i);
 }
 
@@ -135,27 +88,14 @@ void MinimumSegmentPairInsertion::updateIncumbent(Insertion& trial) {
     if (trial.cost < incumbent.cost)
         incumbent = trial;
     SegmentPair key(firstSegment, secondSegment);
-    if (memoizedMinimalInsertions.contains(key)){
-        if (memoizedMinimalInsertions.at(key).cost > trial.cost)
-            memoizedMinimalInsertions[key] = trial;
-    } else
+    if (memoizedMinimalInsertions.contains(key) && memoizedMinimalInsertions.at(key).cost > trial.cost)
+        memoizedMinimalInsertions[key] = trial;
+    else
         memoizedMinimalInsertions.insert({key,trial});
 }
 
-cost_t MinimumSegmentPairInsertion::getInsertionCost(segment &s, int index) {
-    cost_t cost;
-    if (index < solution.path.size())
-        cost = geometry.insert_between_gain(
-                *std::next(solution.path.begin(), index-1),
-                s,
-                *std::next(solution.path.begin(), index));
-    else
-        cost = geometry.insert_tail_gain(*std::prev(solution.path.end()), s);
-    return cost;
-}
-
 cost_t MinimumSegmentPairInsertion::getInsertionCost(Insertion &insertion) {
-    cost_t cost;
+    cost_t cost{};
     if (insertion.indexes.first < solution.path.size()) {
         cost = cost_t{0, 0} - geometry.dist(solution.path[insertion.indexes.first - 1],
                                                    solution.path[insertion.indexes.first]);
@@ -174,7 +114,7 @@ cost_t MinimumSegmentPairInsertion::getInsertionCost(Insertion &insertion) {
 }
 
 void MinimumSegmentPairInsertion::correctIncumbentSegmentsOrder() {
-    if (path_engine::is_node(incumbent.segments.second.source) && incumbent.indexes.first > incumbent.indexes.second){
+    if (incumbent.indexes.first > incumbent.indexes.second){
         std::swap(incumbent.segments.first, incumbent.segments.second);
         std::swap(incumbent.indexes.first, incumbent.indexes.second);
     }

@@ -1,5 +1,4 @@
 #include "../../include/algorithms/MaximumOneTwoReallocation.hpp"
-#include "../../include/algorithms/MaximumSegmentTrim.hpp"
 
 OneTwoReallocationMove MaximumOneTwoReallocation::solve() {
     coverage.remove(solution, solution.path[index]);
@@ -107,7 +106,7 @@ void MaximumOneTwoReallocation::filterCandidates(std::vector<int>& unsatisfiedCe
 void MaximumOneTwoReallocation::trimCandidates() {
     std::vector<OneTwoReallocationMove> trimmed;
     for (auto& move : candidates){
-        if (geometry.is_node(move.replacements[1].source))
+        if (path_engine::is_node(move.replacements[1].source))
             move.replacements[0] = trimSegmentOvercoveredHeadAndTail(move.replacements[0]);
 
         if (!processedPairs.contains(SegmentPair(move.replacements[0], move.replacements[1]))) {
@@ -127,22 +126,33 @@ void MaximumOneTwoReallocation::setCandidatesTopInsertions() {
 }
 
 void MaximumOneTwoReallocation::setMoveTopInsertion(OneTwoReallocationMove &move) {
-    MinimumSegmentPairInsertion insertion_algorithm(
-            instance, coverage, geometry,
-            solution, move.replacements[0],
-            move.replacements[1], insertionCostBound);
+    if (path_engine::is_node(move.replacements[1].source)){
+        setMoveTopInsertionPairedSegment(move);
+    } else
+        setMoveTopInsertionUnitarySegment(move);
+}
+
+void MaximumOneTwoReallocation::setMoveTopInsertionUnitarySegment(OneTwoReallocationMove &move) {
+    MinimumSegmentInsertion insertion_algorithm(instance, coverage, geometry, solution, move.replacements[0]);
+    SegmentInsertion insertion = insertion_algorithm.solve();
+    move.replacements = {insertion.s, {path_engine::NULL_NODE, path_engine::NULL_NODE}};
+    if (insertion.insertion_cost >= insertionCostBound)
+        move.gain = {MIN_INT, MIN_INT};
+    else
+        move.gain = removalGain - insertion.insertion_cost;
+    move.reallocationIndexes = {insertion.index, -1};
+}
+
+void MaximumOneTwoReallocation::setMoveTopInsertionPairedSegment(OneTwoReallocationMove &move) {
+    insertionAlgorithm.setSegmentPair(move.replacements[0], move.replacements[1]);
     try {
-        Insertion insertion = insertion_algorithm.solve();
+        Insertion insertion = insertionAlgorithm.solve();
         move.replacements = {insertion.segments.first, insertion.segments.second};
         move.gain = removalGain - insertion.cost;
         move.reallocationIndexes = {insertion.indexes.first, insertion.indexes.second};
     } catch (DominatedInsertion& e){
         move.gain = {MIN_INT,MIN_INT};
     }
-}
-
-segment MaximumOneTwoReallocation::trimSegment(segment &s) {
-    return trimSegmentOvercoveredHeadAndTail(s);
 }
 
 void MaximumOneTwoReallocation::setSimpleRemovalIncumbent() {

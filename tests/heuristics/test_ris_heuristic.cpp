@@ -467,7 +467,14 @@ TEST(RisHeuristic, SetFlatScores_SingleGain) {
     std::vector<cost_t> gains = {{3,2}};
     auto scores = ris_heuristic::setFlatScores(gains);
     ASSERT_EQ(scores.size(), 1u);
-    EXPECT_DOUBLE_EQ(scores[0], 3.0 * 3 + 2);   // M = max_turns + 1 = 3
+    EXPECT_DOUBLE_EQ(scores[0], 3.0);   // M = t_max - t_min + 1 = 1, turns shifted by t_min = 2
+}
+
+// Score: M * length + (turns - t_min), M = t_max - t_min + 1.
+TEST(RisHeuristic, SetFlatScores_ShiftsTurnsByMinimum) {
+    std::vector<cost_t> gains = {{2,2},{1,-6}};
+    auto scores = ris_heuristic::setFlatScores(gains);
+    EXPECT_EQ(scores, (std::vector<double>{9.0 * 2 + 8, 9.0 * 1 + 0}));   // M = 9
 }
 
 TEST(RisHeuristic, SetFlatScores_ZeroTurns_ScoreIsLength) {
@@ -498,7 +505,22 @@ TEST(RisHeuristic, SetFlatScores_PreservesLexicographicOrder) {
     }
 }
 
-// setFlatScores assumes positive integer costs (lengths and turns >= 0).
+// Negative lengths and turns: the order still matches the cost_t order (the
+// turns are shifted by their minimum, softmax does not depend on a common
+// shift of the scores).
+TEST(RisHeuristic, SetFlatScores_PreservesOrderWithNegativeComponents) {
+    std::mt19937 gen(11);
+    std::uniform_int_distribution<int> len(-20, 20), turns(-8, 8);
+    for (int trial = 0; trial < 300; ++trial) {
+        std::vector<cost_t> gains(6);
+        for (auto& g : gains) g = {len(gen), turns(gen)};
+        auto scores = ris_heuristic::setFlatScores(gains);
+        for (std::size_t i = 0; i < gains.size(); ++i)
+            for (std::size_t j = 0; j < gains.size(); ++j)
+                ASSERT_EQ(gains[i] < gains[j], scores[i] < scores[j])
+                    << gains[i] << " vs " << gains[j];
+    }
+}
 
 // Equal turns: the longer gain must score higher, {10,3} > {1,3}.
 TEST(RisHeuristic, SetFlatScores_EqualTurns_LengthOrders) {

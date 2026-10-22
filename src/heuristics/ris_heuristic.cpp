@@ -75,15 +75,11 @@ int ris_heuristic::softmaxSample() {
 }
 
 std::vector<double> ris_heuristic::setFlatScores(std::vector<cost_t> &gains) {
-    auto cmpTurn = [](const cost_t& a, const cost_t& b){
-        return a.turns < b.turns;
-    };
-    int max_turns = std::max_element(gains.begin(), gains.end(), cmpTurn)->turns;
-    std::uint64_t M = static_cast<std::uint64_t>(max_turns) + 1;
+    auto [t_min, t_max] = std::ranges::minmax(gains | std::views::transform(&cost_t::turns));
+    const double M = static_cast<double>(t_max) - t_min + 1;
     std::vector<double> scores(gains.size());
     for (size_t i=0; i<gains.size(); i++)
-        scores[i] = static_cast<double>(
-                M * static_cast<std::uint64_t>(gains[i].length) + static_cast<std::uint64_t>(gains[i].turns));
+        scores[i] = M * gains[i].length + (static_cast<double>(gains[i].turns) - t_min);
     return scores;
 }
 

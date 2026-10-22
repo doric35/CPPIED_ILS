@@ -74,7 +74,7 @@ protected:
             x1 = (x1 - geometry.horizontal_bound) % geometry.n_rows;
             x2 = (x2 - geometry.horizontal_bound) % geometry.n_rows;
         }
-        return Interval{cost_t{0,0}, x1 , x2, y, !horizontal, i};
+        return Interval{candidatesMoves[i].gain, x1 , x2, y, !horizontal, i};
     }
     virtual void splitMoves(std::vector<int>& candidates) = 0;
     void splitOddEvenMoves(std::vector<int> &candidates) {

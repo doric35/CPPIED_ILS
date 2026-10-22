@@ -333,90 +333,389 @@ TEST_F(move_algorithms_fixture, MinimumSegmentAllocationContract) {
 
 // ----------------------------------------------------------------------------
 // MinimumSegmentPairInsertion (used by n12 and nested)
+//
+// Precondition: both segments are valid (is_node(source)). Single segment
+// insertions go through MinimumSegmentInsertion
+// (test_minimum_segment_insertion.cpp).
 // ----------------------------------------------------------------------------
 
-// Unitary insertion (second segment NULL) is exact: cheapest position and
-// orientation of the segment.
-TEST_F(move_algorithms_fixture, PairInsertionUnitaryIsCheapest) {
-    for (const auto& p : inputs()) {
-        for (int i = 1; i < static_cast<int>(p.size()); ++i) {
-            auto reduced = p; reduced.erase(reduced.begin() + i);
-            cppied_solution s = make(reduced);
-            const cppied_solution before = s;
-            MinimumSegmentPairInsertion alg(P, c, g, s, p[i], kNull, cost_t{MAX_INT, MAX_INT});
-            Insertion ins = alg.solve();
-            SCOPED_TRACE("insert " + segStr(p[i]));
-            expectUnchanged(before, s, "MinimumSegmentPairInsertion");
-            cost_t best = {MAX_INT, MAX_INT};
-            for (const segment& r : {p[i], g.flip_segment(p[i])})
-                for (int k = 1; k <= static_cast<int>(reduced.size()); ++k)
-                    best = std::min(best, costOf(apply(reduced, {}, {{r, k}})) - costOf(reduced));
-            ASSERT_FALSE(path_engine::is_node(ins.segments.second.source));
-            auto q = apply(reduced, {}, {{ins.segments.first, ins.indexes.first}});
-            EXPECT_EQ(ins.cost, costOf(q) - costOf(reduced)) << "predicted cost differs from the real one";
-            EXPECT_EQ(ins.cost, best) << "not the cheapest insertion";
-        }
+// The pair insertion is exact. Every configuration is either
+//   disjoint: the segments in two different gaps, whose costs add up, so the
+//     cheapest one combines the top two insertions of each segment
+//     (MinimumTopTwoInsertion): best + best when their indexes differ, else
+//     the cheaper of best + backup and backup + best;
+//   paired: both segments in the same gap, in one of the 8 orders and
+//     orientations (indexes {k, k}).
+// The returned plan is consistent (ordered indexes, cost equal to the real
+// cost of inserting both) and equals the brute force optimum over all
+// positions, orders and orientations.
+class pair_insertion_fixture : public move_algorithms_fixture {
+protected:
+    cost_t bruteForce(const std::vector<segment>& path, const segment& first, const segment& second) {
+        cost_t best = {MAX_INT, MAX_INT};
+        const int n = static_cast<int>(path.size());
+        for (const segment& a : {first, g.flip_segment(first)})
+            for (const segment& b : {second, g.flip_segment(second)})
+                for (int x = 1; x <= n; ++x)
+                    for (int y = 1; y <= n; ++y) {
+                        best = std::min(best, costOf(apply(path, {}, {{a, x}, {b, y}})) - costOf(path));
+                        best = std::min(best, costOf(apply(path, {}, {{b, x}, {a, y}})) - costOf(path));
+                    }
+        return best;
     }
-}
+    // Returns true when the optimum is a paired configuration.
+    bool checkPair(const std::vector<segment>& path, const segment& first, const segment& second) {
+        SCOPED_TRACE("insert " + segStr(first) + " + " + segStr(second) + " in path of size " +
+                     std::to_string(path.size()));
+        cppied_solution s = make(path);
+        const cppied_solution before = s;
+        MinimumSegmentPairInsertion alg(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+        segment a = first, b = second;
+        alg.setSegmentPair(a, b);
+        Insertion ins = alg.solve();
+        expectUnchanged(before, s, "MinimumSegmentPairInsertion");
+        EXPECT_TRUE(path_engine::is_node(ins.segments.first.source));
+        EXPECT_TRUE(path_engine::is_node(ins.segments.second.source));
+        EXPECT_EQ(std::set({g.getNonOriented(ins.segments.first), g.getNonOriented(ins.segments.second)}),
+                  std::set({g.getNonOriented(first), g.getNonOriented(second)}))
+            << "returned segments are not orientations of the inserted ones";
+        EXPECT_GE(ins.indexes.first, 1);
+        EXPECT_LE(ins.indexes.first, ins.indexes.second) << "unordered indexes";
+        EXPECT_LE(ins.indexes.second, static_cast<int>(path.size()));
+        auto q = apply(path, {}, {{ins.segments.first, ins.indexes.first}, {ins.segments.second, ins.indexes.second}});
+        EXPECT_EQ(ins.cost, costOf(q) - costOf(path)) << "predicted cost differs from the real one ("
+                                                       << segStr(ins.segments.first) << "@" << ins.indexes.first << ", "
+                                                       << segStr(ins.segments.second) << "@" << ins.indexes.second << ")";
+        EXPECT_EQ(ins.cost, bruteForce(path, first, second)) << "not the cheapest pair insertion";
+        return ins.indexes.first == ins.indexes.second;
+    }
+};
 
-// Pair insertion: the returned plan is consistent (ordered indexes, cost
-// equal to the real cost of inserting both) and never cheaper than the brute
-// force optimum over all positions, orders and orientations.
-TEST_F(move_algorithms_fixture, PairInsertionCostIsRealAndBounded) {
-    int checked = 0, optimal = 0;
+// Halves of a removed segment, reinserted in the reduced path.
+TEST_F(pair_insertion_fixture, PairInsertionOfSplitSegmentIsOptimal) {
+    int checked = 0, paired = 0;
     for (const auto& p : inputs()) {
         for (int i = 1; i < static_cast<int>(p.size()); ++i) {
             if (g.cost(p[i]).length < 1) continue;
             auto [first, second] = g.splitSegment(p[i], g.cost(p[i]).length / 2);
             if (!path_engine::is_node(second.source)) continue;
             auto reduced = p; reduced.erase(reduced.begin() + i);
-            cppied_solution s = make(reduced);
-            const cppied_solution before = s;
-            MinimumSegmentPairInsertion alg(P, c, g, s, first, second, cost_t{MAX_INT, MAX_INT});
-            Insertion ins = alg.solve();
-            SCOPED_TRACE("insert " + segStr(first) + " + " + segStr(second));
-            expectUnchanged(before, s, "MinimumSegmentPairInsertion");
-            ASSERT_TRUE(path_engine::is_node(ins.segments.first.source));
-            ASSERT_TRUE(path_engine::is_node(ins.segments.second.source));
-            EXPECT_LE(ins.indexes.first, ins.indexes.second) << "unordered indexes";
-            auto q = apply(reduced, {}, {{ins.segments.first, ins.indexes.first}, {ins.segments.second, ins.indexes.second}});
-            EXPECT_EQ(ins.cost, costOf(q) - costOf(reduced)) << "predicted cost differs from the real one";
-            cost_t best = {MAX_INT, MAX_INT};
-            const int n = static_cast<int>(reduced.size());
-            for (const segment& a : {first, g.flip_segment(first)})
-                for (const segment& b : {second, g.flip_segment(second)})
-                    for (int x = 1; x <= n; ++x)
-                        for (int y = 1; y <= n; ++y) {
-                            best = std::min(best, costOf(apply(reduced, {}, {{a, x}, {b, y}})) - costOf(reduced));
-                            best = std::min(best, costOf(apply(reduced, {}, {{b, x}, {a, y}})) - costOf(reduced));
-                        }
-            EXPECT_GE(ins.cost, best) << "cost below the optimum (oracle mismatch)";
-            optimal += ins.cost == best;
+            paired += checkPair(reduced, first, second);
             ++checked;
         }
     }
     EXPECT_GT(checked, 0);
-    RecordProperty("optimal_pair_insertions", std::to_string(optimal) + "/" + std::to_string(checked));
+    RecordProperty("paired_optima", std::to_string(paired) + "/" + std::to_string(checked));
+}
+
+// Unrelated segments: mostly disjoint optima, horizontal and vertical.
+TEST_F(pair_insertion_fixture, PairInsertionOfUnrelatedSegmentsIsOptimal) {
+    const std::vector<std::pair<segment, segment>> pairs = {
+        {{7, 10}, {48, 52}}, {{0, 4}, {72, 75}}, {{12, 13}, {56, 59}},
+        {{20, path_engine::NULL_NODE}, {77, path_engine::NULL_NODE}}, {{7, 10}, {12, 13}}, {{48, 52}, {56, 59}},
+    };
+    int checked = 0, disjoint = 0;
+    for (const auto& p : inputs())
+        for (const auto& [a, b] : pairs) {
+            disjoint += !checkPair(p, a, b);
+            ++checked;
+        }
+    EXPECT_GT(disjoint, 0) << "no disjoint optimum exercised";
+    RecordProperty("disjoint_optima", std::to_string(disjoint) + "/" + std::to_string(checked));
+}
+
+// Both segments have the same best index: the disjoint optimum uses one
+// backup, the cheaper of best + backup and backup + best.
+TEST_F(pair_insertion_fixture, SharedBestIndexUsesBackup) {
+    int shared = 0;
+    for (const auto& p : inputs())
+        for (int i = 1; i < static_cast<int>(p.size()); ++i) {
+            // Two copies of the removed segment share every insertion index.
+            auto reduced = p; reduced.erase(reduced.begin() + i);
+            cppied_solution s = make(reduced);
+            TopTwoInsertion a = MinimumTopTwoInsertion(P, c, g, s, p[i]).solve();
+            TopTwoInsertion b = MinimumTopTwoInsertion(P, c, g, s, g.flip_segment(p[i])).solve();
+            if (a.bestInsertion.index != b.bestInsertion.index) continue;
+            ++shared;
+            checkPair(reduced, p[i], g.flip_segment(p[i]));
+        }
+    EXPECT_GT(shared, 0);
+}
+
+// ----------------------------------------------------------------------------
+// Reuse of one MinimumSegmentPairInsertion over several pairs (the instance
+// MaximumOneTwoReallocation builds once and memoizes insertions in).
+// ----------------------------------------------------------------------------
+
+namespace {
+std::vector<std::pair<segment, segment>> reusePairs(path_engine& g) {
+    std::vector<std::pair<segment, segment>> pairs = {
+        {{7, 10}, {48, 52}}, {{0, 4}, {72, 75}}, {{12, 13}, {56, 59}},
+        {{20, path_engine::NULL_NODE}, {77, path_engine::NULL_NODE}}, {{7, 10}, {12, 13}},
+    };
+    auto [first, second] = g.splitSegment({30, 35}, 2);
+    pairs.emplace_back(first, second);
+    return pairs;
+}
+}  // namespace
+
+// Every pair solved on a reused instance gives the result of a fresh one,
+// whatever the pairs solved before (cheaper or not).
+TEST_F(pair_insertion_fixture, ReusedInstanceMatchesFreshInstance) {
+    const auto pairs = reusePairs(g);
+    for (const auto& p : inputs()) {
+        cppied_solution s = make(p);
+        MinimumSegmentPairInsertion reused(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+        for (int order = 0; order < 2; ++order)
+            for (std::size_t k = 0; k < pairs.size(); ++k) {
+                auto [a, b] = pairs[order == 0 ? k : pairs.size() - 1 - k];
+                SCOPED_TRACE("insert " + segStr(a) + " + " + segStr(b));
+                reused.setSegmentPair(a, b);
+                Insertion r = reused.solve();
+                MinimumSegmentPairInsertion fresh(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+                fresh.setSegmentPair(a, b);
+                Insertion f = fresh.solve();
+                EXPECT_EQ(r.cost, f.cost);
+                EXPECT_EQ(r.indexes, f.indexes);
+                EXPECT_EQ(r.segments, f.segments) << "returned segments of another pair";
+                EXPECT_EQ(r.cost, bruteForce(p, a, b));
+            }
+    }
+}
+
+// A memoized pair solved again returns the same insertion.
+TEST_F(pair_insertion_fixture, RepeatedPairReturnsMemoizedInsertion) {
+    const auto pairs = reusePairs(g);
+    for (const auto& p : inputs()) {
+        cppied_solution s = make(p);
+        MinimumSegmentPairInsertion alg(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+        std::vector<Insertion> first_pass;
+        for (auto [a, b] : pairs) { alg.setSegmentPair(a, b); first_pass.push_back(alg.solve()); }
+        for (std::size_t k = 0; k < pairs.size(); ++k) {
+            auto [a, b] = pairs[k];
+            SCOPED_TRACE("insert " + segStr(a) + " + " + segStr(b));
+            alg.setSegmentPair(a, b);
+            Insertion again = alg.solve();
+            EXPECT_EQ(again.cost, first_pass[k].cost);
+            EXPECT_EQ(again.indexes, first_pass[k].indexes);
+            EXPECT_EQ(again.segments, first_pass[k].segments);
+        }
+    }
+}
+
+// The memo key is unordered: {a, b} and {b, a} share one insertion cost.
+TEST_F(pair_insertion_fixture, SwappedPairSharesMemoizedCost) {
+    const auto pairs = reusePairs(g);
+    for (const auto& p : inputs()) {
+        cppied_solution s = make(p);
+        MinimumSegmentPairInsertion alg(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+        for (auto [a, b] : pairs) {
+            SCOPED_TRACE("insert " + segStr(a) + " + " + segStr(b));
+            alg.setSegmentPair(a, b);
+            Insertion ab = alg.solve();
+            alg.setSegmentPair(b, a);
+            Insertion ba = alg.solve();
+            EXPECT_EQ(ab.cost, ba.cost);
+            EXPECT_EQ(ab.cost, bruteForce(p, a, b));
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Content of the caches of MinimumSegmentPairInsertion
+//   memoizedDisjointTopInsertions: encodeSegment(s) -> top two insertions of s
+//   memoizedMinimalInsertions:     {a, b} (unordered) -> cheapest insertion
+// A poisoned entry shows the cache is read: solve() returns what it holds.
+// ----------------------------------------------------------------------------
+
+namespace {
+struct pair_insertion_accessor : public MinimumSegmentPairInsertion {
+    using MinimumSegmentPairInsertion::MinimumSegmentPairInsertion;
+    using MinimumSegmentPairInsertion::memoizedMinimalInsertions;
+    using MinimumSegmentPairInsertion::memoizedDisjointTopInsertions;
+};
+// The top-two cache is keyed on the non-oriented segment.
+std::uint64_t topTwoKey(path_engine& g, const segment& s) {
+    const segment u = g.getNonOriented(s);
+    return encodeSegment(u.source, u.target);
+}
+}  // namespace
+
+// After a solve, the top two insertions of both segments are cached and equal
+// those of a fresh MinimumTopTwoInsertion.
+TEST_F(pair_insertion_fixture, TopTwoCacheHoldsTopTwoInsertionsOfBothSegments) {
+    for (const auto& p : inputs())
+        for (auto [a, b] : reusePairs(g)) {
+            SCOPED_TRACE("insert " + segStr(a) + " + " + segStr(b));
+            cppied_solution s = make(p);
+            pair_insertion_accessor alg(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+            alg.setSegmentPair(a, b);
+            alg.solve();
+            EXPECT_EQ(alg.memoizedDisjointTopInsertions.size(), 2u);
+            for (const segment& x : {a, b}) {
+                ASSERT_TRUE(alg.memoizedDisjointTopInsertions.contains(topTwoKey(g, x))) << segStr(x) << " not cached";
+                const TopTwoInsertion& cached = alg.memoizedDisjointTopInsertions.at(topTwoKey(g, x));
+                const TopTwoInsertion fresh = MinimumTopTwoInsertion(P, c, g, s, x).solve();
+                EXPECT_EQ(cached.bestInsertion.insertion_cost, fresh.bestInsertion.insertion_cost);
+                EXPECT_EQ(cached.bestInsertion.index, fresh.bestInsertion.index);
+                EXPECT_EQ(cached.bestInsertion.s, fresh.bestInsertion.s);
+                EXPECT_EQ(cached.backupInsertion.insertion_cost, fresh.backupInsertion.insertion_cost);
+                EXPECT_EQ(cached.backupInsertion.index, fresh.backupInsertion.index);
+                EXPECT_EQ(cached.backupInsertion.s, fresh.backupInsertion.s);
+            }
+        }
+}
+
+// After a solve, the pair cache holds the returned insertion: the optimum
+// over disjoint and paired configurations.
+TEST_F(pair_insertion_fixture, MinimalInsertionCacheHoldsOptimum) {
+    for (const auto& p : inputs())
+        for (auto [a, b] : reusePairs(g)) {
+            SCOPED_TRACE("insert " + segStr(a) + " + " + segStr(b));
+            cppied_solution s = make(p);
+            pair_insertion_accessor alg(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+            alg.setSegmentPair(a, b);
+            Insertion ins = alg.solve();
+            ASSERT_EQ(alg.memoizedMinimalInsertions.size(), 1u);
+            ASSERT_TRUE(alg.memoizedMinimalInsertions.contains(SegmentPair(a, b)));
+            const Insertion& cached = alg.memoizedMinimalInsertions.at(SegmentPair(a, b));
+            EXPECT_EQ(cached.cost, ins.cost);
+            EXPECT_EQ(cached.cost, bruteForce(p, a, b)) << "cached insertion is not the optimum";
+            // The cached plan is a real one (indexes may be unordered).
+            auto first = std::make_pair(cached.segments.first, cached.indexes.first);
+            auto second = std::make_pair(cached.segments.second, cached.indexes.second);
+            if (first.second > second.second) std::swap(first, second);
+            EXPECT_EQ(cached.cost, costOf(apply(p, {}, {first, second})) - costOf(p));
+        }
+}
+
+// Pairs sharing segments: one top-two entry per distinct segment and one
+// minimal insertion entry per distinct unordered pair.
+TEST_F(pair_insertion_fixture, CacheSizesCountDistinctSegmentsAndPairs) {
+    const auto pairs = reusePairs(g);
+    for (const auto& p : inputs()) {
+        cppied_solution s = make(p);
+        pair_insertion_accessor alg(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+        std::set<std::uint64_t> segments;
+        std::set<SegmentPair> unordered;
+        for (int pass = 0; pass < 2; ++pass)
+            for (auto [a, b] : pairs) {
+                alg.setSegmentPair(a, b);
+                alg.solve();
+                alg.setSegmentPair(b, a);
+                alg.solve();
+                segments.insert(topTwoKey(g, a));
+                segments.insert(topTwoKey(g, b));
+                unordered.insert(SegmentPair(a, b));
+            }
+        EXPECT_EQ(alg.memoizedDisjointTopInsertions.size(), segments.size());
+        EXPECT_EQ(alg.memoizedMinimalInsertions.size(), unordered.size());
+    }
+}
+
+// Both orientations of a segment share one top-two entry: a pair using the
+// flipped segment adds no entry for it.
+TEST_F(pair_insertion_fixture, TopTwoCacheIsSharedByBothOrientations) {
+    for (const auto& p : inputs())
+        for (auto [a, b] : reusePairs(g)) {
+            SCOPED_TRACE("insert " + segStr(a) + " + " + segStr(b));
+            cppied_solution s = make(p);
+            pair_insertion_accessor alg(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+            alg.setSegmentPair(a, b);
+            alg.solve();
+            const std::size_t entries = alg.memoizedDisjointTopInsertions.size();
+            segment fa = g.flip_segment(a), fb = g.flip_segment(b);
+            alg.setSegmentPair(fa, fb);
+            alg.solve();
+            EXPECT_EQ(alg.memoizedDisjointTopInsertions.size(), entries);
+        }
+}
+
+// A segment already cached is not recomputed: poisoning its entry with
+// insertions above any bound makes the next pair using it dominated.
+TEST_F(pair_insertion_fixture, TopTwoCacheIsReadForKnownSegment) {
+    auto pairs = reusePairs(g);
+    auto [a, b] = pairs[0];
+    segment other = pairs[1].second;
+    for (const auto& p : inputs()) {
+        cppied_solution s = make(p);
+        pair_insertion_accessor alg(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+        alg.setSegmentPair(a, b);
+        alg.solve();
+        TopTwoInsertion& entry = alg.memoizedDisjointTopInsertions.at(topTwoKey(g, a));
+        entry.bestInsertion.insertion_cost = {MAX_INT, MAX_INT};
+        entry.backupInsertion.insertion_cost = {MAX_INT, MAX_INT};
+        alg.setSegmentPair(a, other);
+        EXPECT_THROW(alg.solve(), DominatedInsertion) << "the cached top two insertions of " << segStr(a)
+                                                      << " were not used";
+    }
+}
+
+// A pair already cached is not recomputed: solve() returns the cached
+// insertion, for both orders of the pair.
+TEST_F(pair_insertion_fixture, MinimalInsertionCacheIsReadForKnownPair) {
+    for (const auto& p : inputs())
+        for (auto [a, b] : reusePairs(g)) {
+            SCOPED_TRACE("insert " + segStr(a) + " + " + segStr(b));
+            cppied_solution s = make(p);
+            pair_insertion_accessor alg(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+            alg.setSegmentPair(a, b);
+            alg.solve();
+            const Insertion marker{{1, 1}, {-7, -7}, {a, b}};
+            alg.memoizedMinimalInsertions.at(SegmentPair(a, b)) = marker;
+            for (int order = 0; order < 2; ++order) {
+                order == 0 ? alg.setSegmentPair(a, b) : alg.setSegmentPair(b, a);
+                Insertion hit = alg.solve();
+                EXPECT_EQ(hit.cost, marker.cost) << "the cached insertion was not used (order " << order << ")";
+                EXPECT_EQ(hit.indexes, marker.indexes);
+            }
+        }
+}
+
+// The bound is the one of the caller: RandomOneTwoReallocation inserts
+// without a bound, so none of its paired candidates is dominated.
+TEST_F(pair_insertion_fixture, RandomOneTwoPairedCandidatesAreNeverDominated) {
+    int paired = 0;
+    for (const auto& p : inputs())
+        for (int i = 1; i < static_cast<int>(p.size()); ++i)
+            for (int d = 0; d < 5; ++d) {
+                cppied_solution s = make(p);
+                OneTwoReallocationMove mv = RandomOneTwoReallocation(P, c, g, s, i).solve();
+                if (!path_engine::is_node(mv.replacements[1].source)) continue;
+                ++paired;
+                EXPECT_GT(mv.gain, (cost_t{MIN_INT, MIN_INT}))
+                    << "dominated paired move drawn for path[" << i << "] = " << segStr(p[i]);
+            }
+    EXPECT_GT(paired, 0);
+}
+
+// Two segment path: the disjoint configurations use indexes 1 and 2 only.
+TEST_F(pair_insertion_fixture, PairInsertionIntoTwoSegmentPath) {
+    const std::vector<std::vector<segment>> paths = {{{6, -1}, {23, 18}}, {{6, 11}, {44, 42}}};
+    for (const auto& p : paths) {
+        checkPair(p, {7, 10}, {48, 52});
+        checkPair(p, {0, 4}, {72, 75});
+        auto [first, second] = g.splitSegment({30, 35}, 2);
+        checkPair(p, first, second);
+    }
 }
 
 TEST_F(move_algorithms_fixture, PairInsertionThrowsWhenDominated) {
     const auto p = inputs()[0];
     auto reduced = p; reduced.erase(reduced.begin() + 4);
     cppied_solution s = make(reduced);
-    MinimumSegmentPairInsertion unitary(P, c, g, s, p[4], kNull, cost_t{0, 0});
-    EXPECT_THROW(unitary.solve(), DominatedInsertion);
     auto [first, second] = g.splitSegment(p[4], 2);
-    MinimumSegmentPairInsertion pair(P, c, g, s, first, second, cost_t{0, 0});
+    MinimumSegmentPairInsertion pair(P, c, g, s, cost_t{0, 0});
+    pair.setSegmentPair(first, second);
     EXPECT_THROW(pair.solve(), DominatedInsertion);
 }
 
 // Edge case: the path holds only the start segment, so the only insertion
-// position is 1 (append). solveUnitPathEdgeCase handles it:
-//   unitary: the cheaper orientation, appended, indexes {1, -1};
-//   pair: both segments appended consecutively, in the cheapest of the 8
-//   orders/orientations, with the paired-insertion convention {k, k}
-//   ("both before path[k]", here k = 1) used by the callers (nested inserts
-//   the second segment right after the first: at index k + 1).
+// position is 1 (append). solveUnitPathEdgeCase handles it: both segments
+// appended consecutively, in the cheapest of the 8 orders/orientations, with
+// the paired-insertion convention {k, k} ("both before path[k]", here k = 1)
+// used by the callers (nested inserts the second segment right after the
+// first: at index k + 1).
 // The returned cost is the real cost of the insertion, and it never throws:
 // there is no alternative position to dominate it.
 TEST_F(move_algorithms_fixture, PairInsertionIntoStartOnlyPath) {
@@ -425,18 +724,9 @@ TEST_F(move_algorithms_fixture, PairInsertionIntoStartOnlyPath) {
     const cppied_solution before = s;
     const segment a = {23, 18};
 
-    MinimumSegmentPairInsertion unitary(P, c, g, s, a, kNull, cost_t{MAX_INT, MAX_INT});
-    Insertion u = unitary.solve();
-    expectUnchanged(before, s, "MinimumSegmentPairInsertion (unit path, unitary)");
-    EXPECT_EQ(u.indexes.first, 1);
-    EXPECT_FALSE(path_engine::is_node(u.segments.second.source));
-    const cost_t forward = costOf(apply(start, {}, {{a, 1}})) - costOf(start);
-    const cost_t reversed = costOf(apply(start, {}, {{g.flip_segment(a), 1}})) - costOf(start);
-    EXPECT_EQ(u.cost, std::min(forward, reversed));
-    EXPECT_EQ(u.cost, costOf(apply(start, {}, {{u.segments.first, u.indexes.first}})) - costOf(start));
-
     auto [first, second] = g.splitSegment(a, 2);
-    MinimumSegmentPairInsertion pair(P, c, g, s, first, second, cost_t{MAX_INT, MAX_INT});
+    MinimumSegmentPairInsertion pair(P, c, g, s, cost_t{MAX_INT, MAX_INT});
+    pair.setSegmentPair(first, second);
     Insertion pr = pair.solve();
     expectUnchanged(before, s, "MinimumSegmentPairInsertion (unit path, pair)");
     ASSERT_TRUE(path_engine::is_node(pr.segments.first.source));
@@ -502,6 +792,71 @@ TEST_F(reallocation_fixture, MaximumOneTwoReallocationContract) {
             OneTwoReallocationMove mv = MaximumOneTwoReallocation(P, c, g, s, i).solve();
             expectUnchanged(before, s, "MaximumOneTwoReallocation");
             checkOneTwo(p, i, mv, "MaximumOneTwoReallocation", cost_t{0, 1});
+        }
+}
+
+// A single replacement (second replacement NULL) is routed to
+// MinimumSegmentInsertion: no second index, and its gain is the removal gain
+// minus the cheapest single insertion of the replacement in the reduced path.
+// Like a paired replacement, it is dominated (gain MIN) when that insertion
+// costs at least the bound, which is the removal gain for n12 and unbounded
+// for nested (RandomOneTwoReallocation).
+class unitary_reallocation_fixture : public reallocation_fixture {
+protected:
+    template<typename Algorithm>
+    // bound: the insertion cost bound; none means the removal gain of path[i].
+    void checkUnitary(std::optional<cost_t> bound, const char* who, int& unitary, int& dominated) {
+        for (const auto& p : inputs())
+            for (int i = 1; i < static_cast<int>(p.size()); ++i) {
+                cppied_solution s = make(p);
+                OneTwoReallocationMove mv = Algorithm(P, c, g, s, i).solve();
+                if (!path_engine::is_node(mv.replacements[0].source) || path_engine::is_node(mv.replacements[1].source))
+                    continue;
+                ++unitary;
+                SCOPED_TRACE(std::string(who) + " path[" + std::to_string(i) + "] = " + segStr(p[i]) +
+                             " -> " + segStr(mv.replacements[0]));
+                EXPECT_EQ(mv.replacements[1], kNull);
+                EXPECT_EQ(mv.reallocationIndexes[1], -1) << "single replacement with a second index";
+                auto reduced = p; reduced.erase(reduced.begin() + i);
+                cppied_solution r = make(reduced);
+                SegmentInsertion ins = MinimumSegmentInsertion(P, c, g, r, mv.replacements[0]).solve();
+                const cost_t removal = costOf(p) - costOf(reduced);
+                if (ins.insertion_cost >= bound.value_or(removal)) {
+                    ++dominated;
+                    EXPECT_EQ(mv.gain, (cost_t{MIN_INT, MIN_INT})) << "insertion above the bound not dominated";
+                } else
+                    EXPECT_EQ(mv.gain, removal - ins.insertion_cost);
+            }
+    }
+};
+
+TEST_F(unitary_reallocation_fixture, MaximumOneTwoUnitaryMoveUsesMinimumInsertion) {
+    int unitary = 0, dominated = 0;
+    checkUnitary<MaximumOneTwoReallocation>(std::nullopt, "MaximumOneTwoReallocation", unitary, dominated);
+    EXPECT_GT(unitary, 0) << "no single replacement move exercised";
+    RecordProperty("dominated_unitary", std::to_string(dominated) + "/" + std::to_string(unitary));
+}
+
+TEST_F(unitary_reallocation_fixture, RandomOneTwoUnitaryMoveIsNeverDominated) {
+    int unitary = 0, dominated = 0;
+    for (int d = 0; d < 5; ++d)
+        checkUnitary<RandomOneTwoReallocation>(cost_t{MAX_INT, MAX_INT}, "RandomOneTwoReallocation", unitary, dominated);
+    EXPECT_GT(unitary, 0) << "no single replacement move exercised";
+    EXPECT_EQ(dominated, 0);
+}
+
+// With the bound at the removal gain, a single replacement returned by n12 is
+// either dominated (gain MIN) or strictly improving.
+TEST_F(reallocation_fixture, MaximumOneTwoUnitaryMoveIsDominatedOrImproving) {
+    for (const auto& p : inputs())
+        for (int i = 1; i < static_cast<int>(p.size()); ++i) {
+            cppied_solution s = make(p);
+            OneTwoReallocationMove mv = MaximumOneTwoReallocation(P, c, g, s, i).solve();
+            if (!path_engine::is_node(mv.replacements[0].source)) continue;
+            SCOPED_TRACE("path[" + std::to_string(i) + "] = " + segStr(p[i]));
+            // A move that is not dominated must strictly beat the bound: positive gain.
+            if (mv.gain > cost_t{MIN_INT, MIN_INT} && !path_engine::is_node(mv.replacements[1].source))
+                EXPECT_GT(mv.gain, (cost_t{0, 0})) << "non-dominated unitary move with non-positive gain";
         }
 }
 

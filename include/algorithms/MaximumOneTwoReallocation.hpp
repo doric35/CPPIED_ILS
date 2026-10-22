@@ -2,6 +2,7 @@
 
 #include "MaximumMove.hpp"
 #include "MinimumSegmentPairInsertion.hpp"
+#include "MinimumSegmentInsertion.hpp"
 
 //This algorithm is at a heuristic stage. Returned pair is not the true optimal pair.
 
@@ -16,7 +17,6 @@ private:
     cost_t removalGain;
     cost_t bound;
     std::unordered_set<SegmentPair, HashSegmentPair> processedPairs;
-    std::unordered_map<std::uint64_t, std::array<std::pair<int,cost_t>, 4>> memoizedTopInsertions;
 
     std::vector<int> getUnsatisfiedCells();
     iRectangle getUnsatisfiedRectangle(std::vector<int>& unsatisfiedCells);
@@ -33,15 +33,17 @@ private:
 
     void setCandidatesTopInsertions();
     void setMoveTopInsertion(OneTwoReallocationMove& move);
+    void setMoveTopInsertionUnitarySegment(OneTwoReallocationMove& move);
+    void setMoveTopInsertionPairedSegment(OneTwoReallocationMove& move);
 
     void setSimpleRemovalIncumbent();
-
-    segment trimSegment(segment& s);
 
     void setIncumbentMove() override;
 protected:
     cost_t insertionCostBound;
-    virtual void setCompleteCoverageSegments(){}
+
+    MinimumSegmentPairInsertion insertionAlgorithm;
+
     bool isValidMove(OneTwoReallocationMove& move) override{ return false; }
     void correctIncumbentIndexInsertion();
     cost_t getGain(OneTwoReallocationMove& move) override{ return cost_t{0,0}; }
@@ -50,7 +52,8 @@ public:
     template <typename... Args>
     explicit MaximumOneTwoReallocation(Args&&... args) :
     MaximumMove<OneTwoReallocationMove>(std::forward<Args>(args)...),
-    removalGain(), bound(), insertionCostBound(), processedPairs(), memoizedTopInsertions(){
+    removalGain(), bound(), insertionCostBound(), processedPairs(),
+    insertionAlgorithm(instance, coverage, geometry, solution, geometry.removal_gain(solution, solution.path.begin() + index)){
         incumbent.replacements[0] = {path_engine::NULL_NODE, path_engine::NULL_NODE};
         incumbent.replacements[1] = {path_engine::NULL_NODE, path_engine::NULL_NODE};
         removalGain = geometry.removal_gain(solution, solution.path.begin() + index);
