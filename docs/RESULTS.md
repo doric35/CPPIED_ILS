@@ -5,9 +5,8 @@
 This file contain a description of the raw results that we made available to 
 replicate the experimental section of the following paper:
 
-D. Richard, M. Morin, C.G. Quimper, *Iterated Local Search for Coverage Path Planning with Imperfect Extended Detection*, European Journal of Operational Research, 2026 (being reviewed).
-
-Link to the paper will be available here upon publication.
+D. Richard, M. Morin and C.-G. Quimper, Iterated local search for coverage path planning with imperfect extended detection.
+*European Journal of Operational Research* (2026), doi: https://doi.org/10.1016/j.ejor.2026.10.018.
 
 ## Citation
 

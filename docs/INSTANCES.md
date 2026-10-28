@@ -5,15 +5,12 @@
 This file contain a description of the instances set made available as an algorithmic stress test for future development
 on algorithms for the CPPIED or any other scientific research.
 
-Link to the paper will be available here upon publication.
-
 ## Citation
 
 If you use the result data available in this repository for your scientific research, please cite:
 
-D. Richard, M. Morin, C.G. Quimper, *Iterated Local Search for Coverage Path Planning with Imperfect Extended Detection*, European Journal of Operational Research, 2026 (being reviewed).
-
-Latex format citation will be placed here upon publication.
+D. Richard, M. Morin and C.-G. Quimper, Iterated local search for coverage path planning with imperfect extended detection.
+*European Journal of Operational Research* (2026), doi: https://doi.org/10.1016/j.ejor.2026.10.018.
 
 ## Instances Files
 
