@@ -3,15 +3,12 @@
 ## General
 
 This repository contains the implementation presented in the paper:
-D. Richard, M. Morin, C.G. Quimper, *Iterated Local Search for Coverage Path Planning with Imperfect Extended Detection*, European Journal of Operational Research, 2026 (being reviewed).
-
-Link to the paper will be available here upon publication.
+D. Richard, M. Morin and C.-G. Quimper, Iterated local search for coverage path planning with imperfect extended detection. 
+*European Journal of Operational Research* (2026), doi: https://doi.org/10.1016/j.ejor.2026.10.018.
 
 ## Citation
 
-If you use this code or the data available in this repository for your scientific research, please cite:
-
-Latex format citation will be placed here upon publication.
+If you use this code or the data available in this repository for your scientific research, please cite the paper above.
 
 ## Overview
 
