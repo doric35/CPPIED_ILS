@@ -74,8 +74,8 @@ protected:
         cppied_solution s;
         s.coverage = Eigen::VectorXd::Zero(P.req.size());
         s.cost = {0, 0};
-        dp_sweeper h(ctx, P);
-        h.construct(s, [](cppied_solution&){});
+        DpSweeper h(ctx, P, s);
+        h.construct([](cppied_solution&){});
         geometry.complete(s);
         coverage.reset(s);
         s.cost = geometry.cost(s);

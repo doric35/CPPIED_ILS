@@ -20,7 +20,7 @@ void restart_backtrack::restart(cppied_solution &pSol) {
 
     int i =-1;
     auto choice_func = [&](
-            const std::array<sweeper::segment_set,2>&){
+            const std::array<sweeper::SegmentSet,2>&){
         //std::cout << "In choice func" << std::endl;
         ++i;
         if (i==choices.size() - 1)
@@ -30,10 +30,10 @@ void restart_backtrack::restart(cppied_solution &pSol) {
         return int(choices[i]);
     };
 
-    dp_sweeper method(ctx, problem);
+    DpSweeper method(ctx, problem, pSol);
     method.set_choice(choice_func);
     //std::cout << "Starting construct" << std::endl;
-    method.construct(pSol, save_history);
+    method.construct(save_history);
 }
 
 void restart_backtrack::sample(cppied_solution &pSol) {

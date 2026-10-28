@@ -1,140 +1,149 @@
 #include "../../include/construction/dp_sweeper.hpp"
 
-void dp_sweeper::construct(cppied_solution &pSol, std::function<void(cppied_solution&)> f) {
-    std::vector<int> unsat;
-    unsat.reserve(geometry.n_rows * geometry.n_cols);
+void DpSweeper::construct(const std::function<void(cppied_solution&)>& f) {
+    mPenalty = 0.01;
+    setRootSegmentIfEmptySolution();
+    setUnsatisfiedCells();
+    while (!unsatisfiedCells.empty())
+        addCoverageSegmentSet(f);
+    solveTspReduction();
+}
 
-    if (pSol.path.empty()) {
+void DpSweeper::setRootSegmentIfEmptySolution() {
+    if (solution.path.empty()) {
         segment initial = {problem.initial_position, path_engine::NULL_NODE};
-        coverage.insert(pSol, initial);
-        pSol.path.push_back(initial);
+        coverage.insert(solution, initial);
+        solution.path.push_back(initial);
     }
+}
 
-    coverage.unsatisfied_cells(pSol, unsat);
-    if (!unsat.empty()) {
-        while (!unsat.empty()) {
-            iRectangle box;
-            coverage.unsatisfied_rectangle(unsat, box);
-            std::array<sweeper::segment_set, 2> S{{
-                                                          {{}, 0.0, true},
-                                                          {{}, 0.0, false}
-                                                  }};
-            S[0].S.reserve(geometry.n_rows + 1);
-            S[1].S.reserve(geometry.n_cols + 1);
+void DpSweeper::setUnsatisfiedCells() {
+    unsatisfiedCells.clear();
+    coverage.unsatisfied_cells(solution, unsatisfiedCells);
+}
 
-            auto set_candidates = [&](const segment &seg) {
-                if (geometry.is_horizontal(seg))
-                    S[0].S.push_back(maximum_subarray(pSol, seg));
-                else
-                    S[1].S.push_back(maximum_subarray(pSol, seg));
-            };
-            for_each_segment(box, set_candidates);
-            filter_segment_set(pSol, S[0]);
-            filter_segment_set(pSol, S[1]);
+void DpSweeper::addCoverageSegmentSet(const std::function<void(cppied_solution&)>& save_history) {
+    std::array<sweeper::SegmentSet, 2> candidates = constructCandidateSets();
+    filterCandidateSetsWithSpacingConstraint(candidates);
+    selectCandidateSet(candidates);
+    setUnsatisfiedCells();
+    save_history(solution);
+}
 
-            select(pSol, S);
+std::array<sweeper::SegmentSet, 2> DpSweeper::constructCandidateSets() {
+    iRectangle box;
+    coverage.unsatisfied_rectangle(unsatisfiedCells, box);
+    std::array<sweeper::SegmentSet, 2> S{{
+        {{}, {}},
+        {{}, {}}
+    }};
+    auto set_candidates = [&](const segment &seg) {
+        auto [s, g] = maximumSubarray(seg);
+        int orientation = geometry.is_horizontal(seg) ? 0 : 1;
+        S[orientation].segments.push_back(s);
+        S[orientation].gains.push_back(g);
+    };
+    for_each_segment(box, set_candidates);
+    return S;
+}
 
-            unsat.clear();
-            coverage.unsatisfied_cells(pSol, unsat);
-            f(pSol);
-        }
-        for (int i = 1; i < pSol.path.size(); i += 2)
-            pSol.path[i] = geometry.flip_segment(pSol.path[i]);
+void DpSweeper::filterCandidateSetsWithSpacingConstraint(std::array<sweeper::SegmentSet, 2> &candidateSets) {
+    filterCandidateSet(candidateSets[0]);
+    filterCandidateSet(candidateSets[1]);
+}
+
+void DpSweeper::filterCandidateSet(sweeper::SegmentSet &set) {
+    MaximumSpaceConstrainedArraySelection selection_algorithm(2*problem.max_range, set.gains);
+    auto selection = selection_algorithm.solve();
+    sweeper::SegmentSet filtered;
+    for (int i : selection) {
+        filtered.segments.push_back(set.segments[i]);
+        filtered.gains.push_back(set.gains[i]);
     }
-    pSol.cost = geometry.cost(pSol);
-    neighborhood_tsp n(ctx, problem, pSol);
+    std::swap(filtered, set);
+}
+
+void DpSweeper::selectCandidateSet(std::array<sweeper::SegmentSet, 2>& candidateSets) {
+    int choice = mChoice(candidateSets);
+    if (!isValidChoice(choice))
+        choice = int(!horizontalDominatesVertical(candidateSets));
+
+    if (candidateSets[choice].segments.empty())
+        mPenalty /= 10.0;
+
+    addSelectedSegmentsToSolution(candidateSets[choice]);
+}
+
+bool DpSweeper::horizontalDominatesVertical(std::array<sweeper::SegmentSet, 2> &candidateSets) {
+    sweeper::LexicographicSegmentSetValue firstValues = getLexicographicValues(candidateSets[0]);
+    sweeper::LexicographicSegmentSetValue secondValues = getLexicographicValues(candidateSets[1]);
+    return firstValues >= secondValues;
+}
+
+sweeper::LexicographicSegmentSetValue DpSweeper::getLexicographicValues(sweeper::SegmentSet &set) {
+    sweeper::LexicographicSegmentSetValue values{};
+    values.gain = std::ranges::fold_left(set.gains, 0.0, std::plus{});
+    values.negative_size = -static_cast<int>(set.segments.size());
+    values.negative_length = -std::accumulate(set.segments.begin(), set.segments.end(), 0,
+                                              [&](int c, const segment& s){ return c + geometry.cost(s).length + 1;});
+    return values;
+}
+
+bool DpSweeper::isValidChoice(int choice) {
+    return choice == 0 || choice == 1;
+}
+
+void DpSweeper::addSelectedSegmentsToSolution(const sweeper::SegmentSet &segments) {
+    for (auto& s : segments.segments){
+        solution.path.push_back(s);
+        coverage.insert(solution, s);
+    }
+}
+
+void DpSweeper::setInitialSolutionAlternateOrientations() {
+    for (int i = 1; i < solution.path.size(); i += 2)
+        solution.path[i] = geometry.flip_segment(solution.path[i]);
+}
+
+void DpSweeper::solveTspReduction() {
+    setInitialSolutionAlternateOrientations();
+    solution.cost = geometry.cost(solution);
+    neighborhood_tsp n(ctx, problem, solution);
     n.local_search();
 }
 
-void dp_sweeper::select(cppied_solution &pSol,
-                        std::array<sweeper::segment_set, 2>& S) {
-    bool select_horizontal = (S[0].gain > S[1].gain) ||
-            (S[0].gain == S[1].gain && S[0].S.size() <= S[1].S.size());
-
-    int choice = mChoice(S);
-    if (!(choice == 0 || choice == 1)){
-        choice = 0;
-        if (!select_horizontal)
-            choice = 1;
-    }
-
-    if (S[choice].S.empty())
-        mPenalty /= 10.0;
-
-    for (auto& p : S[choice].S){
-        pSol.path.push_back(p.first);
-        coverage.insert(pSol, p.first);
-    }
+std::pair<segment, double> DpSweeper::maximumSubarray(const segment &array) {
+    std::vector<double> gains = constructArrayCosts(array);
+    MaximumSubarrayKadane kadane_algorithm(gains);
+    SubArray subarray = kadane_algorithm.solve();
+    segment non_oriented = geometry.getNonOriented(array);
+    segment subarray_segment = {non_oriented.source + subarray.start,
+                                non_oriented.source + subarray.end};
+    subarray_segment.target = subarray_segment.source != subarray_segment.target ? subarray_segment.target : path_engine::NULL_NODE;
+    return {subarray_segment, subarray.value};
 }
 
-void dp_sweeper::filter_segment_set(cppied_solution &,
-                                    sweeper::segment_set &S) {
-    std::vector<std::pair<segment,double>> new_set;
-    new_set.reserve(S.S.size() / (2*problem.max_range));
-
-    std::vector<double> DP(int(S.S.size()), 0.0);
-    for (int i=0; i<std::min(2*problem.max_range, int(S.S.size())); ++i)
-        DP[i] = S.S[i].second;
-
-    for (int i = 2*problem.max_range; i<S.S.size(); ++i)
-        DP[i]=std::max(DP[i-1],
-                       DP[i-2*problem.max_range] + S.S[i].second);
-
-    //Backtrack
-    int i = static_cast<int>(DP.size()) - 1;
-    while (i >= 2*problem.max_range){
-        if (DP[i] > DP[i-1]) {
-            new_set.emplace_back(S.S[i].first, S.S[i].second);
-            i -= 2*problem.max_range;
-        }
-        else --i;
-    }
-    auto elem = std::max_element(DP.begin(), std::next(DP.begin(), i+1));
-    if (*elem > 0.0){
-        int j = static_cast<int>(std::distance(DP.begin(), elem));
-        new_set.emplace_back(S.S[j].first, S.S[j].second);
-    }
-    S.S.swap(new_set);
-    S.gain = DP.back();
-}
-
-std::pair<segment, double> dp_sweeper::maximum_subarray(cppied_solution &pSol, const segment &ref) {
-    std::vector<double> gain;
-    std::vector<int> position;
-    gain.reserve(geometry.cost(ref).length+1);
-    position.reserve(geometry.cost(ref).length+1);
-    auto gain_func = [&](
-            cppied_solution& pSol, int v){
-        double marginal_gain = 0.0, local_gain = 0.0;
-        for (SMdIt c(problem.s_pod, v); c; ++c){
-            local_gain = std::min(problem.req(c.index()) - pSol.coverage(c.index()), c.value());
+std::vector<double> DpSweeper::constructArrayCosts(const segment &array) {
+    auto [u, v] = getArrayBounds(array);
+    auto gainFunction = [&](int i){
+        double vertex_gain = 0.0;
+        for (SMdIt c(problem.s_pod, i); c; ++c){
+            double local_gain = std::min(problem.req(c.index()) - solution.coverage(c.index()), c.value());
             local_gain = (local_gain >= 0) * local_gain - (local_gain < 0) * mPenalty;
-            marginal_gain += local_gain;
+            vertex_gain += local_gain;
         }
-        if (marginal_gain <= 0.0)
-            marginal_gain = -std::numeric_limits<double>::infinity();
-        position.push_back(v);
-        gain.push_back(marginal_gain);
+        return vertex_gain;
     };
-    coverage.apply(pSol, ref, gain_func);
+    auto gains = std::views::iota(u, v+1)
+            | std::views::transform(gainFunction)
+            | std::views::transform([](auto x){ return x <= 0.0 ? MIN_INT : x; })
+            | std::ranges::to<std::vector>();
+    return gains;
+}
 
-    assert(!gain.empty());
-    //Dp phase
-    double sum = gain[0], best_sum = gain[0];
-    int best_l = 0, best_u = 0, curr_l=0, curr_u=1;
-    for (; curr_u < gain.size(); curr_u++){
-        if (gain[curr_u] > sum + gain[curr_u]){
-            sum = gain[curr_u];
-            curr_l = curr_u;
-        } else
-            sum += gain[curr_u];
-        if (sum > best_sum){
-            best_sum = sum;
-            best_l = curr_l;
-            best_u = curr_u;
-        }
-    }
-    if (best_l == best_u)
-        return {segment{position[best_l], path_engine::NULL_NODE}, best_sum};
-    return {segment{position[best_l], position[best_u]}, best_sum};
+std::pair<int,int> DpSweeper::getArrayBounds(const segment &array) {
+    segment non_oriented = geometry.getNonOriented(array);
+    int u = non_oriented.source;
+    int v = std::max(array.source, array.target);
+    return {u,v};
 }

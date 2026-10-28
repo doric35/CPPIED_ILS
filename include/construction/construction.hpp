@@ -3,8 +3,12 @@
 #include "../cppied_method_base.hpp"
 
 class construction : public cppied_method_base{
+protected:
+    cppied_solution& solution;
 public:
-    using cppied_method_base::cppied_method_base;
+    construction(cppied_context& c, cppied_instance& i, cppied_solution& s) :
+        cppied_method_base(c, i), solution(s){}
+
     void initialize() override {
         throw std::runtime_error("Not implemented for neighborhoods interface.");
     }
@@ -14,10 +18,9 @@ public:
     void d_solve(cppied_solution& pSolution) override {
         throw std::runtime_error("Not implemented for neighborhoods interface.");
     }
-    virtual ~construction() = default;
+    ~construction() override = default;
 
-    virtual void construct(cppied_solution&,
-                           std::function<void(cppied_solution&)> save_history) = 0;
+    virtual void construct(const std::function<void(cppied_solution&)>& save_history) = 0;
 
     template<class F>
     void for_each_segment(const iRectangle& box,

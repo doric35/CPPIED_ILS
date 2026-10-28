@@ -2,36 +2,63 @@
 
 #include "construction.hpp"
 #include "../neighborhoods/neighborhood_tsp.hpp"
+#include "../algorithms/MaximumSubarrayKadane.hpp"
+#include "../algorithms/MaximumSpaceConstrainedArraySelection.hpp"
 
 namespace sweeper{
-    struct segment_set{
-        std::vector<std::pair<segment, double>> S;
+    struct SegmentSet{
+        std::vector<segment> segments;
+        std::vector<double> gains;
+    };
+
+    struct LexicographicSegmentSetValue{
         double gain;
-        bool horizontal;
+        int negative_length;
+        int negative_size;
+
+        auto operator<=>(const LexicographicSegmentSetValue&) const = default;
     };
 }
 
-class dp_sweeper: public construction{
+class DpSweeper: public construction{
 protected:
     double mPenalty=0.01;
 
-    std::function<int(const std::array<sweeper::segment_set,2>&)> mChoice =
-            [](const std::array<sweeper::segment_set,2>&){
+    std::vector<int> unsatisfiedCells;
+
+    std::function<int(const std::array<sweeper::SegmentSet,2>&)> mChoice =
+            [](const std::array<sweeper::SegmentSet,2>&){
         return -1;
     };
 
+    void setRootSegmentIfEmptySolution();
+    void setUnsatisfiedCells();
+    std::array<sweeper::SegmentSet, 2> constructCandidateSets();
+    void filterCandidateSetsWithSpacingConstraint(std::array<sweeper::SegmentSet, 2>& candidateSets);
+    void filterCandidateSet(sweeper::SegmentSet& set);
+    void selectCandidateSet(std::array<sweeper::SegmentSet, 2>& candidateSets);
+    void addCoverageSegmentSet(const std::function<void(cppied_solution&)>& save_history);
+    bool horizontalDominatesVertical(std::array<sweeper::SegmentSet, 2>& candidateSets);
+    bool isValidChoice(int choice);
+    void addSelectedSegmentsToSolution(const sweeper::SegmentSet& segments);
+    void setInitialSolutionAlternateOrientations();
+    void solveTspReduction();
+    std::vector<double> constructArrayCosts(const segment& array);
+    std::pair<int,int> getArrayBounds(const segment& array);
+
+    std::pair<segment,double> maximumSubarray(const segment& array);
+
+    sweeper::LexicographicSegmentSetValue getLexicographicValues(sweeper::SegmentSet& set);
+
 public:
-    using construction::construction;
+    template<typename... Args>
+    explicit DpSweeper(Args&&... args) : construction(std::forward<Args>(args)...), unsatisfiedCells(){
+        unsatisfiedCells.reserve(geometry.n_rows * geometry.n_cols);
+    }
 
-    void construct(cppied_solution&,
-                   std::function<void(cppied_solution&)> save_history) override;
-
-    std::pair<segment,double> maximum_subarray(cppied_solution&, const segment& ref);
-    void filter_segment_set(cppied_solution&, sweeper::segment_set& S);
-    void set_choice(std::function<int(const std::array<sweeper::segment_set,2>&)> choice) {
+    void construct(const std::function<void(cppied_solution&)>& save_history) override;
+    void set_choice(std::function<int(const std::array<sweeper::SegmentSet,2>&)> choice) {
         mChoice = std::move(choice);
     }
-    double get_penalty(){return mPenalty;}
-    void select(cppied_solution&,
-                std::array<sweeper::segment_set,2>& S);
+    [[nodiscard]] double get_penalty() const{return mPenalty;}
 };

@@ -566,9 +566,9 @@ protected:
         warm_sol.cost     = {0, 0};
         warm_sol.coverage = Eigen::VectorXd::Zero(P.req.size());
 
-        dp_sweeper dps(ctx, P);
+        DpSweeper dps(ctx, P, warm_sol);
         auto saver = [](const cppied_solution&) {};
-        dps.construct(warm_sol, saver);
+        dps.construct(saver);
         m->geometry.complete(warm_sol);
         m->coverage.reset(warm_sol);
         warm_sol.cost = m->geometry.cost(warm_sol);
@@ -1037,11 +1037,11 @@ protected:
         sol.cost     = {0, 0};
         sol.coverage = Eigen::VectorXd::Zero(P.req.size());
 
-        dp_sweeper dps(ctx, P);
+        DpSweeper dps(ctx, P, sol);
         auto history_save = [](cppied_solution&){
 
         };
-        dps.construct(sol, history_save);
+        dps.construct(history_save);
 
         m = std::make_unique<ilp_accessor>(ctx, P);
         m->coverage.reset(sol);
@@ -1167,9 +1167,9 @@ protected:
         ctx_vlf->start_time = std::chrono::high_resolution_clock::now();
         ctx_vlf->max_time   = 600;
 
-        dp_sweeper dps(ctx_vlf.value(), P_vlf.value());
+        DpSweeper dps(ctx_vlf.value(), P_vlf.value(), sol_vlf);
         auto history_save = [](cppied_solution&){};
-        dps.construct(sol_vlf, history_save);
+        dps.construct(history_save);
 
         m_vlf = std::make_unique<ilp_accessor>(ctx_vlf.value(), P_vlf.value());
         m_vlf->coverage.reset(sol_vlf);

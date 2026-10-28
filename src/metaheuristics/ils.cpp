@@ -29,11 +29,11 @@ void ils::constructInitialSolution() {
         std::unique_ptr<Restart> restart_ptr = restart_class(ctx, problem, incumbent);
         restart_ptr->restart(incumbent);
     } else {
-        dp_sweeper h(ctx, problem);
+        DpSweeper h(ctx, problem, incumbent);
         auto saver = [](const cppied_solution& pSol){
             ;
         };
-        h.construct(incumbent, saver);
+        h.construct(saver);
     }
     setCompleteSolution(incumbent);
 }

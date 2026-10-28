@@ -67,18 +67,18 @@ TEST_F(ils_refactor_fixture, DefaultSolutionHasEmptyCoverage) {
 }
 
 TEST_F(ils_refactor_fixture, DpSweeperSizedCoverageDoesNotThrow) {
-    dp_sweeper h(ctx, P);
     cppied_solution s = sized_empty_solution();
-    EXPECT_NO_THROW(h.construct(s, [](const cppied_solution&){}));
+    DpSweeper h(ctx, P, s);
+    EXPECT_NO_THROW(h.construct([](const cppied_solution&){}));
     EXPECT_GT(s.path.size(), 0u);
 }
 
 TEST_F(ils_refactor_fixture, DpSweeperDefaultCoverageDies) {
     GTEST_FLAG_SET(death_test_style, "threadsafe");
     EXPECT_DEATH({
-        dp_sweeper h(ctx, P);
         cppied_solution s;
-        h.construct(s, [](const cppied_solution&){});
+        DpSweeper h(ctx, P, s);
+        h.construct([](const cppied_solution&){});
     }, "index >= 0 && index < size\\(\\)");
 }
 

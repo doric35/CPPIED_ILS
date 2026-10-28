@@ -554,8 +554,8 @@ TYPED_TEST(selection_large_fixture, SelectionIsJointlyApplicable) {
     cppied_solution start;
     start.coverage = Eigen::VectorXd::Zero(this->P.req.size());
     start.cost = {0, 0};
-    dp_sweeper h(this->ctx, this->P);
-    h.construct(start, [](cppied_solution&){});
+    DpSweeper h(this->ctx, this->P, start);
+    h.construct([](cppied_solution&){});
     g.complete(start);
     c.reset(start);
     start.cost = g.cost(start);

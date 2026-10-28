@@ -22,11 +22,11 @@ void ilp::d_solve(cppied_solution &pSolution) {
     set_objectives(pSolution, model);
 
     if (warm_start){
-        dp_sweeper dps(ctx, problem);
+        DpSweeper dps(ctx, problem, pSolution);
         auto saver = [](const cppied_solution& pSol){
             ;
         };
-        dps.construct(pSolution, saver);
+        dps.construct(saver);
         geometry.complete(pSolution);
         coverage.reset(pSolution);
         std::vector<int> position_sequence;
