@@ -4,6 +4,8 @@ experiments/scratch
 experiments/scripts
 external/LKH**/*
 tests/**/*.txt
+!tests/configurations/*.txt
+tests/configurations/*_config.txt
 tests/**/*.log
 tests/scratch/*
 **/*.pyc
