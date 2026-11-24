@@ -44,13 +44,22 @@ Reallocation MinimumPrice::solveEdge(int u, int v) {
 Reallocation MinimumPrice::getReallocation(const ReallocationDynamicProgram &dp) {
     int last_vertex = dp.predecessors.back();
 
-    const auto match = std::ranges::find_last_if(
-            dp.predecessors.begin(),
-            dp.predecessors.begin() + last_vertex + 1,
-            [](int p) { return p == -1; }
+    auto first = dp.predecessors.begin();
+    auto last = first + last_vertex + 1;
+
+    const auto match = std::find_if(
+        std::make_reverse_iterator(last),
+        std::make_reverse_iterator(first),
+        [](int p) { return p == -1; }
     );
 
-    int first_vertex = static_cast<int>(std::distance(dp.predecessors.begin(), match.begin()));
+    if (match == std::make_reverse_iterator(first))
+        throw std::runtime_error("No predecessor found");
+
+    int first_vertex = static_cast<int>(
+        std::distance(first, std::prev(match.base()))
+    );
+
     return {segment{first_vertex, last_vertex}, dp.values.back(), index};
 }
 

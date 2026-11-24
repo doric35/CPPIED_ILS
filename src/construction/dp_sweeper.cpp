@@ -80,12 +80,29 @@ bool DpSweeper::horizontalDominatesVertical(std::array<sweeper::SegmentSet, 2> &
     return firstValues >= secondValues;
 }
 
-sweeper::LexicographicSegmentSetValue DpSweeper::getLexicographicValues(sweeper::SegmentSet &set) {
+sweeper::LexicographicSegmentSetValue DpSweeper::getLexicographicValues(
+    sweeper::SegmentSet &set
+) {
     sweeper::LexicographicSegmentSetValue values{};
-    values.gain = std::ranges::fold_left(set.gains, 0.0, std::plus{});
+
+    values.gain = std::accumulate(
+        set.gains.begin(),
+        set.gains.end(),
+        0.0,
+        std::plus{}
+    );
+
     values.negative_size = -static_cast<int>(set.segments.size());
-    values.negative_length = -std::accumulate(set.segments.begin(), set.segments.end(), 0,
-                                              [&](int c, const segment& s){ return c + geometry.cost(s).length + 1;});
+
+    values.negative_length = -std::accumulate(
+        set.segments.begin(),
+        set.segments.end(),
+        0,
+        [&](int c, const segment& s) {
+            return c + geometry.cost(s).length + 1;
+        }
+    );
+
     return values;
 }
 
@@ -134,10 +151,10 @@ std::vector<double> DpSweeper::constructArrayCosts(const segment &array) {
         }
         return vertex_gain;
     };
-    auto gains = std::views::iota(u, v+1)
+    auto gains_view = std::views::iota(u, v+1)
             | std::views::transform(gainFunction)
-            | std::views::transform([](auto x){ return x <= 0.0 ? MIN_INT : x; })
-            | std::ranges::to<std::vector>();
+            | std::views::transform([](auto x){ return x <= 0.0 ? MIN_INT : x; });
+    std::vector<double> gains(gains_view.begin(), gains_view.end());
     return gains;
 }
 

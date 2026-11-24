@@ -58,13 +58,19 @@ std::vector<int> neighborhood_gtsp::getUnsatisfiedCells() {
 }
 
 std::vector<int> neighborhood_gtsp::selectClusters() {
-    auto selection_view = std::views::iota(0, static_cast<int>(replacements.size()));
-    auto selection = std::ranges::to<std::vector<int>>(selection_view);
-    auto null_gain = [&](int i ){
-        return replacements[i].gain <= cost_t{0,0};
+    std::vector<int> selection(replacements.size());
+    std::iota(selection.begin(), selection.end(), 0);
+
+    auto null_gain = [&](int i) {
+        return replacements[i].gain <= cost_t{0, 0};
     };
+
     std::erase_if(selection, null_gain);
-    RandomSegmentPacking selection_heuristic(problem, coverage, geometry, trial, selection);
+
+    RandomSegmentPacking selection_heuristic(
+        problem, coverage, geometry, trial, selection
+    );
+
     return selection_heuristic.solve();
 }
 

@@ -27,16 +27,23 @@ double perturbation_ri::sampleCandidateWeight(int u) {
     return std::log(w) / (oc + EPSILON);
 }
 
-std::vector<int> perturbation_ri::getSortedCandidates(const std::vector<double> &weights) const {
-    auto candidates = std::views::iota(0, static_cast<int>(weights.size())) |
-            std::ranges::to<std::vector<int>>();
-    auto cmpWeights = [&](int a, int b){
+std::vector<int> perturbation_ri::getSortedCandidates(
+    const std::vector<double> &weights
+) const {
+    std::vector<int> candidates(weights.size());
+    std::iota(candidates.begin(), candidates.end(), 0);
+
+    auto cmpWeights = [&](int a, int b) {
         return weights[a] > weights[b];
     };
-    std::nth_element(candidates.begin(),
-                     candidates.begin() + static_cast<int>(sampleSize),
-                     candidates.end(),
-                     cmpWeights);
+
+    std::nth_element(
+        candidates.begin(),
+        candidates.begin() + static_cast<int>(sampleSize),
+        candidates.end(),
+        cmpWeights
+    );
+
     return candidates;
 }
 

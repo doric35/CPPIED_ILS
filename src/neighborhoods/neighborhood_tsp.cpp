@@ -15,9 +15,12 @@ bool neighborhood_tsp::local_search() {
 
 TspInstance neighborhood_tsp::buildTspInstance() {
     TspInstance instance{};
+
     instance.distances = getDistanceMatrix();
-    auto tsp_solution_view = std::views::iota(1, tspDimension+1);
-    instance.tour = std::ranges::to<std::vector<int>>(tsp_solution_view);
+
+    instance.tour.resize(tspDimension);
+    std::iota(instance.tour.begin(), instance.tour.end(), 1);
+
     return instance;
 }
 
@@ -58,19 +61,29 @@ void neighborhood_tsp::splitAndPush(std::vector<segment> &partialPath, const seg
     if (path_engine::is_node(split.second.source)) partialPath.push_back(split.second);
 }
 
-std::vector<int> neighborhood_tsp::selectSplitIndexes(){
-    const int n_splits = int(std::sqrt(static_cast<double>(trial.path.size())));
-    auto selection_view = std::views::iota(0, static_cast<int>(trial.path.size()));
-    auto selection = std::ranges::to<std::vector<int>>(selection_view);
-    auto cmp = [&](int i, int j){
+std::vector<int> neighborhood_tsp::selectSplitIndexes() {
+    const int n_splits = static_cast<int>(
+        std::sqrt(static_cast<double>(trial.path.size()))
+    );
+
+    std::vector<int> selection(trial.path.size());
+    std::iota(selection.begin(), selection.end(), 0);
+
+    auto cmp = [&](int i, int j) {
         return geometry.cost(trial.path[i]) > geometry.cost(trial.path[j]);
     };
-    std::partial_sort(selection.begin(),std::next(selection.begin(), n_splits),
-                      selection.end(), cmp);
-    std::vector<int> split_selection(selection.begin(),
-                                     std::next(selection.begin(), n_splits));
-    std::sort(split_selection.begin(), split_selection.end());
-    return split_selection;
+
+    std::partial_sort(
+        selection.begin(),
+        std::next(selection.begin(), n_splits),
+        selection.end(),
+        cmp
+    );
+
+    selection.resize(n_splits);
+    std::sort(selection.begin(), selection.end());
+
+    return selection;
 }
 
 int neighborhood_tsp::getSplitIndex(const segment& s) {

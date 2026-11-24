@@ -672,7 +672,7 @@ std::vector<std::pair<int, cost_t>> path_engine::get_top_k_insertion(
     auto insertions_view = indexes_view | std::views::transform([&](const int &i){
         return std::pair<int,cost_t>{i, insertion_gain(pSol, pSol.path.begin() + i - 1, pTrial)};
     });
-    auto insertions = std::ranges::to<std::vector<std::pair<int,cost_t>>>(insertions_view);
+    std::vector<std::pair<int,cost_t>> insertions(insertions_view.begin(), insertions_view.end());
 
     auto cmp = [&](
             const std::pair<int,cost_t> & a,

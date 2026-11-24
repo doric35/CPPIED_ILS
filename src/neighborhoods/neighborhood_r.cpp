@@ -58,21 +58,27 @@ void neighborhood_r::constructGurobiModel() {
 
 void neighborhood_r::setSelectReallocations() {
     std::vector<cost_t> gains = getRemovalGains();
+
     const int index_bound = static_cast<int>(solution.path.size());
-    auto pairs_view = std::views::iota(1, index_bound)
-                      | std::views::filter([](int i){ return i% 2 == 0; });
-    auto impairs_view = std::views::iota(1, index_bound)
-                      | std::views::filter([](int i){ return i% 2 == 1; });
-    auto sum_gain = [&](cost_t cost, int i){ return cost + gains[i]; };
-    cost_t pair_gain = std::ranges::fold_left(pairs_view, cost_t{0,0}, sum_gain);
-    cost_t impairs_gain = std::ranges::fold_left(impairs_view, cost_t{0,0}, sum_gain);
+
+    cost_t pair_gain{0, 0};
+    cost_t impairs_gain{0, 0};
+
+    for (int i = 1; i < index_bound; ++i) {
+        if (i % 2 == 0)
+            pair_gain += gains[i];
+        else
+            impairs_gain += gains[i];
+    }
+
     std::vector<cost_t> cumulative_gains{pair_gain, impairs_gain};
+
     int s = ris_heuristic::softmaxSample(cumulative_gains, rng);
 
-    if (s)
-        reallocationSelection = std::ranges::to<std::vector<int>>(impairs_view);
-    else
-        reallocationSelection = std::ranges::to<std::vector<int>>(pairs_view);
+    reallocationSelection.clear();
+
+    for (int i = (s ? 1 : 2); i < index_bound; i += 2)
+        reallocationSelection.push_back(i);
 }
 
 std::vector<cost_t> neighborhood_r::getRemovalGains() {

@@ -13,8 +13,8 @@ void perturbation_pt::d_perturbate() {
 }
 
 std::vector<int> perturbation_pt::sampleCandidates(){
-    auto candidates = std::views::iota(1, static_cast<int>(solution.path.size())) |
-            std::ranges::to<std::vector<int>>();
+    auto indices = std::views::iota(1, static_cast<int>(solution.path.size()));
+    std::vector<int> candidates(indices.begin(), indices.end());
     std::shuffle(candidates.begin(), candidates.end(), rng);
     std::vector<int> sampling(candidates.begin(), candidates.begin() + static_cast<int>(K));
     std::sort(sampling.begin(), sampling.end());

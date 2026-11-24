@@ -22,9 +22,9 @@ std::array<int, 4> perturbation_db::getDoubleBridgeIndexes() {
 std::vector<int> perturbation_db::uniformCandidateSample() {
     std::uniform_int_distribution<> d(0,1);
     int mod = d(rng);
-    auto candidates = std::views::iota(1, static_cast<int>(solution.path.size())-1) |
-                      std::views::filter([mod](int i){ return i % 2 == mod; }) |
-                      std::ranges::to<std::vector<int>>();
+    auto candidates_view = std::views::iota(1, static_cast<int>(solution.path.size())-1) |
+                      std::views::filter([mod](int i){ return i % 2 == mod; });
+    std::vector<int> candidates(candidates_view.begin(), candidates_view.end());
     std::shuffle(candidates.begin(), candidates.end(), rng);
     int k = std::max(std::log(solution.path.size() / 2.0), 8.0);
     k = std::min(k, static_cast<int>(candidates.size()));
@@ -69,8 +69,8 @@ std::vector<cost_t> perturbation_db::getDistancesToReferenceCandidate(std::vecto
 }
 
 std::vector<int> perturbation_db::getOrderedIndexes(std::vector<cost_t> &distances) {
-    auto candidates = std::views::iota(0, static_cast<int>(distances.size())) |
-            std::ranges::to<std::vector<int>>();
+    auto candidates_view = std::views::iota(0, static_cast<int>(distances.size()));
+    std::vector<int> candidates(candidates_view.begin(), candidates_view.end());
     auto cmp = [&](int i, int j){
         return distances[i] < distances[j];
     };
