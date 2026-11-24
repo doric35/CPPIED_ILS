@@ -3,7 +3,7 @@
 #include "../cppied_method_base.hpp"
 
 class perturbation : public cppied_method_base {
-private:
+protected:
     cppied_solution& solution;
 public:
     perturbation(cppied_context& c, cppied_instance& i, cppied_solution& s) :
@@ -19,9 +19,9 @@ public:
     }
     ~perturbation() override = default;
 
-    void perturbate(cppied_solution&);
+    void perturbate();
 
-    virtual void d_perturbate(cppied_solution&) = 0;
+    virtual void d_perturbate() = 0;
 
     template<class F>
     void for_each_segment(const iRectangle& box,

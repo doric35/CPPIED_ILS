@@ -60,7 +60,7 @@ cppied_solution ils::perturbate(const cppied_solution &pSolution) {
         auto                          perturbation_class = factory.samplePerturbationMethod();
         std::unique_ptr<perturbation> perturbation_ptr   = perturbation_class(ctx, problem, trial);
 
-        perturbation_ptr->perturbate(trial);
+        perturbation_ptr->perturbate();
     }
     return trial;
 }

@@ -5,15 +5,28 @@
 
 class perturbation_pt : public perturbation{
 public:
-    using perturbation::perturbation;
+    template<typename... Args>
+    perturbation_pt(Args&&... args) : perturbation(std::forward<Args>(args)...), RATIO(0.05),
+        K(static_cast<std::size_t>(std::ceil(RATIO*double(solution.path.size())))){}
 
-    void d_perturbate(cppied_solution&) override;
-    void uniform_sample(cppied_solution&, std::vector<int>& sampling);
-    void replace(cppied_solution&, std::vector<int>& sampling);
-    void replace_segment(cppied_solution&,
-                         std::vector<segment>& new_sol,
-                         int i);
+    void d_perturbate() override;
 
 protected:
-    double ratio = 0.05;
+    const double RATIO;
+    std::size_t K;
+
+    std::vector<int> sampleCandidates();
+    void replaceCandidates(const std::vector<int>& candidates);
+    void replaceSegment(std::vector<segment>& new_sol, int i);
+    std::vector<segment> getReplacements(const segment& s);
+
+    std::vector<segment> getHorizontalCoverReplacements(const iRectangle& box);
+    std::vector<segment> getVerticalCoverReplacements(const iRectangle& box);
+
+    void setReplacementsCoverage(const std::vector<segment>& replacementSet);
+    direction getReplacementDirection(const std::vector<segment>& new_sol,
+                                      const std::vector<segment>& replacementSet);
+    void pushBackParallelTracks(std::vector<segment>& new_sol,
+                                const std::vector<segment>& replacementSet,
+                                direction firstDirection);
 };

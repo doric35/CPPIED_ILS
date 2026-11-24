@@ -32,6 +32,7 @@
 
 constexpr int MIN_INT = std::numeric_limits<int>::min();
 constexpr int MAX_INT = std::numeric_limits<int>::max();
+constexpr double EPSILON = 1e-7;
 
 #define ALGORITHM_FLAG_LIST \
     X(NONE)                 \

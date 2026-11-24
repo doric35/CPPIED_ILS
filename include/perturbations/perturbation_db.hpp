@@ -6,26 +6,23 @@ class perturbation_db : public perturbation{
 public:
     using perturbation::perturbation;
 
-    void d_perturbate(cppied_solution&) override;
-    void uniform_sample(cppied_solution&,
-                        std::vector<int>& sampling,
-                        int k);
-    int greedy_sample(cppied_solution&,
-                      std::vector<int>& candidates);
-    void top_6_sample(cppied_solution&,
-                      std::vector<int>& candidates,
-                      int ref);
-    void bridge_sample(cppied_solution&,
-                       std::vector<int>& candidates,
-                       int ref);
-    void double_bridge(cppied_solution&,
-                       std::vector<int>& selection);
-    void replace(cppied_solution&, std::vector<int>& sampling);
-    void replace_segment(cppied_solution&,
-                         std::vector<segment>& new_sol,
-                         int i);
-    cost_t gain(cppied_solution&, std::vector<int>& sampling, int i);
+    void d_perturbate() override;
 
+    static bool isValidSolutionInstance(const cppied_solution& solution){
+        bool is_valid = solution.path.size() >= 10;
+        return is_valid;
+    }
 protected:
-    double ratio = 0.05;
+
+    std::array<int, 4> getDoubleBridgeIndexes();
+    std::vector<int> uniformCandidateSample();
+    int greedyCandidateSample(std::vector<int>& candidates);
+
+    std::array<int, 6> topSixCandidates(std::vector<int>& candidates, int ref);
+    std::vector<cost_t> getDistancesToReferenceCandidate(std::vector<int>& candidates, int ref);
+    std::vector<int> getOrderedIndexes(std::vector<cost_t>& distances);
+
+    void applyDoubleBridgeMove(std::array<int, 4>& selection);
+
+    cost_t gain(std::vector<int>& sampling, int i);
 };

@@ -60,5 +60,5 @@ public:
     void set_choice(std::function<int(const std::array<sweeper::SegmentSet,2>&)> choice) {
         mChoice = std::move(choice);
     }
-    [[nodiscard]] double get_penalty() const{return mPenalty;}
+    [[nodiscard]] double get_penalty() const{ return mPenalty; }
 };

@@ -604,7 +604,7 @@ TEST_F(ils_full_fixture, LocalSearchAfterPerturbationWithCompleteResetDoesNotCra
     sol.cost = geo().cost(sol);
 
     auto local_trial = sol;
-    algorithm->perturbations(local_trial).front()->perturbate(local_trial);
+    algorithm->perturbations(local_trial).front()->perturbate();
     geo().complete(local_trial);
     cov().reset(local_trial);
     local_trial.cost = geo().cost(local_trial);
