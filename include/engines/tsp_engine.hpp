@@ -34,7 +34,9 @@ namespace tsp{
 
 class tsp_engine{
 public:
-    tsp_engine(const cppied_context& c) : ctx(c){}
+    tsp_engine(const cppied_context& c) : ctx(c){
+
+    }
     std::vector<int> lkh(Eigen::Ref<Eigen::MatrixXi> C,
                          std::vector<int>& warm_start);
     void gtsp_to_atsp(tsp::GTSPGraph& graph);
@@ -47,8 +49,10 @@ public:
     void write_instance_file(Eigen::Ref<Eigen::MatrixXi> C);
     void write_data(Eigen::Ref<Eigen::MatrixXi> C,
                          std::ofstream& problem_stream);
+    void write_lkh_params(std::ofstream& out);
     void write_initial_tour(std::vector<int>& warm_start);
     void read_solution(std::vector<int>& container);
 private:
     const cppied_context& ctx;
+    std::unordered_set<std::string> noGoods = {"PROBLEM_FILE", "INITIAL_TOUR_FILE", "OUTPUT_TOUR_FILE"};
 };

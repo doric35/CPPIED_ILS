@@ -42,13 +42,7 @@ void tsp_engine::write_configuration(std::vector<int> &warm_start) {
     config_stream << "OUTPUT_TOUR_FILE = " << sol_name.string() << "\n";
     std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock ::now();
     int elapsed_time = int(std::chrono::duration_cast<std::chrono::seconds>(now - ctx.start_time).count());
-    config_stream << "TIME_LIMIT = 10" << "\n";//<< ctx.max_time - elapsed_time << "\n";
-    config_stream << "MAX_CANDIDATES = 6" << "\n";
-    config_stream << "EXCESS = 1.0" << "\n";
-    config_stream << "RECOMBINATION = CLARIST" << "\n";
-    config_stream << "RESTRICTED_SEARCH = NO" << "\n";
-    config_stream << "INITIAL_PERIOD = 100" << "\n";
-    config_stream << "RUNS = 1\n";
+    write_lkh_params(config_stream);
     if ((ctx.max_time - elapsed_time) <= 0){
         config_stream.close();
         throw timeout_error("Did not run LKH due to time out.\n");
@@ -58,6 +52,13 @@ void tsp_engine::write_configuration(std::vector<int> &warm_start) {
         config_stream << "INITIAL_TOUR_FILE = " << tour_name.string() << "\n";
     }
     config_stream.close();
+}
+
+void tsp_engine::write_lkh_params(std::ofstream &out) {
+    for (auto& [k,v] : ctx.lkh_params) {
+        if (!noGoods.contains(k))
+            out << k << " = " << v << "\n";
+    }
 }
 
 void tsp_engine::write_instance_file(Eigen::Ref<Eigen::MatrixXi> C) {
