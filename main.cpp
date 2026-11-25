@@ -80,7 +80,11 @@ int main(int argc, char* argv[]) {
         };
         solver->set_callbacks(cb);
     }
-    std::cout << "Starting the optimization algorithm with solver " << configuration.at("SOLVER") << std::endl;
+    std::cout << "------------------------------" << std::endl;
+    std::cout << "Name : " << configuration.at("NAME") << std::endl;
+    std::cout << "Algorithm configuration : " << configuration.at("ALGORITHM_CONFIG") << std::endl;
+    std::cout << "Solver : " << configuration.at("SOLVER") << std::endl;
+    std::cout << "------------------------------" << std::endl;
     solver -> solve(solution);
 
     if (verbose_flags.count(VerboseFlag::SUMMARY))
