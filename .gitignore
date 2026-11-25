@@ -1,7 +1,7 @@
 build
 cmake-build-debug
 experiments/scratch
-experiments/scripts
+#experiments/scripts
 external/LKH**/*
 tests/**/*.txt
 !tests/configurations/*.txt
