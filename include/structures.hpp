@@ -4,15 +4,32 @@
 
 //Handle meta-data
 struct cppied_context {
-    std::unordered_map<std::string, std::string> config;
+    std::unordered_map<std::string, std::string> config, lkh_params;
     std::vector<std::string> csv_log;
     int max_time;
     std::chrono::high_resolution_clock::time_point start_time, end_time;
 
     cppied_context(std::unordered_map<std::string, std::string> p_config)
-            : config(std::move(p_config)), max_time(0)
+            : config(std::move(p_config)), lkh_params(), max_time(0)
     {
         max_time = std::stoi(config["TIME"]);
+        set_lkh_params();
+    }
+
+protected:
+    void set_lkh_params(){
+        if (!config.contains("LKH_PARAMETERS")) {
+            std::filesystem::path root(PROJECT_ROOT_DIR);
+            std::filesystem::path params_path = root / "include" / "metadata" / "lkh_parameters.txt";
+            config.insert({"LKH_PARAMETERS", params_path.string()});
+        }
+        try {
+            lkh_params = read_configuration(config.at("LKH_PARAMETERS"));
+        } catch (std::exception& e){
+            std::cerr << "Error occurred while while reading LKH parameters in file "
+                << config.at("LKH_PARAMETERS") << std::endl;
+            throw;
+        }
     }
 };
 

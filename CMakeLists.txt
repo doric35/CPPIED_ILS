@@ -40,6 +40,8 @@ target_link_libraries(cppied_lib
         PUBLIC
         ${GUROBI_LIBRARY})
 target_compile_options(cppied_lib PRIVATE ${OPT_FLAGS})
+target_compile_definitions(cppied_lib PUBLIC
+        PROJECT_ROOT_DIR="${CMAKE_SOURCE_DIR}/")
 
 #-----Build executable-----
 add_executable(CppiedEJOR main.cpp)

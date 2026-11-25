@@ -25,7 +25,13 @@ TEST_F(cppied_context_fixture, CorrectConfiguration) {
     EXPECT_EQ(ctx.config.at("WORKING_DIRECTORY"),
               std::string(PROJECT_SOURCE_DIR) + "/tests/scratch")
                         << "Invalid configuration working directory";
-    EXPECT_EQ(ctx.config.size(), 5) << "Invalid number of keys in configuration";
+    // LKH_PARAMETERS is optional and absent from the file: the context adds
+    // it with the default parameter file.
+    EXPECT_EQ(std::filesystem::path(ctx.config.at("LKH_PARAMETERS")).lexically_normal(),
+              (std::filesystem::path(PROJECT_ROOT_DIR) / "include/metadata/lkh_parameters.txt")
+                  .lexically_normal())
+                        << "Invalid default LKH parameters file";
+    EXPECT_EQ(ctx.config.size(), 6) << "Invalid number of keys in configuration";
 }
 
 TEST_F(cppied_context_fixture, DataStructureSizes) {
