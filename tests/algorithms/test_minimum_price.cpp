@@ -315,7 +315,8 @@ TEST_F(minimum_price_fixture, SolveTakesBestLineOfTheGrid) {
         auto [f, t] = endpoints(r.S);
         ASSERT_TRUE(path_engine::is_node(f));
         EXPECT_LT(std::max(f, t), g.n_vertex);
-        const bool same_line = std::any_of(allLines(g).begin(), allLines(g).end(),
+        const auto lines = allLines(g);   // one vector: begin/end must match
+        const bool same_line = std::any_of(lines.begin(), lines.end(),
             [&](auto line) { return std::min(f, t) >= line.first && std::max(f, t) <= line.second; });
         EXPECT_TRUE(same_line) << "segment {" << r.S.source << "," << r.S.target << "} spans two lines";
     }

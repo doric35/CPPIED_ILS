@@ -1195,9 +1195,8 @@ TEST_F(perturbation_db_fixture, DPerturbatePreservesAllSourceVertices) {
     EXPECT_TRUE(keeps_vertices(before, large_sol));
 }
 
-// A double bridge needs 6 candidates (topSixCandidates). With fewer, the move
-// cannot be built and d_perturbate must leave the path unchanged.
-// 3 segments → 1 interior index.
+// Below 10 segments (isValidSolutionInstance) d_perturbate leaves the path
+// unchanged. 3 segments → 1 interior index.
 TEST_F(perturbation_db_fixture, DPerturbateTinyPathIsNoOp) {
     cppied_solution small;
     small.path = {{6, 11}, {23, 18}, {44, 42}};
@@ -1268,4 +1267,464 @@ TEST_F(perturbation_db_fixture, PerturbateKeepsCoverageSatisfied) {
         p->perturbate();
         EXPECT_TRUE(cov().satisfy(sol)) << "trial " << trial;
     }
+}
+
+// ============================================================================
+// Edge cases and remaining functions
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// perturbation (base class)
+// ---------------------------------------------------------------------------
+
+// Minimal concrete perturbation: d_perturbate does nothing, so perturbate()
+// shows exactly what the base class adds (complete + reset).
+struct noop_perturbation : public perturbation {
+    using perturbation::perturbation;
+    int calls = 0;
+    void d_perturbate() override { ++calls; }
+    using perturbation::geometry;
+    using perturbation::coverage;
+};
+
+TEST_F(perturbation_base_fixture, BaseUnsupportedInterfaceThrows) {
+    noop_perturbation q(ctx, P, sol);
+    EXPECT_THROW(q.initialize(), std::runtime_error);
+    EXPECT_THROW(q.terminate(), std::runtime_error);
+    EXPECT_THROW(q.d_solve(sol), std::runtime_error);
+}
+
+TEST_F(perturbation_base_fixture, BasePerturbateCallsDPerturbateOnce) {
+    noop_perturbation q(ctx, P, sol);
+    q.perturbate();
+    EXPECT_EQ(q.calls, 1);
+}
+
+// perturbate = d_perturbate + complete + reset: on the uncompleted raw_sol it
+// must give the completed path and coverage built in the fixture.
+TEST_F(perturbation_base_fixture, BasePerturbateCompletesAndResetsCoverage) {
+    cppied_solution s = raw_sol;
+    s.coverage.setZero();
+    noop_perturbation q(ctx, P, s);
+    q.perturbate();
+    ASSERT_EQ(s.path.size(), sol.path.size());
+    for (std::size_t k = 0; k < s.path.size(); ++k) {
+        EXPECT_EQ(s.path[k].source, sol.path[k].source) << "segment " << k;
+        EXPECT_EQ(s.path[k].target, sol.path[k].target) << "segment " << k;
+    }
+    EXPECT_TRUE(s.coverage.isApprox(sol.coverage, 1e-9));
+}
+
+TEST_F(perturbation_base_fixture, BasePerturbateOnEmptyPathIsNoOp) {
+    cppied_solution s;
+    s.coverage = Eigen::VectorXd::Zero(P.req.size());
+    s.cost = {0, 0};
+    noop_perturbation q(ctx, P, s);
+    EXPECT_NO_THROW(q.perturbate());
+    EXPECT_TRUE(s.path.empty());
+    EXPECT_EQ(s.coverage.sum(), 0.0);
+}
+
+// for_each_segment visits the horizontal tracks then the vertical tracks of
+// the box, exactly as the PT replacement helpers build them.
+TEST_F(perturbation_base_fixture, ForEachSegmentMatchesCoverReplacements) {
+    noop_perturbation q(ctx, P, sol);
+    perturbation_pt_accessor pt(ctx, P, sol);
+    iRectangle box;
+    box.ul = {1, 2};
+    box.lr = {3, 4};
+    std::vector<segment> visited;
+    q.for_each_segment(box, [&](const segment& s){ visited.push_back(s); });
+
+    std::vector<segment> expected = pt.getHorizontalCoverReplacements(box);
+    std::vector<segment> v = pt.getVerticalCoverReplacements(box);
+    expected.insert(expected.end(), v.begin(), v.end());
+    ASSERT_EQ(visited.size(), expected.size());
+    for (std::size_t k = 0; k < visited.size(); ++k) {
+        EXPECT_EQ(visited[k].source, expected[k].source);
+        EXPECT_EQ(visited[k].target, expected[k].target);
+    }
+}
+
+TEST_F(perturbation_base_fixture, ForEachSegmentOnEmptyBoxVisitsNothing) {
+    noop_perturbation q(ctx, P, sol);
+    iRectangle box;  // default: ul = INT_MAX, lr = INT_MIN
+    int n = 0;
+    q.for_each_segment(box, [&](const segment&){ ++n; });
+    EXPECT_EQ(n, 0);
+}
+
+// ---------------------------------------------------------------------------
+// perturbation_ri — edge cases
+// ---------------------------------------------------------------------------
+
+// Empty path → sampleSize 0 → nothing is sampled nor inserted.
+TEST_F(perturbation_base_fixture, RiOnEmptyPathIsNoOp) {
+    cppied_solution s;
+    s.coverage = Eigen::VectorXd::Zero(P.req.size());
+    s.cost = {0, 0};
+    perturbation_ri_accessor q(ctx, P, s);
+    EXPECT_EQ(q.sampleSize, 0u);
+    EXPECT_NO_THROW(q.d_perturbate());
+    EXPECT_TRUE(s.path.empty());
+}
+
+// One segment → sampleSize ceil(0.05) = 1 → one insertion.
+TEST_F(perturbation_base_fixture, RiOnSingleSegmentPathInsertsOne) {
+    cppied_solution s;
+    s.path = {sol.path.front()};
+    s.coverage = Eigen::VectorXd::Zero(P.req.size());
+    perturbation_ri_accessor q(ctx, P, s);
+    q.coverage.reset(s);
+    s.cost = q.geometry.cost(s);
+    ASSERT_EQ(q.sampleSize, 1u);
+    q.d_perturbate();
+    EXPECT_EQ(s.path.size(), 2u);
+    EXPECT_EQ(s.cost, q.geometry.cost(s));
+}
+
+// sampleSize == 0 and sampleSize == #vertices are the two nth_element bounds.
+TEST_F(perturbation_ri_fixture, SortedCandidatesAtSampleSizeBounds) {
+    std::vector<double> w = p->getCandidateWeights();
+    for (std::size_t k : {std::size_t{0}, w.size()}) {
+        p->sampleSize = k;
+        std::vector<int> c = p->getSortedCandidates(w);
+        std::vector<int> sorted = c;
+        std::sort(sorted.begin(), sorted.end());
+        for (int v = 0; v < static_cast<int>(sorted.size()); ++v)
+            ASSERT_EQ(sorted[v], v) << "sampleSize " << k;
+    }
+}
+
+TEST_F(perturbation_ri_fixture, SetCandidateSamplingWithZeroSampleSize) {
+    p->sampleSize = 0;
+    p->insertionSample.clear();
+    p->setCandidateSampling({3, 1, 2});
+    EXPECT_TRUE(p->insertionSample.empty());
+}
+
+// The inserted segment is a single-vertex segment on the requested vertex.
+TEST_F(perturbation_ri_fixture, InsertCandidateInsertsRequestedVertex) {
+    for (int v : {0, 17, static_cast<int>(P.vertex.size()) - 1}) {
+        auto count = [&]{
+            return std::count_if(sol.path.begin(), sol.path.end(),
+                [&](const segment& s){
+                    return s.source == v && !path_engine::is_node(s.target); });
+        };
+        auto before = count();
+        segment s{v, path_engine::NULL_NODE};
+        p->insertCandidate(s);
+        EXPECT_EQ(count(), before + 1) << "vertex " << v;
+    }
+}
+
+// The incremental insertion cost must match the recomputed path cost.
+TEST_F(perturbation_ri_fixture, InsertCandidateKeepsCostConsistent) {
+    ASSERT_EQ(sol.cost, geo().cost(sol));
+    segment s{0, path_engine::NULL_NODE};
+    p->insertCandidate(s);
+    EXPECT_EQ(sol.cost, geo().cost(sol));
+}
+
+TEST_F(perturbation_ri_fixture, DPerturbateKeepsCostAndCoverageConsistent) {
+    p->d_perturbate();
+    EXPECT_EQ(sol.cost, geo().cost(sol));
+    cppied_solution check = sol;
+    cov().reset(check);
+    EXPECT_TRUE(sol.coverage.isApprox(check.coverage, 1e-9));
+}
+
+// RI only adds segments: a feasible solution stays feasible.
+TEST_F(perturbation_ri_fixture, PerturbateKeepsCoverageSatisfied) {
+    ASSERT_TRUE(cov().satisfy(sol));
+    p->perturbate();
+    EXPECT_TRUE(cov().satisfy(sol));
+}
+
+// ILS compares trial.cost right after perturbate: it must not be stale.
+TEST_F(perturbation_ri_fixture, PerturbateLeavesUpToDateCost) {
+    p->perturbate();
+    EXPECT_EQ(sol.cost, geo().cost(sol));
+}
+
+// ---------------------------------------------------------------------------
+// perturbation_pt — edge cases
+// ---------------------------------------------------------------------------
+
+TEST_F(perturbation_pt_fixture, SampleCandidatesWithZeroKIsEmpty) {
+    p->K = 0;
+    EXPECT_TRUE(p->sampleCandidates().empty());
+}
+
+// K = size-1 samples every index but 0, including the last one.
+TEST_F(perturbation_pt_fixture, SampleCandidatesWithMaximalKIsEveryIndex) {
+    p->K = sol.path.size() - 1;
+    std::vector<int> c = p->sampleCandidates();
+    ASSERT_EQ(c.size(), sol.path.size() - 1);
+    for (int k = 0; k < static_cast<int>(c.size()); ++k)
+        EXPECT_EQ(c[k], k + 1);
+}
+
+TEST_F(perturbation_pt_fixture, CoverReplacementsOfEmptyBoxAreEmpty) {
+    iRectangle box;  // what unsatisfied_rectangle gives for no cell
+    EXPECT_TRUE(p->getHorizontalCoverReplacements(box).empty());
+    EXPECT_TRUE(p->getVerticalCoverReplacements(box).empty());
+}
+
+// Boxes touching the grid border: tracks are clamped to valid vertices and
+// keep their orientation.
+TEST_F(perturbation_pt_fixture, CoverReplacementsAtGridCornersAreValidVertices) {
+    const int R = geo().n_rows, C = geo().n_cols, HB = geo().horizontal_bound;
+    const int NV = static_cast<int>(P.vertex.size());
+    std::vector<std::pair<iCoordinate, iCoordinate>> boxes = {
+        {{0, 0}, {1, 1}}, {{C - 1, R - 1}, {C, R}},
+        {{0, R - 1}, {C, R}}, {{0, 0}, {C, R}}};
+    for (auto& [ul, lr] : boxes) {
+        iRectangle box;
+        box.ul = ul;
+        box.lr = lr;
+        auto h = p->getHorizontalCoverReplacements(box);
+        auto v = p->getVerticalCoverReplacements(box);
+        EXPECT_FALSE(h.empty());
+        EXPECT_FALSE(v.empty());
+        for (auto& s : h) {
+            EXPECT_GE(s.source, 0);
+            EXPECT_LT(s.source, HB);
+            if (path_engine::is_node(s.target)) EXPECT_LT(s.target, HB);
+            EXPECT_TRUE(geo().is_horizontal(s));
+        }
+        for (auto& s : v) {
+            EXPECT_GE(s.source, HB);
+            EXPECT_LT(s.source, NV);
+            if (path_engine::is_node(s.target)) EXPECT_LT(s.target, NV);
+            EXPECT_FALSE(geo().is_horizontal(s));
+        }
+    }
+}
+
+// A 1-cell-wide box gives single-vertex tracks (target NULL_NODE).
+TEST_F(perturbation_pt_fixture, CoverReplacementsOfUnitBoxAreSingleVertex) {
+    iRectangle box;
+    box.ul = {2, 2};
+    box.lr = {3, 3};
+    for (auto& s : p->getHorizontalCoverReplacements(box))
+        EXPECT_EQ(s.target, path_engine::NULL_NODE);
+    for (auto& s : p->getVerticalCoverReplacements(box))
+        EXPECT_EQ(s.target, path_engine::NULL_NODE);
+}
+
+// Every segment of sol, wherever it lies in the grid: its replacements cover
+// all the cells its removal leaves unsatisfied.
+TEST_F(perturbation_pt_fixture, ReplacementsCoverUnsatisfiedCellsForEverySegment) {
+    for (int i = 0; i < static_cast<int>(sol.path.size()); ++i) {
+        cppied_solution s = sol;
+        perturbation_pt_accessor q(ctx, P, s);
+        q.coverage.remove(s, s.path[i]);
+        std::vector<int> unsat;
+        q.coverage.unsatisfied_cells(s, s.path[i], unsat);
+        q.setReplacementsCoverage(q.getReplacements(s.path[i]));
+        for (int c : unsat)
+            EXPECT_GE(s.coverage(c), P.req(c)) << "segment " << i << ", cell " << c;
+    }
+}
+
+// When both orientations of the first track cost the same, both directions
+// must come out (random tie-break).
+TEST_F(perturbation_pt_fixture, ReplacementDirectionTieBreaksBothWays) {
+    // Every horizontal and vertical track of the grid, of any length.
+    std::vector<segment> tracks;
+    for (int row = 0; row <= geo().n_rows; ++row)
+        for (int a = 0; a < geo().n_cols; ++a)
+            for (int b = a; b < geo().n_cols; ++b) {
+                int u = row * geo().n_cols;
+                tracks.push_back({u + a, a == b ? path_engine::NULL_NODE : u + b});
+            }
+    for (int col = 0; col <= geo().n_cols; ++col)
+        for (int a = 0; a < geo().n_rows; ++a)
+            for (int b = a; b < geo().n_rows; ++b) {
+                int u = geo().horizontal_bound + col * geo().n_rows;
+                tracks.push_back({u + a, a == b ? path_engine::NULL_NODE : u + b});
+            }
+
+    for (const segment& back : sol.path)
+        for (const segment& t : tracks) {
+            if (geo().dist(back, t) != geo().dist(back, geo().flip_segment(t)))
+                continue;
+            std::vector<segment> new_sol = {back};
+            std::set<direction> seen;
+            for (int trial = 0; trial < 200; ++trial)
+                seen.insert(p->getReplacementDirection(new_sol, {t}));
+            EXPECT_EQ(seen.size(), 2u) << "track " << t.source << "-" << t.target;
+            return;
+        }
+    GTEST_SKIP() << "no tied track found on this instance";
+}
+
+// With a strictly cheaper orientation, it is always chosen.
+TEST_F(perturbation_pt_fixture, ReplacementDirectionStrictlyCheaperIsDeterministic) {
+    std::vector<segment> new_sol = {sol.path.front()};
+    const segment& back = new_sol.back();
+    for (int row = 0; row <= geo().n_rows; ++row)
+        for (int x = 0; x + 1 < geo().n_cols; ++x) {
+            segment t{row * geo().n_cols + x, row * geo().n_cols + x + 1};
+            segment f = geo().flip_segment(t);
+            cost_t ct = geo().dist(back, t), cf = geo().dist(back, f);
+            if (ct == cf) continue;
+            direction best = geo().get_direction(cf < ct ? f : t);
+            for (int trial = 0; trial < 50; ++trial)
+                ASSERT_EQ(p->getReplacementDirection(new_sol, {t}), best);
+            return;
+        }
+    GTEST_SKIP() << "no track with distinct orientation costs";
+}
+
+TEST_F(perturbation_pt_fixture, PushBackParallelTracksWithNoTrackIsNoOp) {
+    std::vector<segment> new_sol = {sol.path[0]};
+    p->pushBackParallelTracks(new_sol, {}, direction::E);
+    EXPECT_EQ(new_sol.size(), 1u);
+}
+
+// Vertical tracks alternate S/N.
+TEST_F(perturbation_pt_fixture, PushBackParallelVerticalTracksAlternate) {
+    iRectangle box;
+    box.ul = {1, 2};
+    box.lr = {3, 5};
+    std::vector<segment> r = p->getVerticalCoverReplacements(box);
+    ASSERT_GE(r.size(), 2u);
+    std::vector<segment> new_sol;
+    p->pushBackParallelTracks(new_sol, r, direction::N);
+    for (std::size_t k = 0; k < new_sol.size(); ++k)
+        EXPECT_EQ(geo().get_direction(new_sol[k]),
+                  k % 2 == 0 ? direction::N : direction::S) << "track " << k;
+}
+
+// Replacing the last segment of the path.
+TEST_F(perturbation_pt_fixture, ReplaceCandidatesLastIndexKeepsFeasibility) {
+    p->replaceCandidates({static_cast<int>(sol.path.size()) - 1});
+    EXPECT_TRUE(coverage_consistent(sol));
+    EXPECT_TRUE(cov().satisfy(sol));
+}
+
+// Two adjacent indices: the second one still refers to the original path.
+TEST_F(perturbation_pt_fixture, ReplaceCandidatesAdjacentIndicesKeepFeasibility) {
+    p->replaceCandidates({1, 2});
+    EXPECT_TRUE(coverage_consistent(sol));
+    EXPECT_TRUE(cov().satisfy(sol));
+}
+
+// Every segment but the first replaced: path[0] stays in front and the cells
+// stay covered.
+TEST_F(perturbation_pt_fixture, ReplaceCandidatesAllIndicesKeepFeasibility) {
+    segment first = sol.path.front();
+    std::vector<int> all(sol.path.size() - 1);
+    std::iota(all.begin(), all.end(), 1);
+    p->replaceCandidates(all);
+    ASSERT_FALSE(sol.path.empty());
+    EXPECT_EQ(sol.path.front().source, first.source);
+    EXPECT_EQ(sol.path.front().target, first.target);
+    EXPECT_TRUE(coverage_consistent(sol));
+    EXPECT_TRUE(cov().satisfy(sol));
+}
+
+TEST_F(perturbation_pt_fixture, DPerturbateKeepsCoverageSatisfied) {
+    for (int trial = 0; trial < 10; ++trial) {
+        cppied_solution s = sol;
+        perturbation_pt_accessor q(ctx, P, s);
+        q.d_perturbate();
+        EXPECT_TRUE(q.coverage.satisfy(s)) << "trial " << trial;
+        EXPECT_TRUE(coverage_consistent(s)) << "trial " << trial;
+    }
+}
+
+TEST_F(perturbation_pt_fixture, DPerturbateLeavesUpToDateCost) {
+    p->d_perturbate();
+    EXPECT_EQ(sol.cost, geo().cost(sol));
+}
+
+TEST_F(perturbation_pt_fixture, PerturbateLeavesUpToDateCost) {
+    p->perturbate();
+    EXPECT_EQ(sol.cost, geo().cost(sol));
+}
+
+// Smallest path with a candidate: 2 segments, K = 1, only index 1.
+TEST_F(perturbation_base_fixture, PtOnTwoSegmentPath) {
+    cppied_solution s;
+    s.path = {raw_sol.path[0], raw_sol.path[1]};
+    s.coverage = Eigen::VectorXd::Zero(P.req.size());
+    perturbation_pt_accessor q(ctx, P, s);
+    q.coverage.reset(s);
+    s.cost = q.geometry.cost(s);
+    ASSERT_EQ(q.K, 1u);
+    EXPECT_EQ(q.sampleCandidates(), (std::vector<int>{1}));
+    EXPECT_NO_THROW(q.perturbate());
+    EXPECT_FALSE(s.path.empty());
+}
+
+// ---------------------------------------------------------------------------
+// perturbation_db — edge cases
+// ---------------------------------------------------------------------------
+
+TEST_F(perturbation_db_fixture, IsValidSolutionInstanceRejectsEmptyPath) {
+    cppied_solution s;
+    EXPECT_FALSE(perturbation_db::isValidSolutionInstance(s));
+}
+
+// With a single sampled index, no other index to join: gain keeps its
+// sentinel and the greedy choice is that index.
+TEST_F(perturbation_db_fixture, GainAndGreedyWithSingleCandidate) {
+    std::vector<int> c = {5};
+    cost_t g = pl->gain(c, 5);
+    EXPECT_EQ(g.length, std::numeric_limits<int>::max());
+    EXPECT_EQ(g.turns, std::numeric_limits<int>::max());
+    EXPECT_EQ(pl->greedyCandidateSample(c), 5);
+}
+
+TEST_F(perturbation_db_fixture, OrderedIndexesOfEmptyIsEmpty) {
+    std::vector<cost_t> d;
+    EXPECT_TRUE(pl->getOrderedIndexes(d).empty());
+}
+
+// Fewer than 6 candidates: the first entries are the candidates (ref first),
+// the rest is zero-padded.
+TEST_F(perturbation_db_fixture, TopSixWithFourCandidatesIsZeroPadded) {
+    cppied_solution s = single_vertex_path(10);
+    perturbation_db_accessor q(ctx, P, s);
+    std::vector<int> c = {1, 3, 5, 7};
+    std::array<int, 6> t = q.topSixCandidates(c, 5);
+    EXPECT_EQ(t[0], 5);
+    EXPECT_EQ(std::set<int>(t.begin(), t.begin() + 4), (std::set<int>{1, 3, 5, 7}));
+    EXPECT_EQ(t[4], 0);
+    EXPECT_EQ(t[5], 0);
+}
+
+// Tightest cuts on the smallest valid path, including the last cut right
+// before the final segment.
+TEST_F(perturbation_db_fixture, ApplyDoubleBridgeMoveTightestCuts) {
+    for (std::array<int, 4> cuts : {std::array<int, 4>{1, 3, 5, 7},
+                                    std::array<int, 4>{2, 4, 6, 8}}) {
+        cppied_solution s = single_vertex_path(10);
+        perturbation_db_accessor q(ctx, P, s);
+        std::set<int> before = source_set(s);
+        q.applyDoubleBridgeMove(cuts);
+        EXPECT_TRUE(keeps_vertices(before, s)) << "cuts " << cuts[0];
+        EXPECT_EQ(s.cost, q.geometry.cost(s)) << "cuts " << cuts[0];
+        EXPECT_EQ(s.path.front().source, 0);
+    }
+}
+
+// On a real (completed) solution the move keeps every visited vertex, so the
+// coverage after reset is still satisfied.
+TEST_F(perturbation_db_fixture, ApplyDoubleBridgeMoveOnCompletedSolution) {
+    ASSERT_GE(sol.path.size(), 12u);
+    std::set<int> before = node_set(sol);
+    std::array<int, 4> cuts = {1, 5, 7, 11};
+    p->applyDoubleBridgeMove(cuts);
+    EXPECT_TRUE(keeps_vertices(before, sol));
+    cov().reset(sol);
+    EXPECT_TRUE(cov().satisfy(sol));
+}
+
+TEST_F(perturbation_db_fixture, PerturbateLeavesUpToDateCost) {
+    p->perturbate();
+    EXPECT_EQ(sol.cost, geo().cost(sol));
 }
